@@ -1,0 +1,189 @@
+// ─── Tipos enriquecidos del módulo Tareas ────────────────────────────────────
+import type {
+  TaskType,
+  TaskStatus,
+  TaskPriority,
+  FinancialStatus,
+  Currency,
+  PaymentMethod,
+} from '@/shared/types'
+
+// ─── Entidad principal: Task ──────────────────────────────────────────────────
+
+export interface Task {
+  id: string
+  code: string
+  branch_id: string
+  task_type: TaskType
+  title: string
+  description: string
+  scheduled_date: string          // YYYY-MM-DD
+  scheduled_start_time: string | null
+  scheduled_deadline: string | null
+  priority: TaskPriority
+  status: TaskStatus
+  financial_status: FinancialStatus
+  route_order: number | null
+  // Contacto
+  contact_name: string | null
+  company_name: string | null
+  phone: string | null
+  whatsapp: string | null
+  address: string | null
+  address_reference: string | null
+  maps_url: string | null
+  latitude: number | null
+  longitude: number | null
+  // Gestión
+  provider_name: string | null
+  institution_name: string | null
+  destination_contact: string | null
+  management_description: string | null
+  // Financiero
+  requires_collection: boolean
+  expected_collection_amount: number | null
+  expected_collection_currency: Currency | null
+  expected_payment_method: PaymentMethod | null
+  requires_payment: boolean
+  expected_payment_amount: number | null
+  expected_payment_currency: Currency | null
+  // Control
+  assigned_courier_id: string | null
+  created_by: string
+  updated_by: string | null
+  completed_at: string | null
+  cancelled_at: string | null
+  cancellation_reason: string | null
+  rescheduled_from_task_id: string | null
+  notes: string | null
+  metadata: Record<string, unknown> | null
+  created_at: string
+  updated_at: string
+  deleted_at: string | null
+  deleted_by: string | null
+}
+
+// ─── Tarea con datos del motorizado ──────────────────────────────────────────
+
+export interface CourierSummary {
+  id: string
+  full_name: string
+  display_name: string | null
+  phone: string | null
+  avatar_url: string | null
+}
+
+export interface TaskWithCourier extends Task {
+  courier: CourierSummary | null
+  created_by_profile: { full_name: string } | null
+}
+
+// ─── Filtros de listado ───────────────────────────────────────────────────────
+
+export interface TaskFilters {
+  branch_id?: string
+  date?: string                   // YYYY-MM-DD (scheduled_date)
+  date_from?: string
+  date_to?: string
+  status?: TaskStatus | ''
+  task_type?: TaskType | ''
+  priority?: TaskPriority | ''
+  courier_id?: string | ''
+  search?: string                 // busca en title, code, contact_name
+  page?: number
+  page_size?: number
+}
+
+// ─── Historial de asignaciones ───────────────────────────────────────────────
+
+export interface TaskAssignment {
+  id: string
+  task_id: string
+  courier_id: string
+  assigned_by: string
+  unassigned_at: string | null
+  unassigned_by: string | null
+  reason: string | null
+  created_at: string
+  courier?: CourierSummary
+  assigned_by_profile?: { full_name: string }
+}
+
+// ─── Historial de estados ─────────────────────────────────────────────────────
+
+export interface TaskStatusHistory {
+  id: string
+  task_id: string
+  from_status: TaskStatus | null
+  to_status: TaskStatus
+  changed_by: string
+  notes: string | null
+  created_at: string
+  changed_by_profile?: { full_name: string }
+}
+
+// ─── Payload para crear tarea ─────────────────────────────────────────────────
+
+export interface CreateTaskPayload {
+  branch_id: string
+  task_type: TaskType
+  title: string
+  description: string
+  scheduled_date: string
+  scheduled_start_time?: string | null
+  scheduled_deadline?: string | null
+  priority?: TaskPriority
+  contact_name?: string | null
+  company_name?: string | null
+  phone?: string | null
+  whatsapp?: string | null
+  address?: string | null
+  address_reference?: string | null
+  maps_url?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  provider_name?: string | null
+  institution_name?: string | null
+  destination_contact?: string | null
+  management_description?: string | null
+  requires_collection?: boolean
+  expected_collection_amount?: number | null
+  expected_collection_currency?: Currency | null
+  expected_payment_method?: PaymentMethod | null
+  requires_payment?: boolean
+  expected_payment_amount?: number | null
+  expected_payment_currency?: Currency | null
+  notes?: string | null
+  assigned_courier_id?: string | null
+}
+
+// ─── Payload para actualizar tarea ───────────────────────────────────────────
+
+export type UpdateTaskPayload = Partial<Omit<CreateTaskPayload, 'branch_id' | 'task_type'>>
+
+// ─── Payload para asignar motorizado ─────────────────────────────────────────
+
+export interface AssignCourierPayload {
+  task_id: string
+  courier_id: string | null
+  reason?: string
+}
+
+// ─── Payload para cambiar estado ──────────────────────────────────────────────
+
+export interface ChangeStatusPayload {
+  task_id: string
+  new_status: TaskStatus
+  notes?: string
+  cancellation_reason?: string
+}
+
+// ─── Resultado paginado ───────────────────────────────────────────────────────
+
+export interface PaginatedTasks {
+  data: TaskWithCourier[]
+  count: number
+  page: number
+  page_size: number
+  total_pages: number
+}
