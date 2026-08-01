@@ -20,7 +20,6 @@ export default function SettingsPage() {
   const [isSavingProfile, setIsSavingProfile] = useState(false)
   const [profileSaved, setProfileSaved] = useState(false)
 
-  const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPw, setShowPw] = useState(false)
@@ -60,7 +59,6 @@ export default function SettingsPage() {
       const { error } = await supabase.auth.updateUser({ password: newPassword })
       if (error) throw error
       setPwSaved(true)
-      setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
       setTimeout(() => setPwSaved(false), 3000)

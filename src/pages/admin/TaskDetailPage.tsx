@@ -14,7 +14,6 @@ import {
   Building,
   DollarSign,
   Calendar,
-  Clock,
   User,
   AlertCircle,
 } from 'lucide-react'

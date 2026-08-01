@@ -1,4 +1,4 @@
-import { Search, Filter, X, Calendar } from 'lucide-react'
+import { Search, X, Calendar } from 'lucide-react'
 import type { TaskFilters as FilterType } from '../types/task.types'
 import { TASK_STATUS_LABELS, TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/shared/types'
 import type { TaskStatus, TaskType, TaskPriority } from '@/shared/types'

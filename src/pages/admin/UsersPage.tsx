@@ -6,6 +6,7 @@ import {
   Filter,
   Edit3,
   Power,
+  Trash2,
   Loader2,
   ShieldCheck,
   Shield,
@@ -13,6 +14,7 @@ import {
 } from 'lucide-react'
 import { useUsers, useUserMutations } from '@/modules/users/hooks/useUsers'
 import { UserFormModal } from '@/modules/users/components/UserFormModal'
+import { DeleteUserConfirmModal } from '@/modules/users/components/DeleteUserConfirmModal'
 import { useBranches } from '@/modules/branches/hooks/useBranches'
 import type { UserProfileExtended, UserFilters } from '@/modules/users/types/users.types'
 import type { UserRole } from '@/shared/types'
@@ -36,14 +38,22 @@ const ROLE_BADGE: Record<UserRole, { label: string; class: string; icon: React.R
   },
 }
 
+import { useAuth } from '@/modules/auth/AuthContext'
+
 export default function UsersPage() {
+  const { user: currentUser } = useAuth()
   const [filters, setFilters] = useState<UserFilters>({ search: '', role: '', is_active: '' })
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [userToEdit, setUserToEdit] = useState<UserProfileExtended | null>(null)
+  const [togglingUserId, setTogglingUserId] = useState<string | null>(null)
+
+  const [userToDelete, setUserToDelete] = useState<UserProfileExtended | null>(null)
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false)
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null)
 
   const { data: users = [], isLoading } = useUsers(filters)
   const { data: branches = [] } = useBranches()
-  const { toggleUserStatus, isToggling } = useUserMutations()
+  const { toggleUserStatus, isToggling, deleteUser, isDeleting } = useUserMutations()
 
   const branchMap = useMemo(
     () => Object.fromEntries(branches.map((b) => [b.id, b])),
@@ -61,8 +71,46 @@ export default function UsersPage() {
   }
 
   const handleToggleStatus = async (user: UserProfileExtended) => {
-    if (!window.confirm(`¿${user.is_active ? 'Desactivar' : 'Activar'} al usuario "${user.full_name}"?`)) return
-    await toggleUserStatus({ id: user.id, isActive: !user.is_active })
+    if (user.id === currentUser?.id) {
+      alert('No puedes inactivar tu propia cuenta de Administrador General.')
+      return
+    }
+
+    const actionText = user.is_active ? 'Inactivar' : 'Activar'
+    if (!window.confirm(`¿Estás seguro de que deseas ${actionText.toLowerCase()} al usuario "${user.full_name}"?`)) return
+
+    setTogglingUserId(user.id)
+    try {
+      await toggleUserStatus({ id: user.id, isActive: !user.is_active })
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al cambiar estado del usuario.')
+    } finally {
+      setTogglingUserId(null)
+    }
+  }
+
+  const handleOpenDeleteModal = (user: UserProfileExtended) => {
+    if (user.id === currentUser?.id) {
+      alert('No puedes eliminar tu propia cuenta de Administrador General.')
+      return
+    }
+    setUserToDelete(user)
+    setIsDeleteModalOpen(true)
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!userToDelete) return
+    setDeletingUserId(userToDelete.id)
+    try {
+      await deleteUser(userToDelete.id)
+      alert(`El usuario "${userToDelete.full_name}" fue eliminado exitosamente.`)
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Error al eliminar usuario.')
+    } finally {
+      setDeletingUserId(null)
+      setUserToDelete(null)
+      setIsDeleteModalOpen(false)
+    }
   }
 
   return (
@@ -206,15 +254,47 @@ export default function UsersPage() {
                           </button>
                           <button
                             onClick={() => handleToggleStatus(user)}
-                            disabled={isToggling}
-                            className={`p-1.5 rounded-lg transition cursor-pointer ${
-                              user.is_active
-                                ? 'text-foreground-muted hover:text-destructive hover:bg-destructive/10'
-                                : 'text-foreground-muted hover:text-emerald-600 hover:bg-emerald-500/10'
+                            disabled={isToggling || togglingUserId === user.id || user.id === currentUser?.id}
+                            className={`p-1.5 rounded-lg transition ${
+                              user.id === currentUser?.id
+                                ? 'opacity-40 cursor-not-allowed text-foreground-subtle'
+                                : user.is_active
+                                ? 'text-foreground-muted hover:text-amber-600 hover:bg-amber-500/10 cursor-pointer'
+                                : 'text-foreground-muted hover:text-emerald-600 hover:bg-emerald-500/10 cursor-pointer'
                             }`}
-                            title={user.is_active ? 'Desactivar' : 'Activar'}
+                            title={
+                              user.id === currentUser?.id
+                                ? 'No puedes inactivar tu propia cuenta'
+                                : user.is_active
+                                ? 'Inactivar usuario'
+                                : 'Activar usuario'
+                            }
                           >
-                            <Power className="h-4 w-4" />
+                            {togglingUserId === user.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-accent" />
+                            ) : (
+                              <Power className="h-4 w-4" />
+                            )}
+                          </button>
+                          <button
+                            onClick={() => handleOpenDeleteModal(user)}
+                            disabled={isDeleting || deletingUserId === user.id || user.id === currentUser?.id}
+                            className={`p-1.5 rounded-lg transition ${
+                              user.id === currentUser?.id
+                                ? 'opacity-40 cursor-not-allowed text-foreground-subtle'
+                                : 'text-foreground-muted hover:text-rose-600 hover:bg-rose-500/10 cursor-pointer'
+                            }`}
+                            title={
+                              user.id === currentUser?.id
+                                ? 'No puedes eliminar tu propia cuenta'
+                                : 'Eliminar usuario'
+                            }
+                          >
+                            {deletingUserId === user.id ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-rose-500" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
                           </button>
                         </div>
                       </td>
@@ -235,6 +315,17 @@ export default function UsersPage() {
           setIsModalOpen(false)
           setUserToEdit(null)
         }}
+      />
+
+      <DeleteUserConfirmModal
+        isOpen={isDeleteModalOpen}
+        user={userToDelete}
+        isDeleting={isDeleting || deletingUserId === userToDelete?.id}
+        onClose={() => {
+          setIsDeleteModalOpen(false)
+          setUserToDelete(null)
+        }}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   )

@@ -49,6 +49,7 @@ export async function startWorkday(payload: StartWorkdayPayload): Promise<Workda
 
   const insertData = {
     courier_id: userId,
+    opened_by: userId,
     branch_id: payload.branch_id,
     work_date: todayStr,
     status: 'open',

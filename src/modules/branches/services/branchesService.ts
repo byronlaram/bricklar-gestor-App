@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/lib/supabaseClient'
+import type { Database } from '@/shared/lib/database.types'
 import type { Branch, CreateBranchPayload, UpdateBranchPayload } from '../types/branches.types'
 
 export async function getBranches(): Promise<Branch[]> {
@@ -39,7 +40,7 @@ export async function createBranch(payload: CreateBranchPayload): Promise<Branch
 }
 
 export async function updateBranch(id: string, payload: UpdateBranchPayload): Promise<Branch> {
-  const updateData: Record<string, unknown> = {}
+  const updateData: Database['public']['Tables']['branches']['Update'] = {}
   if (payload.name !== undefined) updateData.name = payload.name
   if (payload.code !== undefined) updateData.code = payload.code.toUpperCase()
   if (payload.address !== undefined) updateData.address = payload.address

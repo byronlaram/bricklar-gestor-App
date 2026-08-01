@@ -12,7 +12,7 @@ import { cn } from '@/shared/utils/cn'
 const loginSchema = z.object({
   email: z.string().email('Correo electrónico inválido'),
   password: z.string().min(1, 'La contraseña es requerida'),
-  remember: z.boolean().default(false),
+  remember: z.boolean(),
 })
 
 type LoginInput = z.infer<typeof loginSchema>
@@ -30,7 +30,7 @@ export default function LoginPage() {
     formState: { errors, isSubmitting },
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { remember: false },
+    defaultValues: { email: '', password: '', remember: false },
   })
 
   const onSubmit = async (data: LoginInput) => {

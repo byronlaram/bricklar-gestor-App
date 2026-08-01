@@ -1,12 +1,11 @@
 import { useEffect } from 'react'
-import { useForm } from 'react-hook-form'
+import { useForm, type Resolver } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { X, Plus, Edit3, Loader2, MapPin, DollarSign, User, FileText } from 'lucide-react'
+import { X, Plus, Edit3, Loader2, DollarSign, User } from 'lucide-react'
 import { taskBaseSchema, type TaskBaseInput } from '@/shared/validations/schemas'
 import type { TaskWithCourier } from '../types/task.types'
 import { useTaskMutations } from '../hooks/useTaskMutations'
-import { useCouriers } from '../hooks/useCouriers'
-import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/shared/types'
+import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS, type PaymentMethod } from '@/shared/types'
 
 interface TaskFormModalProps {
   taskToEdit?: TaskWithCourier | null
@@ -18,7 +17,6 @@ interface TaskFormModalProps {
 export function TaskFormModal({ taskToEdit, branchId, isOpen, onClose }: TaskFormModalProps) {
   const isEditing = !!taskToEdit
   const { createTask, updateTask, isCreating, isUpdating } = useTaskMutations()
-  const { data: couriers = [] } = useCouriers(branchId)
 
   const todayStr = new Date().toISOString().split('T')[0]
 
@@ -27,10 +25,9 @@ export function TaskFormModal({ taskToEdit, branchId, isOpen, onClose }: TaskFor
     handleSubmit,
     reset,
     watch,
-    setValue,
     formState: { errors },
   } = useForm<TaskBaseInput>({
-    resolver: zodResolver(taskBaseSchema),
+    resolver: zodResolver(taskBaseSchema) as Resolver<TaskBaseInput>,
     defaultValues: {
       task_type: 'delivery',
       title: '',
@@ -122,6 +119,7 @@ export function TaskFormModal({ taskToEdit, branchId, isOpen, onClose }: TaskFor
             ...data,
             scheduled_start_time: data.scheduled_start_time || null,
             scheduled_deadline: data.scheduled_deadline || null,
+            expected_payment_method: (data.expected_payment_method as PaymentMethod | null) || null,
           },
         })
       } else {
@@ -130,6 +128,7 @@ export function TaskFormModal({ taskToEdit, branchId, isOpen, onClose }: TaskFor
           branch_id: branchId,
           scheduled_start_time: data.scheduled_start_time || null,
           scheduled_deadline: data.scheduled_deadline || null,
+          expected_payment_method: (data.expected_payment_method as PaymentMethod | null) || null,
         })
       }
       onClose()

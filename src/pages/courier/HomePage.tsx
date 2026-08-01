@@ -3,17 +3,12 @@ import { useNavigate } from 'react-router-dom'
 import {
   Play,
   CheckCircle2,
-  Clock,
-  Navigation,
   Banknote,
   Gauge,
   ArrowRight,
   Loader2,
   ChevronRight,
-  Phone,
-  MessageCircle,
   MapPin,
-  AlertCircle,
   StopCircle,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/AuthContext'

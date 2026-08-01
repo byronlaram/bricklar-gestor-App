@@ -10,21 +10,18 @@ import {
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
-import { useAuth } from '@/modules/auth/AuthContext'
 
 interface AuditEntry {
   id: string
-  user_id: string
-  user_name: string | null
+  actor_user_id: string | null
+  actor_email: string | null
   action: string
-  entity_type: string
-  entity_id: string | null
-  details: Record<string, unknown> | null
+  entity_code: string | null
+  changes: Record<string, unknown> | null
   created_at: string
 }
 
 async function fetchAuditLog(
-  branchIds: string[],
   from: string,
   to: string,
   search: string
@@ -37,13 +34,8 @@ async function fetchAuditLog(
     .order('created_at', { ascending: false })
     .limit(200)
 
-  if (branchIds.length > 0) {
-    // Filtro opcional por branch si el campo existe
-    // query = query.in('branch_id', branchIds)
-  }
-
   if (search) {
-    query = query.or(`action.ilike.%${search}%,entity_type.ilike.%${search}%,user_name.ilike.%${search}%`)
+    query = query.or(`action.ilike.%${search}%,entity_code.ilike.%${search}%,actor_email.ilike.%${search}%`)
   }
 
   const { data, error } = await query
@@ -54,7 +46,15 @@ async function fetchAuditLog(
     return []
   }
 
-  return (data ?? []) as AuditEntry[]
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    actor_user_id: row.actor_user_id,
+    actor_email: row.actor_email,
+    action: row.action,
+    entity_code: row.entity_code,
+    changes: (row.changes as Record<string, unknown>) ?? null,
+    created_at: row.created_at,
+  }))
 }
 
 const ACTION_COLORS: Record<string, string> = {
@@ -67,17 +67,14 @@ const ACTION_COLORS: Record<string, string> = {
 }
 
 export default function AuditPage() {
-  const { profile } = useAuth()
-  const branchIds = profile?.branch_ids ?? []
-
   const todayStr = new Date().toISOString().split('T')[0]
   const [from, setFrom] = useState(todayStr)
   const [to, setTo] = useState(todayStr)
   const [search, setSearch] = useState('')
 
   const { data: entries = [], isLoading } = useQuery({
-    queryKey: ['audit', from, to, search, branchIds],
-    queryFn: () => fetchAuditLog(branchIds, from, to, search),
+    queryKey: ['audit', from, to, search],
+    queryFn: () => fetchAuditLog(from, to, search),
     staleTime: 1000 * 30,
   })
 
@@ -179,23 +176,18 @@ export default function AuditPage() {
                   <div className="flex-1 min-w-0 space-y-0.5">
                     <div className="flex items-center gap-2">
                       <p className="text-xs font-semibold text-foreground truncate">
-                        {entry.entity_type ?? '—'}
-                        {entry.entity_id && (
-                          <span className="font-mono text-foreground-subtle ml-1 text-[10px]">
-                            #{entry.entity_id.slice(0, 8)}
-                          </span>
-                        )}
+                        {entry.entity_code ?? '—'}
                       </p>
                     </div>
-                    {entry.details && (
+                    {entry.changes && (
                       <p className="text-[11px] text-foreground-muted line-clamp-1">
-                        {JSON.stringify(entry.details)}
+                        {JSON.stringify(entry.changes)}
                       </p>
                     )}
                     <div className="flex items-center gap-3 text-[11px] text-foreground-subtle">
                       <span className="flex items-center gap-1">
                         <User className="h-3 w-3" />
-                        {entry.user_name ?? entry.user_id?.slice(0, 8) ?? 'Sistema'}
+                        {entry.actor_email ?? entry.actor_user_id?.slice(0, 8) ?? 'Sistema'}
                       </span>
                       <span>{formatDate(entry.created_at)}</span>
                     </div>

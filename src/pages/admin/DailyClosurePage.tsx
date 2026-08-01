@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
   Calendar,
-  Building,
   DollarSign,
   CreditCard,
   Receipt,

@@ -7,12 +7,12 @@ export const uuidSchema = z.string().uuid('ID inválido')
 
 /** Moneda válida */
 export const currencySchema = z.enum(['NIO', 'USD'], {
-  errorMap: () => ({ message: 'Moneda debe ser NIO o USD' }),
+  message: 'Moneda debe ser NIO o USD',
 })
 
 /** Monto positivo con hasta 2 decimales */
 export const positiveAmountSchema = z
-  .number({ invalid_type_error: 'Debe ser un número' })
+  .number({ message: 'Debe ser un número' })
   .positive('El monto debe ser mayor que cero')
   .multipleOf(0.01, 'Máximo 2 decimales')
 
@@ -26,7 +26,7 @@ export const optionalAmountSchema = z
 
 /** Tipo de cambio positivo */
 export const exchangeRateSchema = z
-  .number({ invalid_type_error: 'Debe ser un número' })
+  .number({ message: 'Debe ser un número' })
   .positive('El tipo de cambio debe ser mayor que cero')
   .multipleOf(0.0001)
 
@@ -92,7 +92,7 @@ export const taskBaseSchema = z.object({
   task_type: z.enum([
     'delivery', 'bus_shipment', 'logistics_shipment', 'purchase',
     'bank_deposit', 'credit_payment', 'service_payment', 'fuel', 'other_errand',
-  ], { errorMap: () => ({ message: 'Tipo de tarea requerido' }) }),
+  ], { message: 'Tipo de tarea requerido' }),
   title: z.string().min(3, 'El título debe tener al menos 3 caracteres').max(200),
   description: z.string().min(5, 'La descripción es obligatoria').max(2000),
   scheduled_date: dateSchema,

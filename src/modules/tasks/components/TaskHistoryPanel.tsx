@@ -1,6 +1,6 @@
 import type { TaskStatusHistory, TaskAssignment } from '../types/task.types'
 import { TaskStatusBadge } from './TaskStatusBadge'
-import { Clock, User, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { Clock, User, ArrowRight } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 

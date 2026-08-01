@@ -6,13 +6,9 @@ import {
   Phone,
   MessageSquare,
   CheckCircle2,
-  Clock,
   ChevronRight,
   Loader2,
-  AlertCircle,
-  ExternalLink,
   Bike,
-  Building,
   User,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/AuthContext'

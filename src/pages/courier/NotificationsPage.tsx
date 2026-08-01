@@ -35,19 +35,30 @@ async function fetchNotifications(userId: string): Promise<Notification[]> {
     return []
   }
 
-  return (data ?? []) as Notification[]
+  return (data ?? []).map((n) => ({
+    id: n.id,
+    user_id: n.user_id,
+    title: n.title,
+    body: n.body,
+    type: (n.type as Notification['type']) || 'info',
+    is_read: !!n.read_at,
+    created_at: n.created_at,
+  }))
 }
 
 async function markAllRead(userId: string): Promise<void> {
   await supabase
     .from('notifications')
-    .update({ is_read: true })
+    .update({ read_at: new Date().toISOString() })
     .eq('user_id', userId)
-    .eq('is_read', false)
+    .is('read_at', null)
 }
 
 async function markOneRead(id: string): Promise<void> {
-  await supabase.from('notifications').update({ is_read: true }).eq('id', id)
+  await supabase
+    .from('notifications')
+    .update({ read_at: new Date().toISOString() })
+    .eq('id', id)
 }
 
 const TYPE_CONFIG: Record<

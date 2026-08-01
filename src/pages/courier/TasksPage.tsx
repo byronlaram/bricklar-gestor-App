@@ -5,7 +5,6 @@ import {
   Phone,
   MessageCircle,
   MapPin,
-  ExternalLink,
   Navigation,
   CheckCircle2,
   Loader2,
@@ -18,7 +17,6 @@ import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
 import type { TaskWithCourier } from '@/modules/tasks/types/task.types'
 import { TaskStatusBadge } from '@/modules/tasks/components/TaskStatusBadge'
-import { TaskPriorityBadge } from '@/modules/tasks/components/TaskPriorityBadge'
 import { TaskTypeBadge } from '@/modules/tasks/components/TaskTypeBadge'
 import { CompleteTaskModal } from '@/modules/courier/components/CompleteTaskModal'
 

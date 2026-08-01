@@ -20,12 +20,14 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor: ['react', 'react-dom'],
-          router: ['react-router-dom'],
-          query: ['@tanstack/react-query'],
-          supabase: ['@supabase/supabase-js'],
-          dnd: ['@dnd-kit/core', '@dnd-kit/sortable', '@dnd-kit/utilities'],
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('react/') || id.includes('react-dom/')) return 'vendor';
+            if (id.includes('react-router')) return 'router';
+            if (id.includes('@tanstack/react-query')) return 'query';
+            if (id.includes('@supabase/supabase-js')) return 'supabase';
+            if (id.includes('@dnd-kit')) return 'dnd';
+          }
         },
       },
     },

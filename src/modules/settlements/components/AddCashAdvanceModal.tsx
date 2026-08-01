@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Banknote, Plus, Loader2, DollarSign, User } from 'lucide-react'
+import { X, Banknote, Plus, Loader2 } from 'lucide-react'
 import { useSettlementMutations } from '../hooks/useSettlements'
 import { useCouriers } from '@/modules/tasks/hooks/useCouriers'
 import { supabase } from '@/shared/lib/supabaseClient'
@@ -82,6 +82,7 @@ export function AddCashAdvanceModal({
             .from('workdays')
             .insert({
               courier_id: targetCourierId,
+              opened_by: targetCourierId,
               branch_id: branchId,
               work_date: targetDate,
               status: 'open',

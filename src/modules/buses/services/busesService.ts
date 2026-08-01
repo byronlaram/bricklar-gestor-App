@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/lib/supabaseClient'
+import type { Database } from '@/shared/lib/database.types'
 import type { BusRoute, CreateBusRoutePayload, UpdateBusRoutePayload } from '../types/buses.types'
 
 export async function getBusRoutes(): Promise<BusRoute[]> {
@@ -39,7 +40,7 @@ export async function createBusRoute(payload: CreateBusRoutePayload): Promise<Bu
 }
 
 export async function updateBusRoute(id: string, payload: UpdateBusRoutePayload): Promise<BusRoute> {
-  const updateData: Record<string, unknown> = {}
+  const updateData: Database['public']['Tables']['bus_routes']['Update'] = {}
   if (payload.cooperative_name !== undefined) updateData.cooperative_name = payload.cooperative_name
   if (payload.origin_terminal !== undefined) updateData.origin_terminal = payload.origin_terminal
   if (payload.destination_city !== undefined) updateData.destination_city = payload.destination_city

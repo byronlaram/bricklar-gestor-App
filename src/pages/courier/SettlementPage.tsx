@@ -9,7 +9,6 @@ import {
   CreditCard,
   Receipt,
   AlertCircle,
-  Building,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/AuthContext'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'

@@ -3,6 +3,7 @@
 // Ninguna lógica financiera crítica ocurre aquí; solo lectura/escritura.
 
 import { supabase } from '@/shared/lib/supabaseClient'
+import type { Database } from '@/shared/lib/database.types'
 import type {
   Task,
   TaskWithCourier,
@@ -330,7 +331,7 @@ export async function changeTaskStatus(payload: ChangeStatusPayload): Promise<Ta
   }
 
   // Preparar actualización
-  const updatePayload: Record<string, unknown> = {
+  const updatePayload: Database['public']['Tables']['tasks']['Update'] = {
     status: new_status,
     updated_by: userId,
     updated_at: new Date().toISOString(),

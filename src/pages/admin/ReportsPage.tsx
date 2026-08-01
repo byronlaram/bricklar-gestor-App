@@ -47,40 +47,40 @@ async function fetchReportData(
   if (type === 'tasks') {
     const { data } = await supabase
       .from('tasks')
-      .select(`id, consecutive_number, title, task_type, status, priority,
-        amount_to_collect, amount_to_pay, created_at,
-        assignee:profiles!tasks_assignee_id_fkey(full_name)`)
+      .select(`id, code, title, task_type, status, priority,
+        expected_collection_amount, expected_payment_amount, created_at,
+        courier:profiles!tasks_assigned_courier_id_fkey(full_name)`)
       .in('branch_id', branchIds)
       .gte('created_at', `${from}T00:00:00`)
       .lte('created_at', `${to}T23:59:59`)
       .order('created_at', { ascending: false })
-    return data ?? []
+    return (data ?? []) as unknown as Record<string, unknown>[]
   }
 
   if (type === 'settlements') {
     const { data } = await supabase
       .from('settlements')
-      .select(`id, submitted_at, status,
-        total_cash_collected, total_transfer_collected, total_expenses,
-        cash_in_hand, discrepancy,
+      .select(`id, created_at, status,
+        actual_cash, actual_transfers, total_expenses,
+        expected_cash, difference,
         courier:profiles!settlements_courier_id_fkey(full_name)`)
       .in('branch_id', branchIds)
-      .gte('submitted_at', `${from}T00:00:00`)
-      .lte('submitted_at', `${to}T23:59:59`)
-      .order('submitted_at', { ascending: false })
-    return data ?? []
+      .gte('created_at', `${from}T00:00:00`)
+      .lte('created_at', `${to}T23:59:59`)
+      .order('created_at', { ascending: false })
+    return (data ?? []) as unknown as Record<string, unknown>[]
   }
 
   if (type === 'workdays') {
     const { data } = await supabase
       .from('workdays')
-      .select(`id, date, status, fund_amount, notes,
+      .select(`id, work_date, status, initial_cash, notes,
         courier:profiles!workdays_courier_id_fkey(full_name)`)
       .in('branch_id', branchIds)
-      .gte('date', from)
-      .lte('date', to)
-      .order('date', { ascending: false })
-    return data ?? []
+      .gte('work_date', from)
+      .lte('work_date', to)
+      .order('work_date', { ascending: false })
+    return (data ?? []) as unknown as Record<string, unknown>[]
   }
 
   return []

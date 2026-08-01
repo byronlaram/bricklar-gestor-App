@@ -7,12 +7,9 @@ import {
   MessageCircle,
   MapPin,
   Navigation,
-  ExternalLink,
-  DollarSign,
   CheckCircle2,
   Play,
   AlertCircle,
-  FileText,
 } from 'lucide-react'
 import { useTask } from '@/modules/tasks/hooks/useTask'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
@@ -25,7 +22,7 @@ export default function CourierTaskDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
-  const { task, isLoading, isError, error } = useTask(id)
+  const { task, isLoading, isError } = useTask(id)
   const { changeStatus, isChangingStatus } = useTaskMutations()
 
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false)

@@ -7,10 +7,7 @@ import {
   Loader2,
   CheckCircle2,
   Play,
-  User,
   ListFilter,
-  Search,
-  Plus,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/AuthContext'
 import { useWorkdays } from '@/modules/workdays/hooks/useWorkday'
@@ -21,7 +18,6 @@ import { AddCashAdvanceModal } from '@/modules/settlements/components/AddCashAdv
 export default function AdminWorkdaysPage() {
   const { profile } = useAuth()
   const defaultBranchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
-  const todayStr = new Date().toISOString().split('T')[0]
 
   const [filters, setFilters] = useState<WorkdayFilters>({
     branch_id: defaultBranchId,

@@ -1,14 +1,10 @@
 import { useState } from 'react'
 import {
-  Banknote,
   Plus,
   Fuel,
   ShoppingCart,
   Receipt,
   Loader2,
-  DollarSign,
-  ArrowUpRight,
-  ArrowDownLeft,
   Wallet,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/AuthContext'
@@ -24,7 +20,7 @@ export default function CourierFundsPage() {
 
   const [isAddMovementOpen, setIsAddMovementOpen] = useState(false)
 
-  const { data: activeWorkday, isLoading: isLoadingWorkday } = useActiveWorkday(profile?.id)
+  const { data: activeWorkday } = useActiveWorkday(profile?.id)
   const { data: movements = [], isLoading: isLoadingMovements } = useCashMovements(activeWorkday?.id)
 
   const { data: tasksData } = useTasks({

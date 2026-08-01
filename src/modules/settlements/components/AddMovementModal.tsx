@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { X, DollarSign, Fuel, ShoppingCart, Receipt, Plus, Loader2 } from 'lucide-react'
+import { X, DollarSign, Plus, Loader2 } from 'lucide-react'
 import { useSettlementMutations } from '../hooks/useSettlements'
 import type { MovementType, PaymentMethod, Currency } from '@/shared/types'
 
@@ -13,7 +13,7 @@ export function AddMovementModal({ workdayId, isOpen, onClose }: AddMovementModa
   const [movementType, setMovementType] = useState<MovementType>('fuel')
   const [amount, setAmount] = useState<number | ''>('')
   const [description, setDescription] = useState<string>('')
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
+  const [paymentMethod] = useState<PaymentMethod>('cash')
   const [currency, setCurrency] = useState<Currency>('NIO')
 
   const { addMovement, isAddingMovement, movementError } = useSettlementMutations()

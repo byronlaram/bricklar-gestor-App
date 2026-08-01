@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { getUsers, createUser, updateUser, toggleUserStatus } from '../services/usersService'
+import { getUsers, createUser, updateUser, toggleUserStatus, deleteUser } from '../services/usersService'
 import type { UserFilters, CreateUserPayload, UpdateUserPayload } from '../types/users.types'
 
 export function useUsers(filters: UserFilters = {}) {
@@ -30,6 +30,11 @@ export function useUserMutations() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
   })
 
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => deleteUser(id),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['users'] }),
+  })
+
   return {
     createUser: createMutation.mutateAsync,
     isCreating: createMutation.isPending,
@@ -41,5 +46,9 @@ export function useUserMutations() {
 
     toggleUserStatus: toggleStatusMutation.mutateAsync,
     isToggling: toggleStatusMutation.isPending,
+
+    deleteUser: deleteMutation.mutateAsync,
+    isDeleting: deleteMutation.isPending,
+    deleteError: deleteMutation.error,
   }
 }

@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/lib/supabaseClient'
+import type { Database } from '@/shared/lib/database.types'
 import type {
   UserProfileExtended,
   CreateUserPayload,
@@ -52,49 +53,30 @@ export async function getUsers(filters: UserFilters = {}): Promise<UserProfileEx
 }
 
 export async function createUser(payload: CreateUserPayload): Promise<void> {
-  // Crear usuario usando signUp en Auth
-  const { data: authData, error: authError } = await supabase.auth.signUp({
-    email: payload.email,
-    password: payload.password,
-    options: {
-      data: {
-        full_name: payload.full_name,
-        role: payload.role,
-      },
-    },
-  })
-
-  if (authError || !authData.user) {
-    console.error('[Users] createUser auth error:', authError)
-    throw new Error(authError?.message || 'No se pudo registrar el usuario.')
-  }
-
-  const userId = authData.user.id
-
-  // Actualizar perfil con información adicional
-  await supabase
-    .from('profiles')
-    .update({
+  const { data, error } = await supabase.functions.invoke('create-user', {
+    body: {
+      email: payload.email,
+      password: payload.password,
       full_name: payload.full_name,
       display_name: payload.display_name ?? payload.full_name,
       phone: payload.phone ?? null,
       role: payload.role,
-      is_active: true,
-    })
-    .eq('id', userId)
+      branch_ids: payload.branch_ids ?? [],
+    },
+  })
 
-  // Asignar sucursales
-  if (payload.branch_ids.length > 0) {
-    const branchInserts = payload.branch_ids.map((branch_id) => ({
-      user_id: userId,
-      branch_id,
-    }))
-    await supabase.from('user_branches').insert(branchInserts)
+  if (error) {
+    console.error('[Users] createUser Edge Function error:', error)
+    throw new Error(error.message || 'Error al invocar Edge Function de creación de usuario.')
+  }
+
+  if (data?.error) {
+    throw new Error(data.error)
   }
 }
 
 export async function updateUser(id: string, payload: UpdateUserPayload): Promise<void> {
-  const updateData: Record<string, unknown> = {
+  const updateData: Database['public']['Tables']['profiles']['Update'] = {
     updated_at: new Date().toISOString(),
   }
 
@@ -104,11 +86,19 @@ export async function updateUser(id: string, payload: UpdateUserPayload): Promis
   if (payload.role !== undefined) updateData.role = payload.role
   if (payload.is_active !== undefined) updateData.is_active = payload.is_active
 
-  const { error } = await supabase.from('profiles').update(updateData).eq('id', id)
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(updateData)
+    .eq('id', id)
+    .select()
 
   if (error) {
     console.error('[Users] updateUser error:', error)
     throw new Error(error.message)
+  }
+
+  if (!data || data.length === 0) {
+    throw new Error('No se pudo actualizar el estado del usuario. Permisos insuficientes o usuario no encontrado.')
   }
 
   // Actualizar relaciones de sucursales si fueron provistas
@@ -126,4 +116,19 @@ export async function updateUser(id: string, payload: UpdateUserPayload): Promis
 
 export async function toggleUserStatus(id: string, is_active: boolean): Promise<void> {
   await updateUser(id, { is_active })
+}
+
+export async function deleteUser(id: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke('delete-user', {
+    body: { userId: id },
+  })
+
+  if (error) {
+    console.error('[Users] deleteUser Edge Function error:', error)
+    throw new Error(error.message || 'Error al invocar Edge Function de eliminación.')
+  }
+
+  if (data?.error) {
+    throw new Error(data.error)
+  }
 }

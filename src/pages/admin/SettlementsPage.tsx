@@ -6,10 +6,7 @@ import {
   CheckCircle2,
   Clock,
   DollarSign,
-  AlertTriangle,
   ListFilter,
-  Eye,
-  CheckSquare,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/AuthContext'
 import { useSettlements } from '@/modules/settlements/hooks/useSettlements'
@@ -20,7 +17,6 @@ import { ApproveSettlementModal } from '@/modules/settlements/components/Approve
 export default function AdminSettlementsPage() {
   const { profile } = useAuth()
   const defaultBranchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
-  const todayStr = new Date().toISOString().split('T')[0]
 
   const [filters, setFilters] = useState<SettlementFilters>({
     branch_id: defaultBranchId,

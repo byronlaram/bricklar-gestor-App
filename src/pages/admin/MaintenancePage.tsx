@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import {
-  Wrench,
-  Database,
+  Database as DatabaseIcon,
   RefreshCw,
   Loader2,
   CheckCircle2,
@@ -43,14 +42,14 @@ export default function MaintenancePage() {
     setIsCheckingDb(true)
     setDbStatus([])
 
-    const checks: { table: string; label: string }[] = [
+    const checks = [
       { table: 'profiles', label: 'Tabla de Perfiles (profiles)' },
       { table: 'branches', label: 'Tabla de Sucursales (branches)' },
       { table: 'tasks', label: 'Tabla de Tareas (tasks)' },
       { table: 'workdays', label: 'Tabla de Jornadas (workdays)' },
       { table: 'settlements', label: 'Tabla de Liquidaciones (settlements)' },
       { table: 'bus_routes', label: 'Directorio de Buses (bus_routes)' },
-    ]
+    ] as const
 
     const results: StatusItem[] = []
 
@@ -124,7 +123,7 @@ export default function MaintenancePage() {
       {/* Verificación de Base de Datos */}
       <div className="bg-card border border-border rounded-2xl p-6 shadow-xs space-y-4">
         <div className="flex items-center gap-2">
-          <Database className="h-4 w-4 text-accent" />
+          <DatabaseIcon className="h-4 w-4 text-accent" />
           <h2 className="text-sm font-semibold text-foreground">Verificación de Base de Datos</h2>
         </div>
         <p className="text-xs text-foreground-muted">

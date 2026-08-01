@@ -87,7 +87,7 @@ export async function submitSettlement(workdayId: string, notes?: string): Promi
   if (workdayErr || !workday) throw new Error('Jornada laboral no encontrada.')
 
   // Calcular cobros de tareas completadas de esta jornada/motorizado
-  const { data: tasks = [] } = await supabase
+  const { data: tasks } = await supabase
     .from('tasks')
     .select('expected_collection_amount, expected_payment_method')
     .eq('assigned_courier_id', userId)
@@ -95,25 +95,25 @@ export async function submitSettlement(workdayId: string, notes?: string): Promi
     .eq('status', 'completed')
     .eq('requires_collection', true)
 
-  const totalExpectedCash = tasks
+  const totalExpectedCash = (tasks || [])
     .filter((t) => (t.expected_payment_method || 'cash') === 'cash')
     .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
 
-  const totalExpectedTransfers = tasks
+  const totalExpectedTransfers = (tasks || [])
     .filter((t) => t.expected_payment_method && t.expected_payment_method !== 'cash')
     .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
 
   // Obtener movimientos de caja de esta jornada (gastos e ingresos por adelantos de efectivo)
-  const { data: movements = [] } = await supabase
+  const { data: movements } = await supabase
     .from('cash_movements')
     .select('amount, direction, movement_type')
     .eq('workday_id', workdayId)
 
-  const totalExpenses = movements
+  const totalExpenses = (movements || [])
     .filter((m) => m.direction === 'expense')
     .reduce((acc, m) => acc + m.amount, 0)
 
-  const totalCashAdvances = movements
+  const totalCashAdvances = (movements || [])
     .filter((m) => m.direction === 'income' && m.movement_type === 'cash_advance')
     .reduce((acc, m) => acc + m.amount, 0)
 
