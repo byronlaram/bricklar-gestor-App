@@ -1,11 +1,44 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 // Tailwind CSS v4 se integra via PostCSS (@tailwindcss/postcss en postcss.config.js)
 export default defineConfig({
   plugins: [
     react(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      includeAssets: ['favicon.svg', 'branding/bricklar-icon.svg', 'branding/bricklar-logo.svg'],
+      manifest: {
+        name: 'Bricklar Gestor',
+        short_name: 'Bricklar',
+        description: 'Plataforma interna de gestión de entregas, rutas y operaciones para motorizados.',
+        theme_color: '#1c2d5e',
+        background_color: '#0f172a',
+        display: 'standalone',
+        orientation: 'portrait',
+        start_url: '/',
+        scope: '/',
+        icons: [
+          {
+            src: '/branding/bricklar-icon.svg',
+            sizes: '192x192 512x512',
+            type: 'image/svg+xml',
+            purpose: 'any'
+          },
+          {
+            src: '/branding/bricklar-icon.svg',
+            sizes: '512x512',
+            type: 'image/svg+xml',
+            purpose: 'maskable'
+          }
+        ]
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}']
+      }
+    })
   ],
   resolve: {
     alias: {
@@ -33,3 +66,4 @@ export default defineConfig({
     },
   },
 })
+
