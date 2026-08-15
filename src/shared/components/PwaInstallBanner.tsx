@@ -134,6 +134,10 @@ export function PwaInstallBanner() {
                 Ahora no
               </button>
             </div>
+
+            <p className="text-[10px] text-slate-400 mt-2 bg-slate-800/80 p-2 rounded-lg border border-slate-700/60 leading-tight">
+              🛡️ <strong className="text-slate-300 font-semibold">Nota Android:</strong> Si salta el aviso de Play Protect, toca <strong className="text-white">"Más detalles ∨"</strong> y luego <strong className="text-white">"Instalar de todas formas"</strong>.
+            </p>
           </div>
         </div>
       </div>

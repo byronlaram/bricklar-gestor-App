@@ -19,15 +19,20 @@ export default defineConfig({
         'branding/pwa-512x512.png'
       ],
       manifest: {
+        id: 'com.bricklar.gestor',
         name: 'Bricklar Gestor',
         short_name: 'Bricklar',
         description: 'Plataforma interna de gestión de entregas, rutas y operaciones para motorizados.',
+        lang: 'es',
         theme_color: '#1c2d5e',
         background_color: '#0f172a',
         display: 'standalone',
+        display_override: ['standalone', 'window-controls-overlay'],
         orientation: 'portrait',
-        start_url: '/',
+        start_url: '/?source=pwa',
         scope: '/',
+        categories: ['business', 'productivity'],
+        prefer_related_applications: false,
         icons: [
           {
             src: '/branding/pwa-192x192.png',
