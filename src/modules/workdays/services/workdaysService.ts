@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/lib/supabaseClient'
+import { calculateWorkdayCashSummary } from '../utils/workdayCalculations'
 import type {
   Workday,
   StartWorkdayPayload,
@@ -47,30 +48,97 @@ export async function startWorkday(payload: StartWorkdayPayload): Promise<Workda
 
   const todayStr = new Date().toISOString().split('T')[0]
 
-  const insertData = {
-    courier_id: userId,
-    opened_by: userId,
-    branch_id: payload.branch_id,
-    work_date: todayStr,
-    status: 'open',
-    start_time: new Date().toISOString(),
-    initial_km: payload.initial_km,
-    initial_cash: payload.initial_cash ?? 0,
-    notes: payload.notes ?? null,
-  }
-
-  const { data, error } = await supabase
+  // Verificar si ya existe un registro de jornada para hoy (ej. fondo asignado previamente por admin)
+  const { data: existingRow } = await supabase
     .from('workdays')
-    .insert(insertData)
-    .select(WORKDAY_SELECT)
-    .single()
+    .select('id, initial_cash')
+    .eq('courier_id', userId)
+    .eq('work_date', todayStr)
+    .maybeSingle()
 
-  if (error) {
-    console.error('[Workdays] startWorkday error:', error)
-    throw new Error(error.message)
+  const finalInitialCash = existingRow && existingRow.initial_cash > 0
+    ? existingRow.initial_cash
+    : (payload.initial_cash ?? 0)
+
+  let combinedNotes = payload.notes || ''
+  if (payload.km_not_available && payload.km_reason) {
+    const kmNote = `[Kilometraje No Disponible] Motivo: ${payload.km_reason}`
+    combinedNotes = combinedNotes ? `${kmNote} | ${combinedNotes}` : kmNote
   }
 
-  return data as unknown as Workday
+  let resultData: Workday
+
+  if (existingRow) {
+    const { data, error } = await supabase
+      .from('workdays')
+      .update({
+        status: 'open',
+        start_time: new Date().toISOString(),
+        initial_km: payload.initial_km ?? undefined,
+        initial_cash: finalInitialCash,
+        notes: combinedNotes || null,
+        opened_by: userId,
+      })
+      .eq('id', existingRow.id)
+      .select(WORKDAY_SELECT)
+      .single()
+
+    if (error) {
+      console.error('[Workdays] startWorkday update error:', error)
+      throw new Error(error.message)
+    }
+    resultData = data as unknown as Workday
+  } else {
+    const insertData = {
+      courier_id: userId,
+      opened_by: userId,
+      branch_id: payload.branch_id,
+      work_date: todayStr,
+      status: 'open',
+      start_time: new Date().toISOString(),
+      initial_km: payload.initial_km ?? undefined,
+      initial_cash: finalInitialCash,
+      notes: combinedNotes || null,
+    }
+
+    const { data, error } = await supabase
+      .from('workdays')
+      .insert(insertData)
+      .select(WORKDAY_SELECT)
+      .single()
+
+    if (error) {
+      console.error('[Workdays] startWorkday insert error:', error)
+      throw new Error(error.message)
+    }
+    resultData = data as unknown as Workday
+  }
+
+  // Registro de auditoría
+  try {
+    await supabase.rpc('log_audit_event', {
+      p_action: 'workday_started',
+      p_entity_type: 'workday',
+      p_entity_id: resultData.id,
+      p_entity_code: todayStr,
+      p_branch_id: payload.branch_id,
+      p_changes: {
+        user_id: userId,
+        initial_km: payload.initial_km ?? null,
+        km_entered: payload.initial_km !== null && payload.initial_km !== undefined,
+        km_not_available: payload.km_not_available || false,
+        km_reason: payload.km_reason || null,
+        km_observations: payload.km_observations || null,
+        initial_cash: finalInitialCash,
+        date: todayStr,
+        time: new Date().toISOString(),
+      },
+    })
+  } catch (auditErr) {
+    console.warn('[Workdays] Audit log warning:', auditErr)
+  }
+
+  return resultData
 }
 
 export async function endWorkday(payload: EndWorkdayPayload): Promise<Workday> {
@@ -116,5 +184,38 @@ export async function getWorkdays(filters: WorkdayFilters = {}): Promise<Workday
     throw new Error(error.message)
   }
 
-  return (data ?? []) as unknown as Workday[]
+  const list = (data ?? []) as unknown as Workday[]
+  if (list.length === 0) return []
+
+  const workdayIds = list.map((w) => w.id)
+  const courierIds = Array.from(new Set(list.map((w) => w.courier_id)))
+  const workDates = Array.from(new Set(list.map((w) => w.work_date)))
+
+  // 1. Carga en lote de tareas completadas
+  const { data: batchTasks } = await supabase
+    .from('tasks')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, status, requires_collection')
+    .in('assigned_courier_id', courierIds)
+    .in('scheduled_date', workDates)
+    .eq('status', 'completed')
+    .eq('requires_collection', true)
+
+  // 2. Carga en lote de movimientos de caja
+  const { data: batchMovements } = await supabase
+    .from('cash_movements')
+    .select('workday_id, amount, currency, direction, movement_type')
+    .in('workday_id', workdayIds)
+
+  return list.map((w) => {
+    const wTasks = (batchTasks || []).filter(
+      (t) => t.assigned_courier_id === w.courier_id && t.scheduled_date === w.work_date
+    )
+    const wMovements = (batchMovements || []).filter((m) => m.workday_id === w.id)
+    const summary = calculateWorkdayCashSummary(w.initial_cash, wTasks, wMovements)
+
+    return {
+      ...w,
+      cash_summary: summary,
+    }
+  })
 }

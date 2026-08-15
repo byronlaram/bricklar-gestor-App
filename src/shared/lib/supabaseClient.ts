@@ -20,7 +20,7 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   },
   global: {
     headers: {
-      'X-App-Name': import.meta.env.VITE_APP_NAME ?? 'GestorOps',
+      'X-App-Name': import.meta.env.VITE_APP_NAME ?? 'Bricklar Gestor',
       'X-App-Env': import.meta.env.VITE_APP_ENV ?? 'development',
     },
   },

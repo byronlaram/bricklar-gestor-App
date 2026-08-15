@@ -18,11 +18,12 @@ export const positiveAmountSchema = z
 
 /** Monto opcional (nulo o positivo) */
 export const optionalAmountSchema = z
-  .number()
-  .positive('El monto debe ser mayor que cero')
-  .multipleOf(0.01)
-  .nullable()
-  .optional()
+  .preprocess((val) => {
+    if (val === '' || val === null || val === undefined || (typeof val === 'number' && isNaN(val))) {
+      return null
+    }
+    return typeof val === 'string' ? parseFloat(val) : val
+  }, z.number().positive('El monto debe ser mayor que cero').multipleOf(0.01).nullable().optional())
 
 /** Tipo de cambio positivo */
 export const exchangeRateSchema = z
@@ -37,31 +38,31 @@ export const dateSchema = z
 
 /** Hora en formato HH:MM */
 export const timeSchema = z
-  .string()
-  .regex(/^\d{2}:\d{2}$/, 'Formato de hora inválido (HH:MM)')
-  .nullable()
-  .optional()
+  .preprocess((val) => {
+    if (val === '' || val === null || val === undefined) return null
+    return val
+  }, z.string().regex(/^\d{2}:\d{2}$/, 'Formato de hora inválido (HH:MM)').nullable().optional())
 
 /** Teléfono nicaragüense (8 dígitos) o internacional */
 export const phoneSchema = z
-  .string()
-  .min(8, 'Teléfono muy corto')
-  .max(20, 'Teléfono muy largo')
-  .regex(/^[+\d\s\-()]+$/, 'Formato de teléfono inválido')
-  .nullable()
-  .optional()
+  .preprocess((val) => {
+    if (val === '' || val === null || val === undefined) return null
+    return val
+  }, z.string().min(8, 'Teléfono muy corto').max(20, 'Teléfono muy largo').regex(/^[+\d\s\-()]+$/, 'Formato de teléfono inválido').nullable().optional())
 
 /** URL válida o nula */
 export const urlSchema = z
-  .string()
-  .url('URL inválida')
-  .nullable()
-  .optional()
+  .preprocess((val) => {
+    if (val === '' || val === null || val === undefined) return null
+    return val
+  }, z.string().url('URL inválida').nullable().optional())
 
 /** URL de mapa válida */
 export const mapUrlSchema = z
-  .string()
-  .refine(
+  .preprocess((val) => {
+    if (val === '' || val === null || val === undefined) return null
+    return val
+  }, z.string().refine(
     (val) => {
       if (!val) return true
       try {
@@ -77,9 +78,7 @@ export const mapUrlSchema = z
       }
     },
     { message: 'Debe ser una URL de Google Maps o Waze' }
-  )
-  .nullable()
-  .optional()
+  ).nullable().optional())
 
 /** Latitud válida */
 export const latSchema = z.number().min(-90).max(90).nullable().optional()
@@ -88,6 +87,12 @@ export const latSchema = z.number().min(-90).max(90).nullable().optional()
 export const lngSchema = z.number().min(-180).max(180).nullable().optional()
 
 // ─── Schema de tarea (base) ────────────────────────────────────────────────────
+// Helper para texto opcional que convierte "" a null
+const optionalStringSchema = z.preprocess((val) => {
+  if (val === '' || val === null || val === undefined) return null
+  return typeof val === 'string' ? val.trim() : val
+}, z.string().max(500).nullable().optional())
+
 export const taskBaseSchema = z.object({
   task_type: z.enum([
     'delivery', 'bus_shipment', 'logistics_shipment', 'purchase',
@@ -99,21 +104,21 @@ export const taskBaseSchema = z.object({
   scheduled_start_time: timeSchema,
   scheduled_deadline: timeSchema,
   priority: z.enum(['low', 'normal', 'high', 'urgent']).default('normal'),
-  // Contacto
-  contact_name: z.string().min(2, 'El nombre es requerido').max(200).optional(),
-  company_name: z.string().max(200).nullable().optional(),
+  // Contacto y Entidades
+  contact_name: optionalStringSchema,
+  company_name: optionalStringSchema,
   phone: phoneSchema,
   whatsapp: phoneSchema,
-  address: z.string().max(500).nullable().optional(),
-  address_reference: z.string().max(500).nullable().optional(),
+  address: optionalStringSchema,
+  address_reference: optionalStringSchema,
   maps_url: mapUrlSchema,
   latitude: latSchema,
   longitude: lngSchema,
-  // Gestión
-  provider_name: z.string().max(200).nullable().optional(),
-  institution_name: z.string().max(200).nullable().optional(),
-  destination_contact: z.string().max(200).nullable().optional(),
-  management_description: z.string().max(2000).nullable().optional(),
+  // Gestión y Entidades Específicas
+  provider_name: optionalStringSchema,
+  institution_name: optionalStringSchema,
+  destination_contact: optionalStringSchema,
+  management_description: optionalStringSchema,
   // Financiero previsto
   requires_collection: z.boolean().default(false),
   expected_collection_amount: optionalAmountSchema,
@@ -122,8 +127,10 @@ export const taskBaseSchema = z.object({
   requires_payment: z.boolean().default(false),
   expected_payment_amount: optionalAmountSchema,
   expected_payment_currency: currencySchema.nullable().optional(),
+  // Asignación de motorizado opcional
+  assigned_courier_id: optionalStringSchema,
   // Extra
-  notes: z.string().max(2000).nullable().optional(),
+  notes: optionalStringSchema,
 }).superRefine((data, ctx) => {
   // Monto obligatorio si requiere cobro
   if (data.requires_collection && !data.expected_collection_amount) {

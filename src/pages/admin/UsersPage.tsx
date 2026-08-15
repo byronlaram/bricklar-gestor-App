@@ -38,7 +38,7 @@ const ROLE_BADGE: Record<UserRole, { label: string; class: string; icon: React.R
   },
 }
 
-import { useAuth } from '@/modules/auth/AuthContext'
+import { useAuth } from '@/modules/auth/useAuth'
 
 export default function UsersPage() {
   const { user: currentUser } = useAuth()

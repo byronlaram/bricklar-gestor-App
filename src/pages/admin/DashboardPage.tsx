@@ -8,17 +8,31 @@ import {
   DollarSign,
   TrendingUp,
   BarChart3,
-  Loader2,
   ArrowRight,
   CalendarCheck2,
+  PackageCheck,
   Package,
+  Layers,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
-import { useAuth } from '@/modules/auth/AuthContext'
+import { useAuth } from '@/modules/auth/useAuth'
+import {
+  Card,
+  CardTitle,
+  CardDescription,
+  MetricCard,
+  BentoCard,
+  Badge,
+  Skeleton,
+  EmptyState,
+  Button,
+  Divider,
+} from '@/shared/components/ui'
 
 // ─── Queries de KPI ──────────────────────────────────────────────────────────
+
 async function fetchDashboardData(branchIds: string[]) {
   const today = new Date().toISOString().split('T')[0]
 
@@ -57,43 +71,9 @@ function useDashboard(branchIds: string[]) {
   })
 }
 
-// ─── Componentes ─────────────────────────────────────────────────────────────
-interface KpiCardProps {
-  label: string
-  value: string | number
-  subtitle?: string
-  icon: React.ReactNode
-  colorClass: string
-  to?: string
-}
+// ─── Componente Barra de distribución de estados de tareas ──────────────────
 
-function KpiCard({ label, value, subtitle, icon, colorClass, to }: KpiCardProps) {
-  const content = (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-xs space-y-3 hover:shadow-md transition-shadow group">
-      <div className="flex items-start justify-between">
-        <div className={`p-2.5 rounded-xl border ${colorClass}`}>{icon}</div>
-        {to && (
-          <ArrowRight className="h-4 w-4 text-foreground-subtle group-hover:text-accent transition-colors" />
-        )}
-      </div>
-      <div>
-        <p className="text-2xl font-black text-foreground tracking-tight">{value}</p>
-        <p className="text-xs font-semibold text-foreground mt-0.5">{label}</p>
-        {subtitle && <p className="text-[11px] text-foreground-muted mt-0.5">{subtitle}</p>}
-      </div>
-    </div>
-  )
-
-  if (to) return <Link to={to}>{content}</Link>
-  return content
-}
-
-// ─── Barra de distribución de estados de tareas ─────────────────────────────
-function TaskStatusBar({
-  tasks,
-}: {
-  tasks: { status: string }[]
-}) {
+function TaskStatusBar({ tasks }: { tasks: { status: string }[] }) {
   const total = tasks.length
   if (total === 0) return null
 
@@ -104,7 +84,7 @@ function TaskStatusBar({
     { key: 'pending', label: 'Pendientes', color: 'bg-amber-400' },
     { key: 'assigned', label: 'Asignadas', color: 'bg-violet-400' },
     { key: 'not_completed', label: 'No completadas', color: 'bg-rose-500' },
-    { key: 'cancelled', label: 'Canceladas', color: 'bg-foreground-subtle' },
+    { key: 'cancelled', label: 'Canceladas', color: 'bg-slate-400' },
   ]
 
   const counts = groups.map((g) => ({
@@ -114,45 +94,49 @@ function TaskStatusBar({
   }))
 
   return (
-    <div className="bg-card border border-border rounded-2xl p-5 shadow-xs space-y-4">
+    <Card className="p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-foreground">Distribución de Tareas</h3>
-        <span className="text-xs text-foreground-muted font-mono">{total} total</span>
+        <div>
+          <CardTitle className="text-base">Distribución de Tareas de Hoy</CardTitle>
+          <CardDescription>Resumen gráfico del progreso operativo</CardDescription>
+        </div>
+        <Badge variant="neutral" size="md">
+          {total} tareas totales
+        </Badge>
       </div>
 
-      {/* Barra apilada */}
-      <div className="flex h-3 rounded-full overflow-hidden gap-px bg-muted/30">
+      {/* Barra Apilada */}
+      <div className="flex h-3.5 rounded-full overflow-hidden gap-0.5 bg-slate-100 p-0.5 border border-slate-200">
         {counts
           .filter((c) => c.count > 0)
           .map((c) => (
             <div
               key={c.key}
-              className={`${c.color} transition-all`}
+              className={`${c.color} transition-all rounded-xs`}
               style={{ width: `${c.pct}%` }}
               title={`${c.label}: ${c.count}`}
             />
           ))}
       </div>
 
-      {/* Leyenda */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+      {/* Leyenda Semántica */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
         {counts
           .filter((c) => c.count > 0)
           .map((c) => (
-            <div key={c.key} className="flex items-center gap-1.5">
-              <div className={`h-2 w-2 rounded-full shrink-0 ${c.color}`} />
-              <span className="text-[11px] text-foreground-muted">
-                {c.label}{' '}
-                <span className="font-semibold text-foreground">{c.count}</span>
-              </span>
+            <div key={c.key} className="flex items-center gap-2 text-xs">
+              <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${c.color}`} aria-hidden="true" />
+              <span className="text-slate-600 truncate">{c.label}</span>
+              <span className="font-bold text-slate-900 font-mono ml-auto">{c.count}</span>
             </div>
           ))}
       </div>
-    </div>
+    </Card>
   )
 }
 
-// ─── Página Principal ─────────────────────────────────────────────────────────
+// ─── Página Principal Dashboard Rediseñada (Fase 2A) ─────────────────────────
+
 export default function DashboardPage() {
   const { profile } = useAuth()
   const branchIds = profile?.branch_ids ?? []
@@ -187,7 +171,7 @@ export default function DashboardPage() {
     }
   }, [data])
 
-  const today = new Date().toLocaleDateString('es-NI', {
+  const todayDateFormatted = new Date().toLocaleDateString('es-NI', {
     weekday: 'long',
     year: 'numeric',
     month: 'long',
@@ -195,131 +179,245 @@ export default function DashboardPage() {
   })
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Dashboard</h1>
-        <p className="text-xs text-foreground-muted capitalize mt-0.5">{today}</p>
-      </div>
+    <div className="space-y-8 animate-fade-in">
+      {/* Hero Banner / Saludo Operativo */}
+      <BentoCard isHero className="p-6 sm:p-8 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/15 text-accent text-2xs font-bold uppercase tracking-wider">
+              <Layers className="h-3.5 w-3.5" /> Centro de Operaciones Administrador
+            </div>
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+              Bienvenido, {profile?.full_name ?? 'Administrador'}
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-600 capitalize">
+              {todayDateFormatted}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Link to="/admin/tareas">
+              <Button variant="primary" size="sm" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+                Ver Listado de Tareas
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </BentoCard>
 
+      {/* ESTADO DE CARGA SKELETON */}
       {isLoading || !kpis ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-foreground-muted">
-          <Loader2 className="h-8 w-8 animate-spin text-accent" />
-          <p className="text-xs">Calculando KPIs del día...</p>
+        <div className="space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+            <Skeleton className="h-32 rounded-xl" />
+          </div>
+          <Skeleton className="h-48 rounded-xl" />
         </div>
       ) : (
-        <div className="space-y-6">
-          {/* Fila 1 — Operaciones */}
-          <div>
-            <h2 className="text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-3">
-              Operaciones del Día
-            </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <KpiCard
-                label="Tareas Creadas Hoy"
-                value={kpis.todayTasks}
-                subtitle={`${kpis.totalTasks} en total`}
-                icon={<ClipboardList className="h-5 w-5" />}
-                colorClass="bg-accent/10 text-accent border-accent/20"
-                to="/admin/tareas"
-              />
-              <KpiCard
-                label="Completadas"
-                value={kpis.completed}
-                subtitle="Finalizadas exitosamente"
-                icon={<CheckCircle2 className="h-5 w-5" />}
-                colorClass="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                to="/admin/tareas"
-              />
-              <KpiCard
-                label="En Ruta / Gestión"
-                value={kpis.inRoute}
-                subtitle="En proceso ahora"
-                icon={<Clock className="h-5 w-5" />}
-                colorClass="bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20"
-                to="/admin/tareas"
-              />
-              <KpiCard
-                label="Sin Completar"
-                value={kpis.notCompleted}
-                subtitle="Requieren seguimiento"
-                icon={<AlertCircle className="h-5 w-5" />}
-                colorClass="bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20"
-                to="/admin/tareas"
-              />
+        <div className="space-y-8">
+          {/* SECCIÓN 1: OPERACIONES DEL DÍA (MetricCards) */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Operaciones del Día
+              </h3>
+              <Badge variant="assigned" size="sm">Actualización en vivo</Badge>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Link to="/admin/tareas">
+                <MetricCard
+                  title="Tareas Creadas Hoy"
+                  value={kpis.todayTasks}
+                  subtitle={`${kpis.totalTasks} registradas en total`}
+                  icon={<ClipboardList className="h-5 w-5 text-accent" />}
+                  accentColor="accent"
+                  className="hover:shadow-card-hover cursor-pointer"
+                />
+              </Link>
+
+              <Link to="/admin/tareas">
+                <MetricCard
+                  title="Entregas Completadas"
+                  value={kpis.completed}
+                  subtitle="Finalizadas sin incidencias"
+                  icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
+                  accentColor="success"
+                  className="hover:shadow-card-hover cursor-pointer"
+                />
+              </Link>
+
+              <Link to="/admin/tareas">
+                <MetricCard
+                  title="En Ruta / Gestión"
+                  value={kpis.inRoute}
+                  subtitle="Motorizados en tránsito"
+                  icon={<Clock className="h-5 w-5 text-sky-600" />}
+                  accentColor="primary"
+                  className="hover:shadow-card-hover cursor-pointer"
+                />
+              </Link>
+
+              <Link to="/admin/tareas">
+                <MetricCard
+                  title="Sin Completar"
+                  value={kpis.notCompleted}
+                  subtitle="Pendientes de revisión"
+                  icon={<AlertCircle className="h-5 w-5 text-rose-600" />}
+                  accentColor="destructive"
+                  className="hover:shadow-card-hover cursor-pointer"
+                />
+              </Link>
             </div>
           </div>
 
-          {/* Fila 2 — Personal y Liquidaciones */}
-          <div>
-            <h2 className="text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-3">
-              Personal y Liquidaciones
-            </h2>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-              <KpiCard
-                label="Motorizados Activos"
-                value={kpis.activeCouriers}
-                subtitle="Jornadas abiertas hoy"
-                icon={<Bike className="h-5 w-5" />}
-                colorClass="bg-violet-500/10 text-violet-600 dark:text-violet-400 border-violet-500/20"
-                to="/admin/jornadas"
-              />
-              <KpiCard
-                label="Liquidaciones Pendientes"
-                value={kpis.pendingSettlements}
-                subtitle="Esperan revisión"
-                icon={<Package className="h-5 w-5" />}
-                colorClass="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20"
-                to="/admin/liquidaciones"
-              />
-              <KpiCard
-                label="Recaudado Hoy (Efectivo)"
-                value={`C$${kpis.totalCash.toFixed(2)}`}
-                subtitle="Entregado por motorizados"
-                icon={<DollarSign className="h-5 w-5" />}
-                colorClass="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
-                to="/admin/liquidaciones"
-              />
-              <KpiCard
-                label="Neto en Caja"
-                value={`C$${kpis.netCash.toFixed(2)}`}
-                subtitle={`Transferencias: C$${kpis.totalTransfer.toFixed(2)}`}
-                icon={<TrendingUp className="h-5 w-5" />}
-                colorClass="bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20"
-                to="/admin/cierre-diario"
-              />
+          <Divider />
+
+          {/* SECCIÓN 2: PERSONAL Y RECAUDACIÓN (MetricCards) */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Personal & Estado Financiero
+            </h3>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Link to="/admin/jornadas">
+                <MetricCard
+                  title="Motorizados Activos"
+                  value={kpis.activeCouriers}
+                  subtitle="Jornadas abiertas hoy"
+                  icon={<Bike className="h-5 w-5 text-purple-600" />}
+                  accentColor="accent"
+                  className="hover:shadow-card-hover cursor-pointer"
+                />
+              </Link>
+
+              <Link to="/admin/liquidaciones">
+                <MetricCard
+                  title="Liquidaciones Pendientes"
+                  value={kpis.pendingSettlements}
+                  subtitle="Pendientes de aprobación"
+                  icon={<Package className="h-5 w-5 text-amber-500" />}
+                  accentColor="warning"
+                  className="hover:shadow-card-hover cursor-pointer"
+                />
+              </Link>
+
+              <Link to="/admin/liquidaciones">
+                <MetricCard
+                  title="Recaudado en Efectivo"
+                  value={`C$ ${kpis.totalCash.toFixed(2)}`}
+                  subtitle="Monto reportado en caja"
+                  icon={<DollarSign className="h-5 w-5 text-emerald-600" />}
+                  accentColor="success"
+                  className="hover:shadow-card-hover cursor-pointer"
+                />
+              </Link>
+
+              <Link to="/admin/cierre-diario">
+                <MetricCard
+                  title="Neto Consolidado"
+                  value={`C$ ${kpis.netCash.toFixed(2)}`}
+                  subtitle={`Transf: C$ ${kpis.totalTransfer.toFixed(2)}`}
+                  icon={<TrendingUp className="h-5 w-5 text-primary" />}
+                  accentColor="primary"
+                  className="hover:shadow-card-hover cursor-pointer"
+                />
+              </Link>
             </div>
           </div>
 
-          {/* Distribución de tareas */}
-          {data && <TaskStatusBar tasks={data.tasks} />}
-
-          {/* Accesos rápidos */}
-          <div>
-            <h2 className="text-xs font-semibold text-foreground-muted uppercase tracking-wider mb-3">
-              Accesos Rápidos
-            </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {[
-                { to: '/admin/tareas', label: 'Gestionar Tareas', icon: <ClipboardList className="h-5 w-5" />, desc: 'Ver, crear y asignar tareas del día' },
-                { to: '/admin/jornadas', label: 'Control de Jornadas', icon: <CalendarCheck2 className="h-5 w-5" />, desc: 'Fondos iniciales y jornadas activas' },
-                { to: '/admin/reportes', label: 'Reportes Ejecutivos', icon: <BarChart3 className="h-5 w-5" />, desc: 'Exportar datos por rango de fecha' },
-              ].map((item) => (
-                <Link
-                  key={item.to}
-                  to={item.to}
-                  className="flex items-center gap-4 p-4 bg-card border border-border rounded-2xl shadow-xs hover:shadow-md hover:border-accent/30 transition-all group"
-                >
-                  <div className="p-2.5 rounded-xl bg-accent/10 text-accent border border-accent/20 shrink-0 group-hover:bg-accent group-hover:text-white transition-all">
-                    {item.icon}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">{item.label}</p>
-                    <p className="text-[11px] text-foreground-muted truncate">{item.desc}</p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-foreground-subtle ml-auto shrink-0 group-hover:text-accent transition-colors" />
+          {/* SECCIÓN 3: DISTRIBUCIÓN O ESTADO VACÍO */}
+          {data && data.tasks && data.tasks.length > 0 ? (
+            <TaskStatusBar tasks={data.tasks} />
+          ) : (
+            <EmptyState
+              title="Sin tareas registradas el día de hoy"
+              description="Actualmente no hay órdenes de despacho o entregas iniciadas para la fecha actual."
+              icon={<PackageCheck className="h-7 w-7 text-slate-400" />}
+              action={
+                <Link to="/admin/tareas">
+                  <Button variant="primary" size="sm">Crear Primera Tarea</Button>
                 </Link>
-              ))}
+              }
+            />
+          )}
+
+          <Divider />
+
+          {/* SECCIÓN 4: ACCESOS RÁPIDOS A MÓDULOS */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+              Accesos Rápidos de Administración
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card isHoverable className="p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="h-10 w-10 rounded-xl bg-sky-50 text-accent flex items-center justify-center border border-sky-100">
+                    <ClipboardList className="h-5 w-5" />
+                  </div>
+                  <Badge variant="assigned" size="sm">Operaciones</Badge>
+                </div>
+                <div className="space-y-1">
+                  <CardTitle className="text-base">Gestión de Tareas</CardTitle>
+                  <CardDescription>
+                    Asignación, reasignación y seguimiento de órdenes en tiempo real.
+                  </CardDescription>
+                </div>
+                <div className="pt-2">
+                  <Link to="/admin/tareas">
+                    <Button variant="outline" size="sm" className="w-full justify-between" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+                      Ir a Tareas
+                    </Button>
+                  </Link>
+                </div>
+              </Card>
+
+              <Card isHoverable className="p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="h-10 w-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
+                    <CalendarCheck2 className="h-5 w-5" />
+                  </div>
+                  <Badge variant="en_route" size="sm">Jornadas</Badge>
+                </div>
+                <div className="space-y-1">
+                  <CardTitle className="text-base">Control de Fondos</CardTitle>
+                  <CardDescription>
+                    Apertura de caja chica, adelantos y cierres de turno por motorizado.
+                  </CardDescription>
+                </div>
+                <div className="pt-2">
+                  <Link to="/admin/jornadas">
+                    <Button variant="outline" size="sm" className="w-full justify-between" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+                      Ver Jornadas
+                    </Button>
+                  </Link>
+                </div>
+              </Card>
+
+              <Card isHoverable className="p-5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+                    <BarChart3 className="h-5 w-5" />
+                  </div>
+                  <Badge variant="completed" size="sm">Reportes</Badge>
+                </div>
+                <div className="space-y-1">
+                  <CardTitle className="text-base">Reportes Ejecutivos</CardTitle>
+                  <CardDescription>
+                    Generación de informes de rendimiento y exportación a PDF/CSV.
+                  </CardDescription>
+                </div>
+                <div className="pt-2">
+                  <Link to="/admin/reportes">
+                    <Button variant="outline" size="sm" className="w-full justify-between" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+                      Ver Reportes
+                    </Button>
+                  </Link>
+                </div>
+              </Card>
             </div>
           </div>
         </div>

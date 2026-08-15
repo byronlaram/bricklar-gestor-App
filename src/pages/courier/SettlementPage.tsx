@@ -4,25 +4,46 @@ import {
   CheckCircle2,
   Clock,
   Send,
-  Loader2,
   DollarSign,
   CreditCard,
   Receipt,
   AlertCircle,
+  Banknote,
+  ShieldCheck,
+  CheckSquare,
 } from 'lucide-react'
-import { useAuth } from '@/modules/auth/AuthContext'
+import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
 import { useWorkdaySettlement, useSettlementMutations } from '@/modules/settlements/hooks/useSettlements'
+import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { SETTLEMENT_STATUS_LABELS } from '@/shared/types'
+import {
+  Card,
+  CardTitle,
+  Button,
+  Badge,
+  Skeleton,
+  EmptyState,
+} from '@/shared/components/ui'
 
 export default function CourierSettlementPage() {
   const { profile } = useAuth()
+  const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
+  const todayStr = new Date().toISOString().split('T')[0]
   const [notes, setNotes] = useState('')
 
   const { data: activeWorkday, isLoading: isLoadingWorkday } = useActiveWorkday(profile?.id)
   const { data: settlement, isLoading: isLoadingSettlement } = useWorkdaySettlement(activeWorkday?.id)
+  const { data: tasksData } = useTasks({
+    branch_id: branchId,
+    courier_id: profile?.id,
+    date: todayStr,
+    page_size: 100,
+  })
 
   const { submitSettlement, isSubmitting } = useSettlementMutations()
+
+  const completedTasksCount = (tasksData?.data || []).filter((t) => t.status === 'completed').length
 
   const handleSubmitReview = async () => {
     if (!activeWorkday) return
@@ -35,91 +56,146 @@ export default function CourierSettlementPage() {
 
   if (isLoadingWorkday || isLoadingSettlement) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-foreground-muted">
-        <Loader2 className="h-8 w-8 animate-spin text-accent" />
-        <p className="text-xs">Cargando estado de tu liquidación...</p>
+      <div className="space-y-4 max-w-2xl mx-auto">
+        <Skeleton className="h-28 rounded-2xl" />
+        <Skeleton className="h-48 rounded-2xl" />
       </div>
     )
   }
 
   if (!activeWorkday) {
     return (
-      <div className="p-8 text-center space-y-3">
-        <AlertCircle className="h-10 w-10 text-foreground-muted mx-auto" />
-        <h2 className="text-base font-bold text-foreground">No tienes una jornada activa hoy</h2>
-        <p className="text-xs text-foreground-muted">
-          Inicia tu jornada desde la pantalla de inicio para generar tu resumen de liquidación.
-        </p>
+      <div className="max-w-2xl mx-auto">
+        <EmptyState
+          title="No tienes una jornada activa hoy"
+          description="Inicia tu jornada desde la pantalla de inicio para generar tu resumen de liquidación de turno."
+          icon={<AlertCircle className="h-8 w-8 text-slate-400" />}
+        />
       </div>
     )
   }
 
+  const expectedCash = settlement?.expected_cash || 0
+  const totalExpenses = settlement?.total_expenses || 0
+  const netCashToDeliver = Math.max(0, expectedCash - totalExpenses)
+
   return (
-    <div className="p-4 space-y-5 animate-fade-in pb-20">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5 animate-fade-in pb-20 max-w-2xl mx-auto">
+      {/* Header Crema Pastel Ejecutivo */}
+      <div className="bg-[#FCFAF4] border border-amber-100/70 rounded-3xl p-5 shadow-2xs flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-foreground">Liquidación de Turno</h1>
-          <p className="text-xs text-foreground-muted">Resumen de cuadre de entregas y arqueo final.</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#0A2540] flex items-center gap-2">
+            <Calculator className="h-5 w-5 text-amber-700" />
+            Liquidación de Turno
+          </h1>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
+            Resumen ejecutivo del arqueo y cierre diario de entregas.
+          </p>
         </div>
 
         {settlement && (
-          <span
-            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
-              settlement.status === 'approved'
-                ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20'
-                : settlement.status === 'pending_review'
-                ? 'bg-amber-500/10 text-amber-600 border-amber-500/20'
-                : 'bg-blue-500/10 text-blue-600 border-blue-500/20'
-            }`}
+          <Badge
+            variant={settlement.status === 'approved' ? 'completed' : 'pending'}
+            size="md"
           >
             {SETTLEMENT_STATUS_LABELS[settlement.status] || settlement.status}
-          </span>
+          </Badge>
         )}
       </div>
 
-      {/* Card de Resumen Financiero de la Liquidación */}
-      <div className="bg-card border border-border rounded-2xl p-5 shadow-xs space-y-4">
-        <h2 className="text-xs font-bold text-foreground uppercase tracking-wider border-b border-border/40 pb-2 flex items-center gap-1.5">
-          <Calculator className="h-4 w-4 text-accent" />
-          Desglose de la Jornada ({activeWorkday.work_date})
-        </h2>
+      {/* Grid Ejecutiva de Resumen Financiero en Tarjetas Pastel Suaves */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+        {/* Total Cobrado */}
+        <div className="bg-[#F3F9F6] border border-emerald-100/70 rounded-3xl p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-emerald-700">
+            <span className="text-2xs font-bold uppercase tracking-wider">Total Cobrado</span>
+            <DollarSign size={16} />
+          </div>
+          <span className="text-xl font-black text-emerald-950 font-tabular mt-2 block">
+            C$ {expectedCash.toFixed(2)}
+          </span>
+        </div>
 
-        <div className="space-y-3 text-xs">
-          <div className="flex justify-between items-center p-2.5 bg-muted/40 rounded-xl">
-            <span className="text-foreground-muted flex items-center gap-1.5">
-              <DollarSign className="h-4 w-4 text-emerald-500" />
+        {/* Total Gastado */}
+        <div className="bg-[#FCF5F7] border border-rose-100/70 rounded-3xl p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-rose-700">
+            <span className="text-2xs font-bold uppercase tracking-wider">Total Gastado</span>
+            <Receipt size={16} />
+          </div>
+          <span className="text-xl font-black text-rose-950 font-tabular mt-2 block">
+            -C$ {totalExpenses.toFixed(2)}
+          </span>
+        </div>
+
+        {/* Fondos Recibidos */}
+        <div className="bg-[#F5F8FE] border border-blue-100/70 rounded-3xl p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-blue-700">
+            <span className="text-2xs font-bold uppercase tracking-wider">Fondos Recibidos</span>
+            <Banknote size={16} />
+          </div>
+          <span className="text-xl font-black text-blue-950 font-tabular mt-2 block">
+            C$ {(activeWorkday.initial_cash || 0).toFixed(2)}
+          </span>
+        </div>
+
+        {/* Tareas Completadas */}
+        <div className="bg-[#FAF8FE] border border-purple-100/70 rounded-3xl p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-indigo-700">
+            <span className="text-2xs font-bold uppercase tracking-wider">Entregas</span>
+            <CheckSquare size={16} />
+          </div>
+          <span className="text-xl font-black text-indigo-950 font-mono mt-2 block">
+            {completedTasksCount} Tareas
+          </span>
+        </div>
+
+        {/* Saldo Neto a Entregar (Hero Card doble ancho) */}
+        <div className="col-span-2 sm:col-span-2 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-3xl p-4 shadow-md space-y-1">
+          <span className="text-2xs font-bold uppercase tracking-wider text-emerald-100 flex items-center gap-1.5">
+            <ShieldCheck size={16} className="text-emerald-200" />
+            Saldo Neto a Entregar en Caja
+          </span>
+          <span className="text-2xl sm:text-3xl font-black font-tabular block text-white">
+            C$ {netCashToDeliver.toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      {/* Desglose Detallado */}
+      <div className="p-5 bg-white border border-slate-200/80 rounded-3xl shadow-2xs space-y-3.5">
+        <h3 className="text-xs uppercase tracking-wider border-b border-slate-100 pb-2.5 flex items-center gap-1.5 text-slate-700 font-bold">
+          <Calculator className="h-4 w-4 text-indigo-600" />
+          Detalle Arqueo de Caja ({activeWorkday.work_date})
+        </h3>
+
+        <div className="space-y-2.5 text-xs font-medium">
+          <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
+            <span className="text-slate-600 flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-emerald-600" />
               Cobros en Efectivo Esperados:
             </span>
-            <span className="font-bold text-foreground">
-              C${settlement?.expected_cash.toFixed(2) || '0.00'}
+            <span className="font-bold text-slate-900 font-tabular text-sm">
+              C$ {settlement?.expected_cash.toFixed(2) || '0.00'}
             </span>
           </div>
 
-          <div className="flex justify-between items-center p-2.5 bg-muted/40 rounded-xl">
-            <span className="text-foreground-muted flex items-center gap-1.5">
-              <CreditCard className="h-4 w-4 text-sky-500" />
+          <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
+            <span className="text-slate-600 flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-sky-600" />
               Cobros en Transferencia / Billetera:
             </span>
-            <span className="font-bold text-foreground">
-              C${settlement?.expected_transfers.toFixed(2) || '0.00'}
+            <span className="font-bold text-slate-900 font-tabular text-sm">
+              C$ {settlement?.expected_transfers.toFixed(2) || '0.00'}
             </span>
           </div>
 
-          <div className="flex justify-between items-center p-2.5 bg-muted/40 rounded-xl">
-            <span className="text-foreground-muted flex items-center gap-1.5">
-              <Receipt className="h-4 w-4 text-amber-500" />
+          <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
+            <span className="text-slate-600 flex items-center gap-2">
+              <Receipt className="h-4 w-4 text-amber-600" />
               Gastos / Egresos en Ruta:
             </span>
-            <span className="font-semibold text-amber-600 dark:text-amber-400">
-              - C${settlement?.total_expenses.toFixed(2) || '0.00'}
-            </span>
-          </div>
-
-          <div className="flex justify-between items-center p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl font-bold text-sm">
-            <span className="text-emerald-700 dark:text-emerald-400">Efectivo Neto a Entregar a Caja:</span>
-            <span className="text-emerald-700 dark:text-emerald-300">
-              C$
-              {((settlement?.expected_cash || 0) - (settlement?.total_expenses || 0)).toFixed(2)}
+            <span className="font-bold text-amber-700 font-tabular text-sm">
+              - C$ {settlement?.total_expenses.toFixed(2) || '0.00'}
             </span>
           </div>
         </div>
@@ -127,14 +203,14 @@ export default function CourierSettlementPage() {
 
       {/* Formulario / Acción de Enviar a Liquidación */}
       {(!settlement || settlement.status === 'draft') && (
-        <div className="bg-card border border-border rounded-2xl p-5 shadow-xs space-y-4">
-          <h3 className="text-xs font-bold text-foreground">Enviar a Revisión de Administración</h3>
-          <p className="text-xs text-foreground-muted">
+        <Card className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-xs space-y-4">
+          <CardTitle className="text-sm font-bold text-slate-900">Enviar a Revisión de Administración</CardTitle>
+          <p className="text-xs text-slate-500 font-medium">
             Al presionar este botón, tu resumen se enviará al panel del administrador para cuadre y aprobación.
           </p>
 
-          <div>
-            <label className="block text-xs font-medium text-foreground-muted mb-1">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-semibold text-slate-700">
               Notas Adicionales para el Administrador (Opcional)
             </label>
             <textarea
@@ -142,50 +218,43 @@ export default function CourierSettlementPage() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Ej: Entregué billetes en sobre, comprobante de gasolina adjunto..."
-              className="w-full px-3 py-2 text-sm bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground resize-none"
+              className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-600/30 text-slate-900 shadow-2xs resize-none"
             />
           </div>
 
-          <button
+          <Button
+            size="lg"
+            variant="primary"
             onClick={handleSubmitReview}
-            disabled={isSubmitting}
-            className="w-full py-3.5 px-4 text-sm font-bold text-white bg-accent hover:bg-accent/90 disabled:opacity-50 rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
+            isLoading={isSubmitting}
+            leftIcon={<Send className="h-4 w-4" />}
+            className="w-full justify-center text-sm font-bold shadow-xs py-3"
           >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Enviando Liquidación...
-              </>
-            ) : (
-              <>
-                <Send className="h-4 w-4" />
-                Enviar Liquidación a Revisión
-              </>
-            )}
-          </button>
-        </div>
+            Enviar Liquidación a Revisión
+          </Button>
+        </Card>
       )}
 
       {settlement?.status === 'pending_review' && (
-        <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl space-y-2 text-xs text-amber-700 dark:text-amber-400">
-          <div className="flex items-center gap-2 font-bold">
-            <Clock className="h-4 w-4" />
+        <Card className="p-4 bg-amber-50/80 border border-amber-200 rounded-2xl space-y-2 text-xs text-amber-900 shadow-xs font-medium">
+          <div className="flex items-center gap-2 font-bold text-amber-950 text-sm">
+            <Clock className="h-4 w-4 text-amber-600" />
             Liquidación Enviada a Revisión
           </div>
           <p>
             Tu resumen ha sido recibido por administración. Preséntate en caja central para entregar el efectivo físico.
           </p>
-        </div>
+        </Card>
       )}
 
       {settlement?.status === 'approved' && (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl space-y-2 text-xs text-emerald-700 dark:text-emerald-400">
-          <div className="flex items-center gap-2 font-bold">
-            <CheckCircle2 className="h-4 w-4" />
+        <Card className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl space-y-2 text-xs text-emerald-900 shadow-xs font-medium">
+          <div className="flex items-center gap-2 font-bold text-emerald-950 text-sm">
+            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
             Liquidación Aprobada y Cerrada
           </div>
           <p>Tu cuadre fue verificado exitosamente por el administrador.</p>
-        </div>
+        </Card>
       )}
     </div>
   )

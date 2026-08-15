@@ -6,11 +6,18 @@ import {
   AlertCircle,
   Info,
   Megaphone,
-  Loader2,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
-import { useAuth } from '@/modules/auth/AuthContext'
+import { useAuth } from '@/modules/auth/useAuth'
+import {
+  Card,
+  CardTitle,
+  Button,
+  Badge,
+  Skeleton,
+  EmptyState,
+} from '@/shared/components/ui'
 
 interface Notification {
   id: string
@@ -63,37 +70,31 @@ async function markOneRead(id: string): Promise<void> {
 
 const TYPE_CONFIG: Record<
   Notification['type'],
-  { icon: React.ReactNode; colorClass: string; badgeClass: string }
+  { icon: React.ReactNode; colorClass: string }
 > = {
   info: {
     icon: <Info className="h-4 w-4" />,
-    colorClass: 'text-sky-600 dark:text-sky-400 bg-sky-500/10 border-sky-500/20',
-    badgeClass: 'bg-sky-500',
+    colorClass: 'text-sky-700 bg-sky-50 border-sky-200',
   },
   warning: {
     icon: <AlertCircle className="h-4 w-4" />,
-    colorClass: 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20',
-    badgeClass: 'bg-amber-500',
+    colorClass: 'text-amber-700 bg-amber-50 border-amber-200',
   },
   success: {
     icon: <CheckCheck className="h-4 w-4" />,
-    colorClass: 'text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20',
-    badgeClass: 'bg-emerald-500',
+    colorClass: 'text-emerald-700 bg-emerald-50 border-emerald-200',
   },
   task: {
     icon: <Package className="h-4 w-4" />,
-    colorClass: 'text-violet-600 dark:text-violet-400 bg-violet-500/10 border-violet-500/20',
-    badgeClass: 'bg-violet-500',
+    colorClass: 'text-indigo-700 bg-indigo-50 border-indigo-200',
   },
   settlement: {
     icon: <DollarSign className="h-4 w-4" />,
-    colorClass: 'text-teal-600 dark:text-teal-400 bg-teal-500/10 border-teal-500/20',
-    badgeClass: 'bg-teal-500',
+    colorClass: 'text-teal-700 bg-teal-50 border-teal-200',
   },
   announcement: {
     icon: <Megaphone className="h-4 w-4" />,
-    colorClass: 'text-accent bg-accent/10 border-accent/20',
-    badgeClass: 'bg-accent',
+    colorClass: 'text-indigo-700 bg-indigo-50 border-indigo-200',
   },
 }
 
@@ -129,85 +130,84 @@ export default function CourierNotificationsPage() {
     })
 
   return (
-    <div className="space-y-4 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+    <div className="space-y-5 animate-fade-in pb-20 max-w-2xl mx-auto">
+      {/* Header Durazno Pastel */}
+      <div className="bg-orange-50/70 border border-orange-100/90 rounded-2xl p-5 shadow-xs flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <Bell className="h-5 w-5 text-accent" />
-            Notificaciones
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+            <Bell className="h-5 w-5 text-orange-600" />
+            Centro de Alertas
             {unreadCount > 0 && (
-              <span className="inline-flex items-center justify-center h-5 w-5 rounded-full bg-accent text-white text-[10px] font-bold">
+              <Badge variant="assigned" size="sm" className="bg-orange-600 text-white font-bold">
                 {unreadCount}
-              </span>
+              </Badge>
             )}
           </h1>
-          <p className="text-xs text-foreground-muted mt-0.5">Alertas y mensajes de administración.</p>
+          <p className="text-xs text-orange-950 font-medium mt-0.5">Alertas y avisos operativos de administración.</p>
         </div>
 
         {unreadCount > 0 && (
-          <button
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => markAllMutation.mutate()}
-            disabled={markAllMutation.isPending}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-foreground-muted border border-border hover:text-foreground hover:bg-muted/50 rounded-xl transition cursor-pointer"
+            isLoading={markAllMutation.isPending}
+            leftIcon={<CheckCheck className="h-3.5 w-3.5" />}
+            className="text-2xs font-bold shrink-0"
           >
-            <CheckCheck className="h-3.5 w-3.5" />
             Marcar todas leídas
-          </button>
+          </Button>
         )}
       </div>
 
       {/* Contenido */}
       {isLoading ? (
-        <div className="flex flex-col items-center justify-center py-16 gap-3 text-foreground-muted">
-          <Loader2 className="h-7 w-7 animate-spin text-accent" />
-          <p className="text-sm">Cargando notificaciones...</p>
+        <div className="space-y-2.5">
+          <Skeleton className="h-20 rounded-2xl" />
+          <Skeleton className="h-20 rounded-2xl" />
         </div>
       ) : notifications.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 gap-3 text-foreground-muted">
-          <Bell className="h-12 w-12 opacity-20" />
-          <p className="text-sm font-medium">Sin notificaciones</p>
-          <p className="text-xs text-center max-w-xs">
-            Aquí aparecerán las alertas, asignaciones de tareas y mensajes de administración.
-          </p>
-        </div>
+        <EmptyState
+          title="Sin notificaciones"
+          description="Aquí aparecerán las alertas, asignaciones de tareas y avisos de administración."
+          icon={<Bell className="h-8 w-8 text-slate-400" />}
+        />
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {notifications.map((notif) => {
             const config = TYPE_CONFIG[notif.type] ?? TYPE_CONFIG.info
             return (
-              <div
+              <Card
                 key={notif.id}
+                isHoverable
                 onClick={() => {
                   if (!notif.is_read) markOneMutation.mutate(notif.id)
                 }}
-                className={`flex items-start gap-3.5 p-4 rounded-2xl border transition-all cursor-pointer ${
-                  notif.is_read
-                    ? 'bg-card border-border opacity-70 hover:opacity-100'
-                    : 'bg-card border-border shadow-xs hover:shadow-md'
+                className={`p-4 bg-white border border-slate-200/80 rounded-2xl shadow-xs flex items-start gap-3.5 cursor-pointer transition-all ${
+                  notif.is_read ? 'opacity-70' : 'hover:border-indigo-200'
                 }`}
               >
                 {/* Icono + punto no leído */}
                 <div className="relative shrink-0">
-                  <div className={`p-2 rounded-xl border ${config.colorClass}`}>
+                  <div className={`p-2.5 rounded-xl border ${config.colorClass}`}>
                     {config.icon}
                   </div>
                   {!notif.is_read && (
                     <span
-                      className={`absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full border-2 border-card ${config.badgeClass}`}
+                      className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-orange-600 border-2 border-white"
                     />
                   )}
                 </div>
 
                 {/* Contenido */}
-                <div className="flex-1 min-w-0 space-y-0.5">
-                  <p className={`text-sm font-semibold ${notif.is_read ? 'text-foreground-muted' : 'text-foreground'}`}>
+                <div className="flex-1 min-w-0 space-y-1">
+                  <CardTitle className={`text-xs ${notif.is_read ? 'text-slate-600' : 'text-slate-900 font-bold'}`}>
                     {notif.title}
-                  </p>
-                  <p className="text-xs text-foreground-muted line-clamp-2">{notif.body}</p>
-                  <p className="text-[11px] text-foreground-subtle">{formatTime(notif.created_at)}</p>
+                  </CardTitle>
+                  <p className="text-xs text-slate-600 line-clamp-2 font-medium">{notif.body}</p>
+                  <p className="text-2xs text-slate-400 font-mono font-semibold">{formatTime(notif.created_at)}</p>
                 </div>
-              </div>
+              </Card>
             )
           })}
         </div>

@@ -6,6 +6,6 @@ export function useCouriers(branchId?: string) {
     queryKey: ['couriers', branchId],
     queryFn: () => getCouriersForBranch(branchId!),
     enabled: !!branchId,
-    staleTime: 1000 * 60 * 5, // 5 minutos
+    staleTime: 0,
   })
 }

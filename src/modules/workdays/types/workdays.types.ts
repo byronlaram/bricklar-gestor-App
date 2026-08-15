@@ -1,4 +1,5 @@
 import type { WorkdayStatus } from '@/shared/types'
+import type { WorkdayCashSummary } from '../utils/workdayCalculations'
 
 export interface Workday {
   id: string
@@ -8,7 +9,7 @@ export interface Workday {
   status: WorkdayStatus
   start_time: string
   end_time: string | null
-  initial_km: number
+  initial_km: number | null
   final_km: number | null
   initial_cash: number
   notes: string | null
@@ -26,12 +27,16 @@ export interface Workday {
     name: string
     code: string
   } | null
+  cash_summary?: WorkdayCashSummary
 }
 
 export interface StartWorkdayPayload {
   branch_id: string
-  initial_km: number
+  initial_km?: number | null
   initial_cash?: number
+  km_not_available?: boolean
+  km_reason?: string | null
+  km_observations?: string | null
   notes?: string
 }
 

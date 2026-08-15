@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom'
-import { useAuth } from '@/modules/auth/AuthContext'
+import { useAuth } from '@/modules/auth/useAuth'
 import type { UserRole } from '@/shared/types'
 import { Loader2 } from 'lucide-react'
 
@@ -16,7 +16,7 @@ export function RouteGuard({
   allowedRoles = [],
   redirectTo = '/login',
 }: RouteGuardProps) {
-  const { isAuthenticated, isLoading, role, profile } = useAuth()
+  const { isAuthenticated, isLoading, role, profile, mustChangePassword } = useAuth()
   const location = useLocation()
 
   if (isLoading) {
@@ -32,6 +32,11 @@ export function RouteGuard({
 
   if (!isAuthenticated) {
     return <Navigate to={redirectTo} state={{ from: location }} replace />
+  }
+
+  // Cambio obligatorio de contraseña (clave temporal)
+  if (mustChangePassword && location.pathname !== '/reset-password') {
+    return <Navigate to="/reset-password" state={{ forcedChange: true }} replace />
   }
 
   // Cuenta suspendida

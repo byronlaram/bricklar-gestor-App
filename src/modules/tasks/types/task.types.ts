@@ -8,6 +8,9 @@ import type {
   PaymentMethod,
 } from '@/shared/types'
 
+export type ApprovalStatus = 'approved' | 'pending' | 'rejected'
+export type CreationOrigin = 'admin' | 'courier_created'
+
 // ─── Entidad principal: Task ──────────────────────────────────────────────────
 
 export interface Task {
@@ -24,6 +27,14 @@ export interface Task {
   status: TaskStatus
   financial_status: FinancialStatus
   route_order: number | null
+  // Aprobación y Origen
+  approval_status?: ApprovalStatus
+  approved_by?: string | null
+  approved_at?: string | null
+  rejection_reason?: string | null
+  creation_origin?: CreationOrigin
+  evidence_url?: string | null
+  workday_id?: string | null
   // Contacto
   contact_name: string | null
   company_name: string | null
@@ -86,6 +97,8 @@ export interface TaskFilters {
   date_from?: string
   date_to?: string
   status?: TaskStatus | ''
+  approval_status?: ApprovalStatus | ''
+  creation_origin?: CreationOrigin | ''
   task_type?: TaskType | ''
   priority?: TaskPriority | ''
   courier_id?: string | ''
@@ -133,6 +146,10 @@ export interface CreateTaskPayload {
   scheduled_start_time?: string | null
   scheduled_deadline?: string | null
   priority?: TaskPriority
+  approval_status?: ApprovalStatus
+  creation_origin?: CreationOrigin
+  evidence_url?: string | null
+  workday_id?: string | null
   contact_name?: string | null
   company_name?: string | null
   phone?: string | null

@@ -11,6 +11,7 @@ export interface UserProfileExtended {
   is_active: boolean
   branch_ids: string[]
   primary_branch_id: string | null
+  must_change_password?: boolean | null
   last_sign_in_at: string | null
   created_at: string
 }

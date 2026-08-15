@@ -1,10 +1,21 @@
 import { useState, useEffect } from 'react'
-import { X, RefreshCw, AlertTriangle, Loader2 } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import type { TaskWithCourier } from '../types/task.types'
 import type { TaskStatus } from '@/shared/types'
 import { ALLOWED_TRANSITIONS, TASK_STATUS_LABELS } from '@/shared/types'
 import { useTaskMutations } from '../hooks/useTaskMutations'
 import { TaskStatusBadge } from './TaskStatusBadge'
+import {
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalBody,
+  ModalFooter,
+  Button,
+  Input,
+} from '@/shared/components/ui'
 
 interface TaskStatusModalProps {
   task: TaskWithCourier | null
@@ -28,7 +39,7 @@ export function TaskStatusModal({ task, isOpen, onClose }: TaskStatusModalProps)
     }
   }, [task])
 
-  if (!isOpen || !task) return null
+  if (!task) return null
 
   const allowedStatuses = ALLOWED_TRANSITIONS[task.status] || []
 
@@ -51,115 +62,95 @@ export function TaskStatusModal({ task, isOpen, onClose }: TaskStatusModalProps)
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-fade-in">
-      <div className="bg-card border border-border rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-5 relative">
-        <button
-          onClick={onClose}
-          className="absolute right-4 top-4 text-foreground-muted hover:text-foreground transition cursor-pointer"
-        >
-          <X className="h-5 w-5" />
-        </button>
+    <Modal isOpen={isOpen} onClose={onClose}>
+      <ModalContent size="md">
+        <ModalHeader onClose={onClose}>
+          <ModalTitle>Cambiar Estado de Tarea</ModalTitle>
+          <ModalDescription>Tarea {task.code}: {task.title}</ModalDescription>
+        </ModalHeader>
 
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-accent/10 text-accent border border-accent/20">
-            <RefreshCw className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-base font-semibold text-foreground">Cambiar Estado de Tarea</h2>
-            <p className="text-xs text-foreground-muted">Tarea: {task.code} - {task.title}</p>
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between p-3 bg-muted/40 rounded-xl border border-border/50">
-          <span className="text-xs text-foreground-muted">Estado actual:</span>
-          <TaskStatusBadge status={task.status} />
-        </div>
-
-        {allowedStatuses.length === 0 ? (
-          <div className="p-4 bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded-xl border border-amber-500/20 text-xs flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            Esta tarea no admite más cambios de estado en su ciclo actual.
-          </div>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs font-medium text-foreground-muted mb-1.5">
-                Nuevo Estado Permitido
-              </label>
-              <select
-                value={newStatus}
-                onChange={(e) => setNewStatus(e.target.value as TaskStatus)}
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
-              >
-                {allowedStatuses.map((st) => (
-                  <option key={st} value={st}>
-                    {TASK_STATUS_LABELS[st]}
-                  </option>
-                ))}
-              </select>
+        <form onSubmit={handleSubmit}>
+          <ModalBody className="space-y-4">
+            {/* Banner de Estado Actual */}
+            <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
+              <span className="text-xs font-semibold text-slate-600">Estado actual:</span>
+              <TaskStatusBadge status={task.status} />
             </div>
 
-            {newStatus === 'cancelled' && (
-              <div>
-                <label className="block text-xs font-medium text-foreground-muted mb-1.5">
-                  Motivo de Cancelación <span className="text-destructive">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={cancellationReason}
-                  onChange={(e) => setCancellationReason(e.target.value)}
-                  placeholder="Ej: Cliente canceló el pedido..."
-                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
-                />
+            {allowedStatuses.length === 0 ? (
+              <div className="p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 text-xs flex items-center gap-2.5">
+                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                <span>Esta tarea ha alcanzado un estado final y no admite más cambios en su ciclo operativo.</span>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Nuevo Estado Permitido
+                  </label>
+                  <select
+                    value={newStatus}
+                    onChange={(e) => setNewStatus(e.target.value as TaskStatus)}
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
+                  >
+                    {allowedStatuses.map((st) => (
+                      <option key={st} value={st}>
+                        {TASK_STATUS_LABELS[st]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {newStatus === 'cancelled' && (
+                  <Input
+                    label="Motivo de Cancelación"
+                    type="text"
+                    required
+                    value={cancellationReason}
+                    onChange={(e) => setCancellationReason(e.target.value)}
+                    placeholder="Ej: Cliente canceló el pedido por demora..."
+                  />
+                )}
+
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-slate-700">
+                    Observaciones / Notas (Opcional)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Detalles adicionales sobre este cambio de estado..."
+                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs resize-none"
+                  />
+                </div>
+
+                {statusError && (
+                  <p className="text-xs text-rose-600 font-medium bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                    {(statusError as Error).message}
+                  </p>
+                )}
               </div>
             )}
+          </ModalBody>
 
-            <div>
-              <label className="block text-xs font-medium text-foreground-muted mb-1.5">
-                Observaciones / Notas (Opcional)
-              </label>
-              <textarea
-                rows={2}
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Detalles adicionales sobre este cambio..."
-                className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground resize-none"
-              />
-            </div>
-
-            {statusError && (
-              <p className="text-xs text-destructive font-medium">
-                {(statusError as Error).message}
-              </p>
-            )}
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-xs font-medium text-foreground-muted hover:text-foreground border border-border rounded-lg transition cursor-pointer"
-              >
+          {allowedStatuses.length > 0 && (
+            <ModalFooter>
+              <Button variant="ghost" size="sm" type="button" onClick={onClose}>
                 Cancelar
-              </button>
-              <button
+              </Button>
+              <Button
                 type="submit"
-                disabled={isChangingStatus}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-accent hover:bg-accent/90 disabled:opacity-50 rounded-lg shadow-sm transition cursor-pointer"
+                variant="primary"
+                size="sm"
+                isLoading={isChangingStatus}
               >
-                {isChangingStatus ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Actualizando...
-                  </>
-                ) : (
-                  'Actualizar Estado'
-                )}
-              </button>
-            </div>
-          </form>
-        )}
-      </div>
-    </div>
+                Actualizar Estado
+              </Button>
+            </ModalFooter>
+          )}
+        </form>
+      </ModalContent>
+    </Modal>
   )
 }

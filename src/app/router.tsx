@@ -37,6 +37,13 @@ const CourierSettlementPage = lazy(() => import('@/pages/courier/SettlementPage'
 const CourierBusesPage = lazy(() => import('@/pages/courier/BusesPage'))
 const CourierNotificationsPage = lazy(() => import('@/pages/courier/NotificationsPage'))
 
+// Dev / Catálogo (Solo Desarrollo)
+import { ToastProvider } from '@/shared/components/ui'
+const UiKitCatalogPage = import.meta.env.DEV
+  ? lazy(() => import('@/pages/dev/UiKitCatalogPage'))
+  : null
+
+
 // ─── Loading fallback ─────────────────────────────────────────────────────────
 function PageLoader() {
   return (
@@ -136,6 +143,18 @@ export function AppRouter() {
             <Route path="buses" element={<CourierBusesPage />} />
             <Route path="notificaciones" element={<CourierNotificationsPage />} />
           </Route>
+
+          {/* ── Ruta de Desarrollo (Solo en entorno DEV) ────────────────────── */}
+          {import.meta.env.DEV && UiKitCatalogPage && (
+            <Route
+              path="/dev/ui-kit"
+              element={
+                <ToastProvider>
+                  <UiKitCatalogPage />
+                </ToastProvider>
+              }
+            />
+          )}
 
           {/* 404 */}
           <Route path="*" element={<Navigate to="/" replace />} />

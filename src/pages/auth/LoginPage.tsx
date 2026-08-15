@@ -3,24 +3,32 @@ import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useAuth } from '@/modules/auth/AuthContext'
-import { Eye, EyeOff, Loader2, ShieldCheck } from 'lucide-react'
-import { cn } from '@/shared/utils/cn'
+import { useAuth } from '@/modules/auth/useAuth'
+import { Button, Input, Card, Divider, useToast } from '@/shared/components/ui'
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  PackageCheck,
+  ShieldAlert,
+  ArrowRight,
+} from 'lucide-react'
 
-// ─── Schema ───────────────────────────────────────────────────────────────────
-
+// ─── Schema de Validación Zod ──────────────────────────────────────────────────
 const loginSchema = z.object({
-  email: z.string().email('Correo electrónico inválido'),
+  email: z.string().email('Introduce un correo electrónico válido'),
   password: z.string().min(1, 'La contraseña es requerida'),
   remember: z.boolean(),
 })
 
 type LoginInput = z.infer<typeof loginSchema>
 
-// ─── Componente ───────────────────────────────────────────────────────────────
-
+// ─── Pantalla de Login Rediseñada (Fase 1A) ───────────────────────────────────
 export default function LoginPage() {
   const { signIn } = useAuth()
+  const toast = useToast()
   const [showPassword, setShowPassword] = useState(false)
   const [serverError, setServerError] = useState<string | null>(null)
 
@@ -37,229 +45,224 @@ export default function LoginPage() {
     setServerError(null)
     try {
       await signIn(data.email, data.password)
-      // La redirección la maneja el guard de rutas (PublicOnlyGuard)
+      toast.success('Sesión iniciada', 'Redirigiendo a tu panel de control...')
     } catch (err) {
-      setServerError(err instanceof Error ? err.message : 'Error al iniciar sesión')
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : 'Credenciales incorrectas. Verifica tu correo y contraseña.'
+      setServerError(errorMsg)
+      toast.error('Error de autenticación', errorMsg)
     }
   }
 
   return (
-    <div className="flex min-h-screen">
-      {/* ── Panel izquierdo: branding (solo escritorio) ──────────────── */}
-      <div className="relative hidden flex-1 flex-col items-center justify-center overflow-hidden bg-primary-700 lg:flex">
-        {/* Patrón de fondo */}
+    <div className="flex min-h-screen bg-slate-50 text-slate-900 selection:bg-accent selection:text-white">
+      {/* ── Panel Izquierdo: Branding & Identidad (Escritorio) ─────────── */}
+      <div className="relative hidden flex-1 flex-col items-center justify-between overflow-hidden bg-primary p-12 text-white lg:flex">
+        {/* Patrón Grid Elegante en Fondo */}
         <div
-          className="absolute inset-0 opacity-[0.04]"
+          className="absolute inset-0 opacity-[0.05]"
           style={{
             backgroundImage: `radial-gradient(circle at 1px 1px, hsl(0 0% 100%) 1px, transparent 0)`,
             backgroundSize: '32px 32px',
           }}
           aria-hidden="true"
         />
-        {/* Glow decorativo */}
+
+        {/* Resplandor Celeste Sutil (Accent Glow) */}
         <div
-          className="absolute top-1/4 left-1/2 h-64 w-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent/20 blur-3xl"
+          className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-accent/20 blur-3xl pointer-events-none"
+          aria-hidden="true"
+        />
+        <div
+          className="absolute bottom-0 right-0 h-80 w-80 rounded-full bg-sky-500/10 blur-3xl pointer-events-none"
           aria-hidden="true"
         />
 
-        {/* Contenido de branding */}
-        <div className="relative z-10 max-w-md px-8 text-center">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-accent shadow-lg shadow-accent/30">
-            <span className="text-2xl font-bold text-white">GO</span>
+        {/* Top Header Branding */}
+        <div className="relative z-10 w-full flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-accent text-white flex items-center justify-center font-bold text-xl shadow-md">
+              B
+            </div>
+            <div>
+              <span className="text-base font-bold tracking-tight block leading-tight">Bricklar</span>
+              <span className="text-2xs text-slate-400 font-medium uppercase tracking-wider">Gestor Operativo</span>
+            </div>
           </div>
-          <h1 className="mb-3 text-3xl font-bold text-white">GestorOps</h1>
-          <p className="text-base leading-relaxed text-primary-200">
-            Plataforma de gestión de entregas, rutas y operaciones financieras
-            para equipos de motorizados.
+          <span className="text-2xs font-semibold px-3 py-1 bg-white/10 text-slate-300 rounded-full backdrop-blur-xs border border-white/10">
+            v1.0 SaaS
+          </span>
+        </div>
+
+        {/* Cuerpo Central de Propuesta de Valor */}
+        <div className="relative z-10 max-w-lg space-y-6 text-left my-auto">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/15 text-accent text-xs font-semibold border border-accent/25">
+            <ShieldCheck className="h-3.5 w-3.5" />
+            Acceso Seguro RLS & Token JWT
+          </div>
+
+          <h1 className="text-4xl font-bold tracking-tight text-white leading-tight">
+            Control integral de entregas, rutas y finanzas operativas.
+          </h1>
+
+          <p className="text-sm text-slate-300 leading-relaxed">
+            Plataforma corporativa diseñada para optimizar el despacho de tareas, monitoreo de sucursales y liquidación de caja en tiempo real.
           </p>
 
-          {/* Features */}
-          <div className="mt-10 space-y-3 text-left">
-            {[
-              'Gestión de tareas y rutas en tiempo real',
-              'Liquidaciones multimoneda NIO y USD',
-              'Control financiero por motorizado y sucursal',
-              'Directorio de buses y encomiendas',
-            ].map((feat) => (
-              <div key={feat} className="flex items-center gap-3">
-                <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-accent/20">
-                  <div className="h-2 w-2 rounded-full bg-accent" />
-                </div>
-                <span className="text-sm text-primary-200">{feat}</span>
-              </div>
-            ))}
+          <div className="pt-4 grid grid-cols-2 gap-4">
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1.5">
+              <span className="text-xs font-semibold text-accent flex items-center gap-1.5">
+                <PackageCheck className="h-4 w-4" /> Despacho Móvil
+              </span>
+              <p className="text-2xs text-slate-300">Asignación inteligente para motorizados en ruta.</p>
+            </div>
+            <div className="p-4 rounded-xl bg-white/5 border border-white/10 backdrop-blur-xs space-y-1.5">
+              <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                <ShieldCheck className="h-4 w-4" /> Balances Precisos
+              </span>
+              <p className="text-2xs text-slate-300">Auditoría automática de ingresos y gastos.</p>
+            </div>
           </div>
         </div>
 
-        {/* Footer branding */}
-        <p className="absolute bottom-6 text-xs text-primary-400">
-          Solo para uso interno autorizado
-        </p>
+        {/* Footer Legal branding */}
+        <div className="relative z-10 w-full flex items-center justify-between text-2xs text-slate-400 border-t border-white/10 pt-4">
+          <span>&copy; {new Date().getFullYear()} Bricklar Gestor. Todos los derechos reservados.</span>
+          <span>Uso Interno Autorizado</span>
+        </div>
       </div>
 
-      {/* ── Panel derecho: formulario ─────────────────────────────────── */}
-      <div className="flex flex-1 flex-col items-center justify-center bg-background px-6 py-12 sm:px-10 lg:max-w-lg lg:px-16">
-        {/* Logo mobile */}
-        <div className="mb-8 flex flex-col items-center lg:hidden">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-700 shadow">
-            <span className="text-lg font-bold text-white">GO</span>
+      {/* ── Panel Derecho: Formulario de Autenticación ─────────────────── */}
+      <div className="flex flex-1 flex-col justify-between p-6 sm:p-12 lg:p-16 max-w-xl mx-auto w-full">
+        {/* Header móvil */}
+        <div className="flex items-center justify-between lg:hidden mb-8">
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-lg bg-accent text-white flex items-center justify-center font-bold text-lg">
+              B
+            </div>
+            <span className="text-base font-bold text-slate-900">Bricklar Gestor</span>
           </div>
-          <h1 className="text-xl font-bold text-foreground">GestorOps</h1>
         </div>
 
-        <div className="w-full max-w-sm">
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-foreground">Iniciar sesión</h2>
-            <p className="mt-1 text-sm text-foreground-muted">
-              Accede a tu cuenta para continuar
+        <div className="my-auto space-y-8 w-full max-w-md mx-auto">
+          {/* Encabezado del Formulario */}
+          <div className="space-y-2">
+            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+              Iniciar Sesión
+            </h2>
+            <p className="text-xs sm:text-sm text-slate-500">
+              Introduce tus credenciales autorizadas para ingresar a la plataforma.
             </p>
           </div>
 
-          {/* Error del servidor */}
-          {serverError && (
-            <div
-              role="alert"
-              className="mb-5 flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/8 px-4 py-3 text-sm text-destructive animate-fade-in"
-            >
-              <ShieldCheck size={16} className="mt-0.5 flex-shrink-0" />
-              <span>{serverError}</span>
-            </div>
-          )}
-
-          <form
-            onSubmit={handleSubmit(onSubmit)}
-            noValidate
-            className="space-y-4"
-            aria-label="Formulario de inicio de sesión"
-          >
-            {/* Email */}
-            <div>
-              <label
-                htmlFor="email"
-                className="mb-1.5 block text-sm font-medium text-foreground"
+          {/* Tarjeta del Formulario */}
+          <Card className="p-6 sm:p-8 shadow-card border-slate-200 bg-white space-y-6">
+            {/* Banner de error de servidor si aplica */}
+            {serverError && (
+              <div
+                role="alert"
+                className="flex items-start gap-3 rounded-lg border border-rose-200 bg-rose-50 p-4 text-xs text-rose-800 animate-fade-in"
               >
-                Correo electrónico <span aria-hidden="true" className="text-destructive">*</span>
-              </label>
-              <input
-                id="email"
+                <ShieldAlert className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <span className="font-semibold block">Error al Iniciar Sesión</span>
+                  <p>{serverError}</p>
+                </div>
+              </div>
+            )}
+
+            <form
+              onSubmit={handleSubmit(onSubmit)}
+              noValidate
+              className="space-y-5"
+              aria-label="Formulario de inicio de sesión"
+            >
+              {/* Campo Correo Electrónico */}
+              <Input
+                label="Correo electrónico"
                 type="email"
+                placeholder="usuario@bricklar.com"
                 autoComplete="email"
                 autoFocus
-                aria-required="true"
-                aria-invalid={!!errors.email}
-                aria-describedby={errors.email ? 'email-error' : undefined}
-                className={cn(
-                  'w-full rounded-lg border px-4 py-2.5 text-sm text-foreground placeholder:text-foreground-subtle',
-                  'bg-surface transition-colors',
-                  'focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20',
-                  errors.email
-                    ? 'border-destructive focus:border-destructive focus:ring-destructive/20'
-                    : 'border-border hover:border-foreground-muted'
-                )}
-                placeholder="usuario@agencia.com"
+                leftIcon={<Mail className="h-4 w-4" />}
+                error={errors.email?.message}
                 {...register('email')}
               />
-              {errors.email && (
-                <p id="email-error" role="alert" className="mt-1 text-xs text-destructive">
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
 
-            {/* Password */}
-            <div>
-              <label
-                htmlFor="password"
-                className="mb-1.5 block text-sm font-medium text-foreground"
-              >
-                Contraseña <span aria-hidden="true" className="text-destructive">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  aria-required="true"
-                  aria-invalid={!!errors.password}
-                  aria-describedby={errors.password ? 'password-error' : undefined}
-                  className={cn(
-                    'w-full rounded-lg border px-4 py-2.5 pr-11 text-sm text-foreground',
-                    'bg-surface transition-colors',
-                    'focus:border-accent focus:outline-none focus:ring-2 focus:ring-accent/20',
-                    errors.password
-                      ? 'border-destructive focus:border-destructive focus:ring-destructive/20'
-                      : 'border-border hover:border-foreground-muted'
-                  )}
-                  placeholder="••••••••"
-                  {...register('password')}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-0.5 text-foreground-muted hover:text-foreground"
-                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+              {/* Campo Contraseña con Toggle */}
+              <Input
+                label="Contraseña"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                autoComplete="current-password"
+                leftIcon={<Lock className="h-4 w-4" />}
+                error={errors.password?.message}
+                rightIcon={
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="p-1 text-slate-400 hover:text-slate-700 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
+                    aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                }
+                {...register('password')}
+              />
+
+              {/* Checkbox Recordarme + Enlace Olvidé contraseña */}
+              <div className="flex items-center justify-between pt-1">
+                <label className="flex items-center gap-2 text-xs font-medium text-slate-600 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-accent focus:ring-accent/20 cursor-pointer"
+                    {...register('remember')}
+                  />
+                  <span>Recordarme</span>
+                </label>
+
+                <Link
+                  to="/recuperar-contrasena"
+                  className="text-xs font-semibold text-accent hover:text-sky-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent rounded"
                 >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+                  ¿Olvidaste tu contraseña?
+                </Link>
               </div>
-              {errors.password && (
-                <p id="password-error" role="alert" className="mt-1 text-xs text-destructive">
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
 
-            {/* Recordar sesión + Olvidé contraseña */}
-            <div className="flex items-center justify-between">
-              <label className="flex cursor-pointer items-center gap-2 text-sm text-foreground-muted">
-                <input
-                  id="remember"
-                  type="checkbox"
-                  className="h-4 w-4 rounded border-border text-accent focus:ring-accent/30"
-                  {...register('remember')}
-                />
-                Recordarme
-              </label>
-              <Link
-                to="/recuperar-contrasena"
-                className="text-sm font-medium text-accent hover:text-accent-hover hover:underline"
+              {/* Botón de Submit Principal (Button del UI Kit) */}
+              <Button
+                type="submit"
+                variant="primary"
+                size="lg"
+                className="w-full justify-center shadow-md font-bold text-sm"
+                isLoading={isSubmitting}
+                rightIcon={!isSubmitting ? <ArrowRight className="h-4 w-4" /> : undefined}
               >
-                ¿Olvidaste tu contraseña?
-              </Link>
-            </div>
+                {isSubmitting ? 'Verificando credenciales...' : 'Iniciar Sesión'}
+              </Button>
+            </form>
+          </Card>
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className={cn(
-                'flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2.5',
-                'bg-accent text-sm font-semibold text-white shadow-sm',
-                'transition-all duration-150',
-                'hover:bg-accent-hover hover:shadow-md',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2',
-                'disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none',
-                isSubmitting && 'animate-pulse-soft'
-              )}
-              aria-busy={isSubmitting}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" />
-                  Verificando…
-                </>
-              ) : (
-                'Iniciar sesión'
-              )}
-            </button>
-          </form>
+          {/* Nota de Seguridad */}
+          <div className="text-center space-y-2">
+            <Divider />
+            <p className="text-2xs text-slate-400 leading-relaxed">
+              Acceso restringido únicamente a usuarios registrados y autorizados.
+              <br />
+              Todas las operaciones son auditadas conforme a las políticas de seguridad RLS.
+            </p>
+          </div>
+        </div>
 
-          {/* Nota de seguridad */}
-          <p className="mt-8 text-center text-xs text-foreground-subtle">
-            Acceso exclusivo para personal autorizado.
-            <br />
-            El registro público no está habilitado.
-          </p>
+        {/* Footer simple para pantalla móvil */}
+        <div className="text-center text-2xs text-slate-400 pt-6 border-t border-slate-100 lg:hidden">
+          &copy; {new Date().getFullYear()} Bricklar Gestor. Todos los derechos reservados.
         </div>
       </div>
     </div>

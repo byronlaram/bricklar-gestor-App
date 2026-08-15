@@ -12,7 +12,7 @@ import {
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
-import { useAuth } from '@/modules/auth/AuthContext'
+import { useAuth } from '@/modules/auth/useAuth'
 import { TASK_STATUS_LABELS, TASK_TYPE_LABELS } from '@/shared/types'
 
 type ReportType = 'tasks' | 'settlements' | 'workdays'
@@ -74,13 +74,35 @@ async function fetchReportData(
   if (type === 'workdays') {
     const { data } = await supabase
       .from('workdays')
-      .select(`id, work_date, status, initial_cash, notes,
+      .select(`id, work_date, status, initial_km, final_km, initial_cash, notes,
         courier:profiles!workdays_courier_id_fkey(full_name)`)
       .in('branch_id', branchIds)
       .gte('work_date', from)
       .lte('work_date', to)
       .order('work_date', { ascending: false })
-    return (data ?? []) as unknown as Record<string, unknown>[]
+
+    const formatted = (data ?? []).map((w: any) => {
+      let kmDisplay = 'No disponible'
+      if (w.initial_km !== null && w.initial_km !== undefined) {
+        kmDisplay = `${w.initial_km} km`
+      } else if (w.notes?.includes('[Kilometraje No Disponible]')) {
+        const reason = w.notes.match(/Motivo:\s*([^|]+)/)?.[1]?.trim()
+        if (reason) kmDisplay = `No disponible (${reason})`
+      }
+
+      return {
+        id: w.id,
+        work_date: w.work_date,
+        motorizado: w.courier?.full_name || 'N/A',
+        status: w.status,
+        initial_km: kmDisplay,
+        final_km: w.final_km !== null && w.final_km !== undefined ? `${w.final_km} km` : 'En recorrido',
+        initial_cash: w.initial_cash || 0,
+        notes: w.notes || '',
+      }
+    })
+
+    return formatted as unknown as Record<string, unknown>[]
   }
 
   return []

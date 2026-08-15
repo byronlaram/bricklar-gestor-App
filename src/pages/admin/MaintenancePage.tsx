@@ -187,7 +187,7 @@ export default function MaintenancePage() {
         </div>
         <div className="grid grid-cols-2 gap-3 text-xs">
           {[
-            { label: 'Aplicación', value: 'GestorOps v1.0' },
+            { label: 'Aplicación', value: 'Bricklar Gestor v1.0' },
             { label: 'Backend', value: 'Supabase (PostgreSQL)' },
             { label: 'Frontend', value: 'React 18 + Vite' },
             { label: 'UI', value: 'TailwindCSS / CSS Variables' },

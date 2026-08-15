@@ -4,23 +4,43 @@ import {
   Fuel,
   ShoppingCart,
   Receipt,
-  Loader2,
   Wallet,
+  ArrowUpRight,
+  ArrowDownLeft,
+  Banknote,
 } from 'lucide-react'
-import { useAuth } from '@/modules/auth/AuthContext'
+import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
 import { useCashMovements } from '@/modules/settlements/hooks/useSettlements'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { AddMovementModal } from '@/modules/settlements/components/AddMovementModal'
+import {
+  Button,
+  Skeleton,
+  EmptyState,
+  useToast,
+} from '@/shared/components/ui'
 
 export default function CourierFundsPage() {
   const { profile } = useAuth()
   const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
   const todayStr = new Date().toISOString().split('T')[0]
+  const toast = useToast()
 
   const [isAddMovementOpen, setIsAddMovementOpen] = useState(false)
 
   const { data: activeWorkday } = useActiveWorkday(profile?.id)
+
+  const handleOpenGastoModal = () => {
+    if (!activeWorkday) {
+      toast.error(
+        'Jornada requerida',
+        'Debes iniciar tu jornada laboral de hoy en la pantalla de Inicio para poder registrar un gasto.'
+      )
+      return
+    }
+    setIsAddMovementOpen(true)
+  }
   const { data: movements = [], isLoading: isLoadingMovements } = useCashMovements(activeWorkday?.id)
 
   const { data: tasksData } = useTasks({
@@ -53,116 +73,164 @@ export default function CourierFundsPage() {
   // Fondo total recibido (Fondo inicial + Entregas adicionales de efectivo)
   const totalFundsReceived = initialCash + totalCashAdvances
 
-  // Efectivo total en mano
+  // Efectivo total disponible en mano
   const cashInHand = Math.max(0, totalFundsReceived + cashCollections - totalExpenses)
 
   return (
-    <div className="p-4 space-y-5 animate-fade-in pb-20">
-      <div className="flex items-center justify-between">
+    <div className="space-y-5 animate-fade-in pb-20 max-w-2xl mx-auto">
+      {/* Header Menta Pastel Ejecutivo */}
+      <div className="bg-[#F3F9F6] border border-emerald-100/70 rounded-3xl p-5 shadow-2xs flex items-center justify-between">
         <div>
-          <h1 className="text-1xl font-bold text-foreground">Fondos en Caja / Mano</h1>
-          <p className="text-xs text-foreground-muted">Control de dinero recibido, cobros y egresos en ruta.</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#0A2540] flex items-center gap-2">
+            <Wallet className="h-5 w-5 text-emerald-700" />
+            Billetera Digital en Ruta
+          </h1>
+          <p className="text-xs text-slate-500 font-medium mt-0.5">
+            Efectivo disponible, cobros en entregas y reporte de gastos.
+          </p>
         </div>
 
-        <button
-          onClick={() => setIsAddMovementOpen(true)}
-          disabled={!activeWorkday}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-40 rounded-xl shadow-sm transition cursor-pointer"
+        <Button
+          onClick={handleOpenGastoModal}
+          variant="warning"
+          size="sm"
+          leftIcon={<Plus className="h-4 w-4" />}
+          className="font-bold text-xs shadow-xs shrink-0 rounded-2xl"
         >
-          <Plus className="h-4 w-4" />
           Registrar Gasto
-        </button>
+        </Button>
       </div>
 
-      {/* Card de Efectivo Total en Mano */}
-      <div className="bg-gradient-to-br from-emerald-600 to-teal-700 rounded-2xl p-5 text-white shadow-lg space-y-4">
-        <div className="flex items-center justify-between opacity-90">
-          <span className="text-xs font-semibold uppercase tracking-wider flex items-center gap-1.5">
-            <Wallet className="h-4 w-4" />
-            Efectivo Neto en Mano
+      {/* Tarjeta Hero Billetera Digital */}
+      <div className="bg-gradient-to-br from-indigo-900 via-indigo-800 to-slate-900 rounded-3xl p-6 text-white shadow-lg space-y-5 border border-indigo-700/50">
+        <div className="flex items-center justify-between border-b border-indigo-700/50 pb-3">
+          <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-2 text-indigo-200">
+            <Wallet className="h-4 w-4 text-teal-300" />
+            Dinero Disponible en Mano
           </span>
-          <span className="text-[10px] bg-white/20 px-2 py-0.5 rounded-full font-mono">
+          <span className="text-2xs bg-indigo-950/80 text-teal-200 px-3 py-1 rounded-full font-mono border border-indigo-700/60 font-bold">
             {todayStr}
           </span>
         </div>
 
         <div className="space-y-1">
-          <p className="text-3xl font-black tracking-tight">C${cashInHand.toFixed(2)}</p>
-          <p className="text-[11px] opacity-80">
-            Calculado automáticamente: Fondos Entregados + Cobros - Gastos.
+          <span className="text-2xs text-indigo-200 uppercase font-semibold tracking-wider">Saldo Total Disponible</span>
+          <p className="text-4xl sm:text-5xl font-black tracking-tight text-white font-tabular">
+            C$ {cashInHand.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
           </p>
         </div>
 
-        {/* Desglose rápido 4 columnas */}
-        <div className="grid grid-cols-3 sm:grid-cols-3 gap-2 pt-3 border-t border-white/20 text-center text-xs">
-          <div className="bg-white/10 p-2 rounded-xl backdrop-blur-xs">
-            <span className="text-[10px] block opacity-80">Fondos Recibidos</span>
-            <span className="font-bold">C${totalFundsReceived.toFixed(2)}</span>
+        {/* Desglose rápido 3 tarjetas integradas */}
+        <div className="grid grid-cols-3 gap-2.5 pt-2 text-center text-xs">
+          <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-xs border border-white/10">
+            <span className="text-2xs block text-indigo-200 uppercase tracking-wider font-semibold">Fondos Recibidos</span>
+            <span className="font-bold text-white text-sm font-tabular mt-0.5 block">C$ {totalFundsReceived.toFixed(2)}</span>
           </div>
 
-          <div className="bg-white/10 p-2 rounded-xl backdrop-blur-xs">
-            <span className="text-[10px] block opacity-80">Cobros Efectivo</span>
-            <span className="font-bold text-emerald-200">+C${cashCollections.toFixed(2)}</span>
+          <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-xs border border-white/10">
+            <span className="text-2xs block text-teal-200 uppercase tracking-wider font-semibold">Cobros Tareas</span>
+            <span className="font-bold text-teal-300 text-sm font-tabular mt-0.5 block">+C$ {cashCollections.toFixed(2)}</span>
           </div>
 
-          <div className="bg-white/10 p-2 rounded-xl backdrop-blur-xs">
-            <span className="text-[10px] block opacity-80">Gastos Ruta</span>
-            <span className="font-bold text-amber-200">-C${totalExpenses.toFixed(2)}</span>
+          <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-xs border border-white/10">
+            <span className="text-2xs block text-amber-200 uppercase tracking-wider font-semibold">Gastos Ruta</span>
+            <span className="font-bold text-amber-300 text-sm font-tabular mt-0.5 block">-C$ {totalExpenses.toFixed(2)}</span>
           </div>
         </div>
       </div>
 
-      {/* Lista de Movimientos y Gastos */}
+      {/* Tarjetas de Categorías Menta / Esmeralda Pastel Suaves */}
+      <div className="grid grid-cols-3 gap-3">
+        <div className="bg-[#F3F9F6] border border-emerald-100/70 rounded-3xl p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-emerald-700">
+            <span className="text-2xs font-bold uppercase tracking-wider">Fondos</span>
+            <Banknote size={16} />
+          </div>
+          <span className="text-base sm:text-lg font-bold text-emerald-950 font-tabular mt-2 block">
+            C$ {totalFundsReceived.toFixed(2)}
+          </span>
+        </div>
+
+        <div className="bg-[#F5F8FE] border border-blue-100/70 rounded-3xl p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-blue-700">
+            <span className="text-2xs font-bold uppercase tracking-wider">Cobrado</span>
+            <ArrowDownLeft size={16} />
+          </div>
+          <span className="text-base sm:text-lg font-bold text-blue-950 font-tabular mt-2 block">
+            C$ {cashCollections.toFixed(2)}
+          </span>
+        </div>
+
+        <div className="bg-[#FCFAF4] border border-amber-100/70 rounded-3xl p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-amber-700">
+            <span className="text-2xs font-bold uppercase tracking-wider">Gastos</span>
+            <ArrowUpRight size={16} />
+          </div>
+          <span className="text-base sm:text-lg font-bold text-amber-950 font-tabular mt-2 block">
+            C$ {totalExpenses.toFixed(2)}
+          </span>
+        </div>
+      </div>
+
+      {/* Lista de Movimientos Recientes */}
       <div className="space-y-3">
-        <h2 className="text-sm font-bold text-foreground">Gastos y Egresos de la Ruta</h2>
+        <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Movimientos Recientes de Caja</h2>
 
         {isLoadingMovements ? (
-          <div className="p-8 text-center text-xs text-foreground-muted flex items-center justify-center gap-2">
-            <Loader2 className="h-4 w-4 animate-spin text-accent" />
-            Cargando registros...
+          <div className="space-y-2.5">
+            <Skeleton className="h-16 rounded-3xl" />
+            <Skeleton className="h-16 rounded-3xl" />
           </div>
         ) : movements.length === 0 ? (
-          <div className="p-6 bg-card border border-border rounded-2xl text-center space-y-1">
-            <p className="text-xs font-semibold text-foreground">Sin gastos registrados hoy</p>
-            <p className="text-[11px] text-foreground-muted">
-              Si realizas compras, recarga de gasolina o pagos de encomiendas, regístralos aquí.
-            </p>
-          </div>
+          <EmptyState
+            title="Sin gastos ni movimientos registrados"
+            description="Si realizas compras, combustible o entregas de efectivo, regístralos usando el botón superior."
+            icon={<Receipt className="h-8 w-8 text-slate-400" />}
+          />
         ) : (
           <div className="space-y-2.5">
-            {movements.map((m) => (
-              <div
-                key={m.id}
-                className="bg-card border border-border rounded-xl p-3.5 shadow-xs flex items-center justify-between gap-3"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-500 border border-amber-500/20">
-                    {m.movement_type === 'fuel' ? (
-                      <Fuel className="h-4 w-4" />
-                    ) : m.movement_type === 'purchase' ? (
-                      <ShoppingCart className="h-4 w-4" />
-                    ) : (
-                      <Receipt className="h-4 w-4" />
-                    )}
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold text-foreground">{m.description}</h3>
-                    <p className="text-[10px] text-foreground-muted">
-                      {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </p>
-                  </div>
-                </div>
+            {movements.map((m, idx) => {
+              const itemPastels = [
+                'bg-[#FCFAF4] border-amber-100/70',
+                'bg-[#F5F8FE] border-blue-100/70',
+                'bg-[#F3F9F6] border-emerald-100/70',
+              ]
+              const itemStyle = itemPastels[idx % itemPastels.length]
 
-                <div className="text-right">
-                  <span className="text-sm font-bold text-amber-600 dark:text-amber-400 block">
-                    -C${m.amount.toFixed(2)}
-                  </span>
-                  <span className="text-[10px] text-foreground-muted uppercase">
-                    {m.payment_method}
-                  </span>
+              return (
+                <div
+                  key={m.id}
+                  className={`p-4 ${itemStyle} border rounded-3xl shadow-2xs flex items-center justify-between gap-3`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-3 rounded-2xl bg-white/90 text-amber-700 border border-slate-200/60 shadow-2xs">
+                      {m.movement_type === 'fuel' ? (
+                        <Fuel className="h-4 w-4" />
+                      ) : m.movement_type === 'purchase' ? (
+                        <ShoppingCart className="h-4 w-4" />
+                      ) : (
+                        <Receipt className="h-4 w-4" />
+                      )}
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-[#0A2540]">{m.description}</h3>
+                      <p className="text-2xs text-slate-500 font-semibold font-mono mt-0.5">
+                        {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <span className="text-sm font-bold text-amber-700 font-tabular block">
+                      -C$ {m.amount.toFixed(2)}
+                    </span>
+                    <span className="text-2xs text-slate-500 font-mono uppercase font-semibold">
+                      {m.payment_method}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )}
       </div>

@@ -6,6 +6,9 @@ export function useTasks(filters: TaskFilters = {}) {
   return useQuery({
     queryKey: ['tasks', filters],
     queryFn: () => getTasks(filters),
-    staleTime: 1000 * 30, // 30 segundos de datos frescos
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: 'always',
+    refetchOnReconnect: 'always',
   })
 }

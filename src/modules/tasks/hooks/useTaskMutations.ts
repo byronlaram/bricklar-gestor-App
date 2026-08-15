@@ -5,6 +5,9 @@ import {
   deleteTask,
   assignTask,
   changeTaskStatus,
+  updateTaskRouteOrders,
+  approveTask,
+  rejectTask,
 } from '../services/tasksService'
 import type {
   CreateTaskPayload,
@@ -51,6 +54,56 @@ export function useTaskMutations() {
     onSuccess: (data) => invalidateTaskQueries(data.id),
   })
 
+  const approveTaskMutation = useMutation({
+    mutationFn: ({ taskId, notes }: { taskId: string; notes?: string }) =>
+      approveTask(taskId, notes),
+    onSuccess: (data) => invalidateTaskQueries(data.id),
+  })
+
+  const rejectTaskMutation = useMutation({
+    mutationFn: ({ taskId, reason }: { taskId: string; reason: string }) =>
+      rejectTask(taskId, reason),
+    onSuccess: (data) => invalidateTaskQueries(data.id),
+  })
+
+  const reorderTasksMutation = useMutation({
+    mutationFn: (items: { id: string; route_order: number }[]) => updateTaskRouteOrders(items),
+    onMutate: async (newOrders) => {
+      await queryClient.cancelQueries({ queryKey: ['tasks'] })
+      const previousQueriesData = queryClient.getQueriesData({ queryKey: ['tasks'] })
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      queryClient.setQueriesData({ queryKey: ['tasks'] }, (oldData: any) => {
+        if (!oldData || !oldData.data) return oldData
+        const orderMap = new Map(newOrders.map((item) => [item.id, item.route_order]))
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const updatedList = oldData.data.map((task: any) => {
+          if (orderMap.has(task.id)) {
+            return { ...task, route_order: orderMap.get(task.id) }
+          }
+          return task
+        })
+        return {
+          ...oldData,
+          data: updatedList,
+        }
+      })
+
+      return { previousQueriesData }
+    },
+    onError: (err, _newOrders, context) => {
+      console.error('[Tasks] reorderTasks mutation error:', err)
+      if (context?.previousQueriesData) {
+        context.previousQueriesData.forEach(([queryKey, data]) => {
+          queryClient.setQueryData(queryKey, data)
+        })
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    },
+  })
+
   return {
     createTask: createTaskMutation.mutateAsync,
     isCreating: createTaskMutation.isPending,
@@ -70,5 +123,17 @@ export function useTaskMutations() {
     changeStatus: changeStatusMutation.mutateAsync,
     isChangingStatus: changeStatusMutation.isPending,
     statusError: changeStatusMutation.error,
+
+    approveTask: approveTaskMutation.mutateAsync,
+    isApproving: approveTaskMutation.isPending,
+    approveError: approveTaskMutation.error,
+
+    rejectTask: rejectTaskMutation.mutateAsync,
+    isRejecting: rejectTaskMutation.isPending,
+    rejectError: rejectTaskMutation.error,
+
+    reorderTasks: reorderTasksMutation.mutateAsync,
+    isReordering: reorderTasksMutation.isPending,
+    reorderError: reorderTasksMutation.error,
   }
 }

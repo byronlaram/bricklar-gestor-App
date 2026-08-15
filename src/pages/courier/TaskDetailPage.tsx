@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
-  Loader2,
   Phone,
   MessageCircle,
   MapPin,
@@ -10,6 +9,8 @@ import {
   CheckCircle2,
   Play,
   AlertCircle,
+  User,
+  Clock,
 } from 'lucide-react'
 import { useTask } from '@/modules/tasks/hooks/useTask'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
@@ -17,6 +18,13 @@ import { TaskStatusBadge } from '@/modules/tasks/components/TaskStatusBadge'
 import { TaskPriorityBadge } from '@/modules/tasks/components/TaskPriorityBadge'
 import { TaskTypeBadge } from '@/modules/tasks/components/TaskTypeBadge'
 import { CompleteTaskModal } from '@/modules/courier/components/CompleteTaskModal'
+import {
+  Card,
+  CardTitle,
+  Button,
+  Badge,
+  Skeleton,
+} from '@/shared/components/ui'
 
 export default function CourierTaskDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -29,25 +37,26 @@ export default function CourierTaskDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3 text-foreground-muted">
-        <Loader2 className="h-8 w-8 animate-spin text-accent" />
-        <p className="text-xs">Cargando datos de la entrega...</p>
+      <div className="space-y-4 max-w-2xl mx-auto">
+        <Skeleton className="h-24 rounded-2xl" />
+        <Skeleton className="h-32 rounded-2xl" />
+        <Skeleton className="h-48 rounded-2xl" />
       </div>
     )
   }
 
   if (isError || !task) {
     return (
-      <div className="p-8 text-center space-y-4">
-        <AlertCircle className="h-10 w-10 text-destructive mx-auto" />
-        <h2 className="text-base font-bold text-foreground">No se encontró la tarea</h2>
-        <button
+      <div className="max-w-2xl mx-auto p-8 text-center space-y-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
+        <AlertCircle className="h-10 w-10 text-rose-600 mx-auto" />
+        <h2 className="text-base font-bold text-slate-900">No se encontró la tarea</h2>
+        <Button
+          variant="outline"
           onClick={() => navigate('/motorizado/tareas')}
-          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-foreground border border-border rounded-xl"
+          leftIcon={<ArrowLeft className="h-4 w-4" />}
         >
-          <ArrowLeft className="h-4 w-4" />
           Volver a Mis Tareas
-        </button>
+        </Button>
       </div>
     )
   }
@@ -69,20 +78,22 @@ export default function CourierTaskDetailPage() {
   }
 
   return (
-    <div className="p-4 space-y-5 animate-fade-in pb-28">
+    <div className="space-y-5 animate-fade-in pb-28 max-w-2xl mx-auto">
       {/* Botón Volver */}
-      <button
+      <Button
+        variant="ghost"
+        size="sm"
         onClick={() => navigate('/motorizado/tareas')}
-        className="inline-flex items-center gap-1.5 text-xs font-medium text-foreground-muted hover:text-foreground transition cursor-pointer"
+        leftIcon={<ArrowLeft className="h-4 w-4" />}
+        className="text-slate-600 hover:text-slate-900 font-medium"
       >
-        <ArrowLeft className="h-4 w-4" />
         Volver a mis tareas
-      </button>
+      </Button>
 
       {/* Header Móvil */}
-      <div className="bg-card border border-border rounded-2xl p-4 shadow-xs space-y-2.5">
+      <Card className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-xs space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-xs font-bold text-accent px-2.5 py-0.5 rounded bg-accent/10 border border-accent/20">
+          <span className="font-mono text-xs font-bold text-indigo-700 px-2.5 py-0.5 rounded bg-indigo-50 border border-indigo-100">
             {task.code}
           </span>
           <TaskStatusBadge status={task.status} />
@@ -90,23 +101,23 @@ export default function CourierTaskDetailPage() {
           <TaskTypeBadge type={task.task_type} />
         </div>
 
-        <h1 className="text-lg font-bold text-foreground">{task.title}</h1>
-      </div>
+        <CardTitle className="text-lg sm:text-xl font-bold text-slate-900">{task.title}</CardTitle>
+      </Card>
 
       {/* Botones de Acción Directa Móvil (Llamar, WhatsApp, Mapa) */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-3 gap-2.5">
         {task.phone ? (
           <a
             href={`tel:${task.phone}`}
-            className="flex flex-col items-center justify-center p-3 bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/20 rounded-2xl text-center transition cursor-pointer active:scale-95"
+            className="flex flex-col items-center justify-center p-3.5 bg-indigo-50/80 text-indigo-800 border border-indigo-200/80 rounded-2xl text-center transition cursor-pointer active:scale-95 shadow-2xs font-bold"
           >
-            <Phone className="h-5 w-5 mb-1" />
-            <span className="text-[11px] font-bold">Llamar</span>
+            <Phone className="h-5 w-5 mb-1 text-indigo-700" />
+            <span className="text-2xs">Llamar</span>
           </a>
         ) : (
-          <div className="flex flex-col items-center justify-center p-3 bg-muted/40 text-foreground-muted rounded-2xl text-center opacity-50">
+          <div className="flex flex-col items-center justify-center p-3.5 bg-slate-100 text-slate-400 rounded-2xl text-center opacity-50">
             <Phone className="h-5 w-5 mb-1" />
-            <span className="text-[11px]">Sin Teléfono</span>
+            <span className="text-2xs">Sin Teléfono</span>
           </div>
         )}
 
@@ -115,15 +126,15 @@ export default function CourierTaskDetailPage() {
             href={`https://wa.me/${task.whatsapp.replace(/\D/g, '')}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex flex-col items-center justify-center p-3 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded-2xl text-center transition cursor-pointer active:scale-95"
+            className="flex flex-col items-center justify-center p-3.5 bg-emerald-50 text-emerald-800 border border-emerald-200/80 rounded-2xl text-center transition cursor-pointer active:scale-95 shadow-2xs font-bold"
           >
-            <MessageCircle className="h-5 w-5 mb-1" />
-            <span className="text-[11px] font-bold">WhatsApp</span>
+            <MessageCircle className="h-5 w-5 mb-1 text-emerald-600" />
+            <span className="text-2xs">WhatsApp</span>
           </a>
         ) : (
-          <div className="flex flex-col items-center justify-center p-3 bg-muted/40 text-foreground-muted rounded-2xl text-center opacity-50">
+          <div className="flex flex-col items-center justify-center p-3.5 bg-slate-100 text-slate-400 rounded-2xl text-center opacity-50">
             <MessageCircle className="h-5 w-5 mb-1" />
-            <span className="text-[11px]">Sin WhatsApp</span>
+            <span className="text-2xs">Sin WhatsApp</span>
           </div>
         )}
 
@@ -132,117 +143,128 @@ export default function CourierTaskDetailPage() {
             href={task.maps_url}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex flex-col items-center justify-center p-3 bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 rounded-2xl text-center transition cursor-pointer active:scale-95"
+            className="flex flex-col items-center justify-center p-3.5 bg-purple-50 text-purple-800 border border-purple-200/80 rounded-2xl text-center transition cursor-pointer active:scale-95 shadow-2xs font-bold"
           >
-            <Navigation className="h-5 w-5 mb-1" />
-            <span className="text-[11px] font-bold">Waze / Maps</span>
+            <Navigation className="h-5 w-5 mb-1 text-purple-600" />
+            <span className="text-2xs">Waze / Maps</span>
           </a>
         ) : (
-          <div className="flex flex-col items-center justify-center p-3 bg-muted/40 text-foreground-muted rounded-2xl text-center opacity-50">
+          <div className="flex flex-col items-center justify-center p-3.5 bg-slate-100 text-slate-400 rounded-2xl text-center opacity-50">
             <Navigation className="h-5 w-5 mb-1" />
-            <span className="text-[11px]">Sin Mapa</span>
+            <span className="text-2xs">Sin Mapa</span>
           </div>
         )}
       </div>
 
       {/* Detalles de la Entrega */}
-      <div className="bg-card border border-border rounded-2xl p-4 shadow-xs space-y-4">
-        <h2 className="text-xs font-bold text-foreground uppercase tracking-wider border-b border-border/40 pb-2">
+      <Card className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-xs space-y-4">
+        <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">
           Ubicación e Instrucciones
         </h2>
 
         <div>
-          <span className="text-[11px] text-foreground-muted block">Contacto</span>
-          <span className="text-sm font-semibold text-foreground">
+          <span className="text-2xs text-slate-400 uppercase tracking-wider font-semibold block">Contacto</span>
+          <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5 mt-0.5">
+            <User className="h-4 w-4 text-indigo-600" />
             {task.contact_name || 'Sin nombre especificado'}
           </span>
         </div>
 
         <div>
-          <span className="text-[11px] text-foreground-muted block">Dirección</span>
-          <p className="text-xs font-medium text-foreground flex items-start gap-1.5 pt-0.5">
-            <MapPin className="h-4 w-4 text-accent shrink-0 mt-0.5" />
+          <span className="text-2xs text-slate-400 uppercase tracking-wider font-semibold block">Dirección</span>
+          <p className="text-xs font-bold text-slate-900 flex items-start gap-1.5 pt-0.5 bg-indigo-50/50 p-3 rounded-xl border border-indigo-100/70">
+            <MapPin className="h-4 w-4 text-indigo-700 shrink-0 mt-0.5" />
             <span>{task.address || 'Sin dirección'}</span>
           </p>
           {task.address_reference && (
-            <p className="text-xs text-foreground-muted italic pt-1 pl-5">
+            <p className="text-xs text-slate-600 italic pt-1.5 pl-5 font-medium">
               Ref: {task.address_reference}
             </p>
           )}
         </div>
 
+        {task.scheduled_start_time && (
+          <div>
+            <span className="text-2xs text-slate-400 uppercase tracking-wider font-semibold block">Hora Programada</span>
+            <span className="text-xs font-bold text-slate-900 font-mono flex items-center gap-1.5 mt-0.5">
+              <Clock className="h-4 w-4 text-indigo-600" />
+              {task.scheduled_start_time}
+            </span>
+          </div>
+        )}
+
         <div>
-          <span className="text-[11px] text-foreground-muted block mb-1">Descripción / Instrucciones</span>
-          <p className="text-xs text-foreground-subtle bg-muted/30 p-3 rounded-xl border border-border/40 whitespace-pre-wrap">
-            {task.description}
+          <span className="text-2xs text-slate-400 uppercase tracking-wider font-semibold block mb-1">Descripción / Instrucciones</span>
+          <p className="text-xs text-slate-800 bg-slate-50 p-3.5 rounded-xl border border-slate-200/60 whitespace-pre-wrap leading-relaxed font-medium">
+            {task.description || 'Sin instrucciones adicionales.'}
           </p>
         </div>
-      </div>
+      </Card>
 
       {/* Aspectos Financieros */}
       {task.requires_collection && (
-        <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-2xl space-y-1">
-          <span className="text-xs font-bold text-emerald-700 dark:text-emerald-400 block">
+        <Card className="p-5 bg-emerald-50/80 border border-emerald-200 rounded-2xl space-y-1 shadow-xs">
+          <span className="text-xs font-bold text-emerald-800 block">
             Cobro Requerido al Entregar
           </span>
-          <p className="text-2xl font-black text-emerald-700 dark:text-emerald-300">
+          <p className="text-3xl font-black text-emerald-900 font-tabular">
             {task.expected_collection_currency === 'USD' ? 'US$' : 'C$'}
             {task.expected_collection_amount?.toFixed(2)}
           </p>
-        </div>
+        </Card>
       )}
 
       {/* Barra Fija Inferior de Acción Móvil */}
-      <div className="fixed bottom-16 left-0 right-0 p-3 bg-card/95 backdrop-blur-md border-t border-border z-20 shadow-lg">
-        {task.status === 'assigned' && (
-          <button
-            onClick={handleStartRoute}
-            disabled={isChangingStatus}
-            className="w-full py-3.5 px-4 text-sm font-bold text-white bg-sky-600 hover:bg-sky-700 rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
-          >
-            {isChangingStatus ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <Navigation className="h-4 w-4" />
-                Iniciar Ruta a este Destino
-              </>
-            )}
-          </button>
-        )}
+      <div className="fixed bottom-16 left-0 right-0 p-3.5 bg-white/95 backdrop-blur-md border-t border-slate-200/80 z-30 shadow-lg">
+        <div className="max-w-2xl mx-auto">
+          {task.status === 'assigned' && (
+            <Button
+              size="lg"
+              variant="primary"
+              onClick={handleStartRoute}
+              isLoading={isChangingStatus}
+              leftIcon={<Navigation className="h-4 w-4" />}
+              className="w-full justify-center text-sm font-bold shadow-xs py-3"
+            >
+              Iniciar Ruta a este Destino
+            </Button>
+          )}
 
-        {task.status === 'en_route' && (
-          <button
-            onClick={handleStartManagement}
-            disabled={isChangingStatus}
-            className="w-full py-3.5 px-4 text-sm font-bold text-white bg-purple-600 hover:bg-purple-700 rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
-          >
-            {isChangingStatus ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <>
-                <Play className="h-4 w-4" />
-                Llegué al Lugar (En Gestión)
-              </>
-            )}
-          </button>
-        )}
+          {task.status === 'en_route' && (
+            <Button
+              size="lg"
+              variant="primary"
+              onClick={handleStartManagement}
+              isLoading={isChangingStatus}
+              leftIcon={<Play className="h-4 w-4" />}
+              className="w-full justify-center bg-purple-600 hover:bg-purple-700 text-white border-transparent text-sm font-bold shadow-xs py-3"
+            >
+              Llegué al Lugar (En Gestión)
+            </Button>
+          )}
 
-        {task.status === 'in_progress' && (
-          <button
-            onClick={() => setIsCompleteModalOpen(true)}
-            className="w-full py-3.5 px-4 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl shadow-md transition flex items-center justify-center gap-2 cursor-pointer"
-          >
-            <CheckCircle2 className="h-4 w-4" />
-            Finalizar Gestión / Registrar Resultado
-          </button>
-        )}
+          {task.status === 'in_progress' && (
+            <Button
+              size="lg"
+              variant="confirm"
+              onClick={() => setIsCompleteModalOpen(true)}
+              leftIcon={<CheckCircle2 className="h-4 w-4" />}
+              className="w-full justify-center text-sm font-bold shadow-xs py-3"
+            >
+              Finalizar Gestión / Registrar Resultado
+            </Button>
+          )}
 
-        {(task.status === 'completed' || task.status === 'not_completed') && (
-          <div className="p-3 text-center text-xs font-semibold text-foreground-muted bg-muted rounded-xl">
-            Esta tarea ya fue finalizada ({task.status === 'completed' ? 'Completada' : 'No Completada'}).
-          </div>
-        )}
+          {(task.status === 'completed' || task.status === 'not_completed') && (
+            <Badge
+              variant={task.status === 'completed' ? 'completed' : 'pending'}
+              size="md"
+              className="w-full justify-center text-xs font-bold py-2.5"
+            >
+              Esta tarea ya fue finalizada ({task.status === 'completed' ? 'Completada' : 'No Completada'}).
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Modal de Finalización */}

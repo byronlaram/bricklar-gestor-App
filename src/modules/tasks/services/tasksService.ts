@@ -48,6 +48,8 @@ export async function getTasks(filters: TaskFilters = {}): Promise<PaginatedTask
     date_from,
     date_to,
     status,
+    approval_status,
+    creation_origin,
     task_type,
     priority,
     courier_id,
@@ -79,6 +81,8 @@ export async function getTasks(filters: TaskFilters = {}): Promise<PaginatedTask
   }
 
   if (status) query = query.eq('status', status)
+  if (approval_status) query = query.eq('approval_status', approval_status)
+  if (creation_origin) query = query.eq('creation_origin', creation_origin)
   if (task_type) query = query.eq('task_type', task_type)
   if (priority) query = query.eq('priority', priority)
   if (courier_id) query = query.eq('assigned_courier_id', courier_id)
@@ -129,41 +133,38 @@ export async function getTaskById(id: string): Promise<TaskWithCourier> {
 // que ejecuta generate_task_code() en PostgreSQL de forma atómica.
 
 export async function createTask(payload: CreateTaskPayload): Promise<Task> {
-  // 1. Obtener el branch_code para la sucursal
-  const { data: branchData, error: branchError } = await supabase
-    .from('branches')
-    .select('code')
-    .eq('id', payload.branch_id)
-    .single()
-
-  if (branchError || !branchData) {
-    throw new Error('No se pudo obtener la sucursal.')
-  }
-
-  const branchCode: string = (branchData as { code: string }).code
-
-  // 2. Llamar a la función de BD para generar el código consecutivo atómico
+  // 1. Llamar a la función RPC atómica de PostgreSQL con la firma de 2 parámetros (p_branch_id, p_task_type)
   const { data: codeData, error: codeError } = await supabase.rpc('generate_task_code', {
-    p_branch_code: branchCode,
-    p_task_type: payload.task_type,
     p_branch_id: payload.branch_id,
+    p_task_type: payload.task_type,
   })
 
   if (codeError || !codeData) {
     console.error('[Tasks] generate_task_code error:', codeError)
-    throw new Error('No se pudo generar el código de tarea.')
+    const detailedMessage = codeError?.message
+      ? `Error al generar código: ${codeError.message}`
+      : 'No se pudo generar el código de tarea.'
+    throw new Error(detailedMessage)
   }
 
-  // 3. Insertar la tarea con el código generado
+  // 2. Determinar estado inicial según asignación de motorizado y origen
   const { data: session } = await supabase.auth.getSession()
   const userId = session?.session?.user?.id
-  if (!userId) throw new Error('No hay sesión activa.')
+  if (!userId) throw new Error('No hay sesión activa para registrar la tarea.')
+
+  const courierId = payload.assigned_courier_id || null
+  const initialStatus: TaskStatus = courierId ? 'assigned' : 'pending'
 
   const insert = {
     ...payload,
+    assigned_courier_id: courierId,
     code: codeData as string,
     created_by: userId,
-    status: 'pending' as TaskStatus,
+    status: initialStatus,
+    approval_status: payload.approval_status || (payload.creation_origin === 'courier_created' ? 'pending' : 'approved'),
+    creation_origin: payload.creation_origin || 'admin',
+    evidence_url: payload.evidence_url || null,
+    workday_id: payload.workday_id || null,
     financial_status: 'no_movement',
   }
 
@@ -174,8 +175,21 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
     .single()
 
   if (error) {
-    console.error('[Tasks] createTask error:', error)
-    throw new Error(error.message)
+    console.error('[Tasks] createTask insert error:', error)
+    throw new Error(error.message || 'Error al insertar la tarea en la base de datos.')
+  }
+
+  // 3. Registrar en task_assignments si la tarea se creó asignada
+  if (courierId && data?.id) {
+    const { error: assignErr } = await supabase.from('task_assignments').insert({
+      task_id: data.id,
+      courier_id: courierId,
+      assigned_by: userId,
+      reason: payload.creation_origin === 'courier_created' ? 'Gestión creada por motorizado' : 'Asignación inicial al crear tarea',
+    })
+    if (assignErr) {
+      console.warn('[Tasks] createTask task_assignments insert warning:', assignErr)
+    }
   }
 
   return data as unknown as Task
@@ -203,24 +217,64 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
   return data as unknown as Task
 }
 
-// ─── deleteTask (soft delete) ─────────────────────────────────────────────────
+// ─── deleteTask (soft delete seguro con reglas de integridad) ───────────────────
 
 export async function deleteTask(id: string): Promise<void> {
   const { data: session } = await supabase.auth.getSession()
   const userId = session?.session?.user?.id
+  if (!userId) throw new Error('No hay sesión activa para realizar esta acción.')
 
+  // 1. Consultar la tarea actual para verificar estado e integridad
+  const { data: task, error: fetchErr } = await supabase
+    .from('tasks')
+    .select('id, code, title, status, branch_id, assigned_courier_id')
+    .eq('id', id)
+    .is('deleted_at', null)
+    .single()
+
+  if (fetchErr || !task) {
+    throw new Error('La tarea seleccionada no existe o ya fue eliminada.')
+  }
+
+  // 2. Regla de protección de integridad operativa/financiera:
+  // Si la tarea está completada, en ruta o en gestión, se bloquea la eliminación
+  if (['completed', 'en_route', 'in_progress'].includes(task.status)) {
+    throw new Error('No se puede eliminar esta tarea porque tiene movimientos o registros asociados.')
+  }
+
+  // 3. Ejecutar actualización soft-delete
+  const now = new Date().toISOString()
   const { error } = await supabase
     .from('tasks')
     .update({
-      deleted_at: new Date().toISOString(),
+      deleted_at: now,
       deleted_by: userId,
+      updated_at: now,
+      updated_by: userId,
     })
     .eq('id', id)
-    .is('deleted_at', null)
 
   if (error) {
     console.error('[Tasks] deleteTask error:', error)
-    throw new Error(error.message)
+    throw new Error('No fue posible eliminar la tarea. Intenta nuevamente.')
+  }
+
+  // 4. Registrar evento en audit_logs
+  try {
+    await supabase.rpc('log_audit_event', {
+      p_action: 'task_deleted',
+      p_entity_type: 'task',
+      p_entity_id: id,
+      p_changes: {
+        code: task.code,
+        title: task.title,
+        status: task.status,
+        branch_id: task.branch_id,
+        deleted_by: userId,
+      },
+    })
+  } catch (auditErr) {
+    console.warn('[Tasks] Audit log entry warning:', auditErr)
   }
 }
 
@@ -415,21 +469,144 @@ export async function getCouriersForBranch(branch_id: string) {
     .select(`
       user_id,
       profile:profiles!user_branches_user_id_fkey (
-        id, full_name, display_name, phone, avatar_url, is_active
+        id, full_name, display_name, phone, avatar_url, role, is_active
       )
     `)
     .eq('branch_id', branch_id)
 
   if (error) throw new Error(error.message)
 
-  // Filtrar los que tienen rol courier y están activos
-  // (el join directo con user_roles sería más limpio con una vista, aquí filtramos en cliente)
+  // Filtrar estrictamente los usuarios activos que tienen rol "courier"
   const couriers = (data ?? [])
     .map((row: unknown) => {
-      const r = row as { user_id: string; profile: { id: string; full_name: string; display_name: string | null; phone: string | null; avatar_url: string | null; is_active: boolean } | null }
+      const r = row as {
+        user_id: string
+        profile: {
+          id: string
+          full_name: string
+          display_name: string | null
+          phone: string | null
+          avatar_url: string | null
+          role: string
+          is_active: boolean
+        } | null
+      }
       return r.profile
     })
-    .filter((p): p is NonNullable<typeof p> => p !== null && p.is_active)
+    .filter(
+      (p): p is NonNullable<typeof p> =>
+        p !== null && p.is_active === true && p.role === 'courier'
+    )
 
   return couriers
+}
+
+// ─── Reordenar Tareas de Ruta en Lote ───────────────────────────────────────────
+export async function updateTaskRouteOrders(items: { id: string; route_order: number }[]): Promise<void> {
+  if (!items || items.length === 0) return
+
+  const now = new Date().toISOString()
+  const updates = items.map(({ id, route_order }) =>
+    supabase
+      .from('tasks')
+      .update({
+        route_order,
+        updated_at: now,
+      })
+      .eq('id', id)
+  )
+
+  const results = await Promise.all(updates)
+  const firstError = results.find((r) => r.error)?.error
+
+  if (firstError) {
+    console.error('[Tasks] updateTaskRouteOrders error:', firstError)
+    throw new Error(firstError.message || 'Error al guardar el nuevo orden de la ruta.')
+  }
+}
+
+// ─── approveTask ──────────────────────────────────────────────────────────────
+export async function approveTask(taskId: string, notes?: string): Promise<Task> {
+  const { data: session } = await supabase.auth.getSession()
+  const adminId = session?.session?.user?.id
+  if (!adminId) throw new Error('No hay sesión activa para aprobar la tarea.')
+
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({
+      approval_status: 'approved',
+      approved_by: adminId,
+      approved_at: now,
+      notes: notes ? notes : undefined,
+      updated_at: now,
+      updated_by: adminId,
+    })
+    .eq('id', taskId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[Tasks] approveTask error:', error)
+    throw new Error(error.message || 'Error al aprobar la gestión.')
+  }
+
+  return data as unknown as Task
+}
+
+// ─── rejectTask ───────────────────────────────────────────────────────────────
+export async function rejectTask(taskId: string, rejectionReason: string): Promise<Task> {
+  const { data: session } = await supabase.auth.getSession()
+  const adminId = session?.session?.user?.id
+  if (!adminId) throw new Error('No hay sesión activa para rechazar la tarea.')
+
+  if (!rejectionReason.trim()) {
+    throw new Error('Debes indicar el motivo del rechazo.')
+  }
+
+  const now = new Date().toISOString()
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({
+      approval_status: 'rejected',
+      approved_by: adminId,
+      approved_at: now,
+      rejection_reason: rejectionReason.trim(),
+      updated_at: now,
+      updated_by: adminId,
+    })
+    .eq('id', taskId)
+    .select()
+    .single()
+
+  if (error) {
+    console.error('[Tasks] rejectTask error:', error)
+    throw new Error(error.message || 'Error al rechazar la gestión.')
+  }
+
+  return data as unknown as Task
+}
+
+// ─── uploadTaskEvidence ───────────────────────────────────────────────────────
+export async function uploadTaskEvidence(file: File): Promise<string> {
+  const fileExt = file.name.split('.').pop() || 'jpg'
+  const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`
+  const filePath = `evidences/${fileName}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('task-evidences')
+    .upload(filePath, file, { cacheControl: '3600', upsert: true })
+
+  if (uploadError) {
+    console.warn('[Tasks] uploadTaskEvidence storage error:', uploadError)
+    // Devolver DataURL o simulación si el bucket no existe en desarrollo local sin backend real
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.readAsDataURL(file)
+    })
+  }
+
+  const { data: urlData } = supabase.storage.from('task-evidences').getPublicUrl(filePath)
+  return urlData.publicUrl
 }

@@ -1,48 +1,14 @@
-import {
-  createContext,
-  useContext,
-  useEffect,
-  useState,
-  type ReactNode,
-} from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/shared/lib/supabaseClient'
 import type { UserRole } from '@/shared/types'
+import {
+  AuthContext,
+  type UserProfile,
+  type AuthContextValue,
+} from './AuthContextDefinition'
 
-// ─── Tipos ──────────────────────────────────────────────────────────────────────
-
-export interface UserProfile {
-  id: string
-  email: string
-  full_name: string
-  display_name: string | null
-  avatar_url: string | null
-  phone: string | null
-  role: UserRole
-  is_active: boolean
-  branch_ids: string[]
-  primary_branch_id: string | null
-  last_sign_in_at: string | null
-}
-
-interface AuthContextValue {
-  user: User | null
-  session: Session | null
-  profile: UserProfile | null
-  isLoading: boolean
-  isAuthenticated: boolean
-  role: UserRole | null
-  isGeneralAdmin: boolean
-  isJuniorAdmin: boolean
-  isCourier: boolean
-  signIn: (email: string, password: string) => Promise<void>
-  signOut: () => Promise<void>
-  refreshProfile: () => Promise<void>
-}
-
-const AuthContext = createContext<AuthContextValue | null>(null)
-
-// ─── Provider ───────────────────────────────────────────────────────────────────
+export type { UserProfile, AuthContextValue }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
@@ -76,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         is_active: raw.is_active,
         branch_ids: raw.branch_ids ?? [],
         primary_branch_id: raw.primary_branch_id ?? null,
+        must_change_password: raw.must_change_password ?? false,
         last_sign_in_at: raw.last_sign_in_at ?? null,
       })
     } catch (err) {
@@ -115,6 +82,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         } else if (event === 'TOKEN_REFRESHED' && s?.user) {
           // Refrescar perfil en refresh de token por si cambió el rol
           await loadProfile(s.user.id)
+        } else if (event === 'USER_UPDATED' && s?.user) {
+          // Sincronizar email en public.profiles si cambió en Supabase Auth
+          if (s.user.email) {
+            await supabase
+              .from('profiles')
+              .update({ email: s.user.email })
+              .eq('id', s.user.id)
+          }
+          await loadProfile(s.user.id)
         }
         setIsLoading(false)
       }
@@ -140,6 +116,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const role = profile?.role ?? null
+  const mustChangePassword = !!(profile?.must_change_password || user?.user_metadata?.must_change_password)
 
   const value: AuthContextValue = {
     user,
@@ -147,6 +124,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profile,
     isLoading,
     isAuthenticated: !!user && !!profile?.is_active,
+    mustChangePassword,
     role,
     isGeneralAdmin: role === 'general_admin',
     isJuniorAdmin: role === 'junior_admin',
@@ -157,14 +135,4 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-}
-
-// ─── Hook ───────────────────────────────────────────────────────────────────────
-
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext)
-  if (!ctx) {
-    throw new Error('useAuth debe usarse dentro de <AuthProvider>')
-  }
-  return ctx
 }

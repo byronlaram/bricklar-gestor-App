@@ -45,6 +45,7 @@ export async function getUsers(filters: UserFilters = {}): Promise<UserProfileEx
     phone: p.phone ?? null,
     role: p.role,
     is_active: p.is_active,
+    must_change_password: p.must_change_password ?? false,
     branch_ids: branchesMap[p.id] ?? [],
     primary_branch_id: p.primary_branch_id ?? (branchesMap[p.id]?.[0] || null),
     last_sign_in_at: p.last_sign_in_at ?? null,
@@ -126,6 +127,51 @@ export async function deleteUser(id: string): Promise<void> {
   if (error) {
     console.error('[Users] deleteUser Edge Function error:', error)
     throw new Error(error.message || 'Error al invocar Edge Function de eliminación.')
+  }
+
+  if (data?.error) {
+    throw new Error(data.error)
+  }
+}
+
+// ─── Enviar Enlace de Recuperación de Contraseña ────────────────────────────────
+export async function sendPasswordResetLink(email: string, targetUserId: string): Promise<void> {
+  const redirectUrl = `${window.location.origin}/reset-password`
+  const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: redirectUrl,
+  })
+
+  if (error) {
+    console.error('[Users] resetPasswordForEmail error:', error)
+    throw new Error(error.message || 'Error al enviar enlace de recuperación de contraseña.')
+  }
+
+  // Registrar evento de auditoría
+  const { data: session } = await supabase.auth.getSession()
+  const callerUserId = session?.session?.user?.id
+  if (callerUserId) {
+    await supabase.rpc('log_audit_event', {
+      p_action: 'password_reset_link_sent',
+      p_entity_type: 'user',
+      p_entity_id: targetUserId,
+      p_changes: { result: 'success', email_sent_to: email },
+    })
+  }
+}
+
+// ─── Generar / Establecer Contraseña Temporal Segura ────────────────────────────
+export async function generateTempPassword(targetUserId: string, password: string): Promise<void> {
+  const { data, error } = await supabase.functions.invoke('manage-user-password', {
+    body: {
+      userId: targetUserId,
+      action: 'set_temp_password',
+      password,
+    },
+  })
+
+  if (error) {
+    console.error('[Users] generateTempPassword Edge Function error:', error)
+    throw new Error(error.message || 'Error al invocar Edge Function de contraseña temporal.')
   }
 
   if (data?.error) {

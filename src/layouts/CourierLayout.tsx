@@ -1,5 +1,8 @@
-import { Outlet, NavLink, Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '@/modules/auth/AuthContext'
+import { useState, useRef, useEffect } from 'react'
+import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/modules/auth/useAuth'
+import { useTasksRealtime } from '@/modules/tasks/hooks/useTasksRealtime'
+import { Avatar, ConfirmDialog, useToast } from '@/shared/components/ui'
 import { cn } from '@/shared/utils/cn'
 import {
   Home,
@@ -12,7 +15,7 @@ import {
   LogOut,
 } from 'lucide-react'
 
-// ─── Navegación inferior móvil (motorizado) ───────────────────────────────────
+// ─── Navegación inferior móvil (motorizado - SaaS Premium) ──────────────────
 
 const NAV_ITEMS = [
   { to: '/motorizado', label: 'Inicio', icon: Home, exact: true },
@@ -20,64 +23,186 @@ const NAV_ITEMS = [
   { to: '/motorizado/ruta', label: 'Mi Ruta', icon: MapPin },
   { to: '/motorizado/fondos', label: 'Fondos', icon: Banknote },
   { to: '/motorizado/liquidacion', label: 'Liquidación', icon: Calculator },
-]
-
-const MORE_ITEMS = [
   { to: '/motorizado/buses', label: 'Buses', icon: Bus },
-  { to: '/motorizado/notificaciones', label: 'Alertas', icon: Bell },
 ]
 
 export default function CourierLayout() {
+  useTasksRealtime()
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
 
-  const handleSignOut = async () => {
-    await signOut()
-    navigate('/login', { replace: true })
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false)
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
+
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Cierre de menú al hacer clic fuera o presionar Escape
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent | TouchEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsUserMenuOpen(false)
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsUserMenuOpen(false)
+      }
+    }
+
+    if (isUserMenuOpen) {
+      document.addEventListener('mousedown', handleClickOutside)
+      document.addEventListener('touchstart', handleClickOutside)
+      document.addEventListener('keydown', handleKeyDown)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('touchstart', handleClickOutside)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isUserMenuOpen])
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await signOut()
+      setIsLogoutConfirmOpen(false)
+      setIsUserMenuOpen(false)
+      navigate('/login', { replace: true })
+    } catch (err: any) {
+      console.error('Error al cerrar sesión:', err)
+      toast.error(err?.message || 'Error al cerrar sesión. Inténtalo de nuevo.')
+    } finally {
+      setIsLoggingOut(false)
+    }
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      {/* Top bar móvil */}
-      <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-surface/95 px-4 backdrop-blur-sm shadow-sm">
-        <Link to="/motorizado" className="flex items-center gap-2 hover:opacity-90 transition cursor-pointer">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary-700 shadow-sm">
-            <span className="text-xs font-bold text-white">GO</span>
+    <div className="flex min-h-screen flex-col bg-gradient-to-b from-[#003875] via-[#004594] to-[#071D3A] text-slate-900 selection:bg-blue-100 selection:text-[#004594]">
+      {/* Top bar móvil sobre el fondo azul corporativo (Estilo Banpro) */}
+      <header className="sticky top-0 z-40 flex h-16 items-center justify-between px-4 sm:px-6 bg-[#003875]/95 backdrop-blur-md border-b border-white/10 shadow-xs">
+        <div className="flex items-center gap-3">
+          {/* Botón de Menú lateral en Tarjeta Blanca Translúcida */}
+          <button
+            type="button"
+            onClick={() => setIsUserMenuOpen((prev) => !prev)}
+            className="w-10 h-10 rounded-2xl bg-white/15 border border-white/20 shadow-2xs flex items-center justify-center text-white hover:bg-white/25 transition cursor-pointer backdrop-blur-xs"
+            aria-label="Abrir menú de usuario"
+          >
+            <div className="flex flex-col gap-1 w-4">
+              <span className="h-0.5 w-full bg-white rounded-full" />
+              <span className="h-0.5 w-3/4 bg-white rounded-full" />
+              <span className="h-0.5 w-full bg-white rounded-full" />
+            </div>
+          </button>
+
+          <div>
+            <h1 className="text-base font-extrabold text-white tracking-tight flex items-center gap-1 leading-tight">
+              ¡Hola, {profile?.display_name || profile?.full_name?.split(' ')[0] || 'Motorizado'}! 👋
+            </h1>
+            <p className="text-2xs font-medium text-blue-100/80 capitalize">
+              {new Date().toLocaleDateString('es-NI', { weekday: 'long', day: 'numeric', month: 'long' })}
+            </p>
           </div>
-          <span className="text-sm font-semibold text-foreground">GestorOps</span>
-        </Link>
-        <div className="flex-1" />
-        <NavLink
-          to="/motorizado/notificaciones"
-          className="relative rounded-full p-2 text-foreground-muted hover:bg-surface-hover"
-          aria-label="Notificaciones"
-        >
-          <Bell size={18} />
-        </NavLink>
-        {/* Info del motorizado */}
-        <div className="hidden items-center gap-2 sm:flex">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-accent/15 text-xs font-semibold text-accent">
-            {profile?.full_name?.charAt(0)?.toUpperCase() ?? '?'}
-          </div>
-          <span className="text-sm font-medium text-foreground">{profile?.display_name ?? profile?.full_name}</span>
         </div>
-        <button
-          onClick={handleSignOut}
-          className="rounded-md p-2 text-foreground-muted hover:bg-surface-hover hover:text-foreground"
-          aria-label="Cerrar sesión"
-        >
-          <LogOut size={18} />
-        </button>
+
+        <div className="flex items-center gap-2.5">
+          {/* Campana de Notificaciones con Badge numérico */}
+          <NavLink
+            to="/motorizado/notificaciones"
+            className="relative w-10 h-10 rounded-2xl bg-white/15 border border-white/20 shadow-2xs flex items-center justify-center text-white hover:bg-white/25 transition cursor-pointer backdrop-blur-xs"
+            aria-label="Notificaciones"
+          >
+            <Bell size={18} className="text-white" />
+            <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-extrabold flex items-center justify-center shadow-xs">
+              3
+            </span>
+          </NavLink>
+
+          {/* Menú de Perfil con Avatar */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              type="button"
+              onClick={() => setIsUserMenuOpen((prev) => !prev)}
+              aria-haspopup="true"
+              aria-expanded={isUserMenuOpen}
+              className="flex items-center gap-1.5 p-0.5 rounded-full hover:ring-2 hover:ring-white/40 transition cursor-pointer"
+            >
+              <Avatar name={profile?.full_name ?? 'Motorizado'} size="md" src={profile?.avatar_url} />
+            </button>
+
+            {/* Dropdown flotante */}
+            {isUserMenuOpen && (
+              <div
+                className="absolute right-0 mt-2 w-56 rounded-2xl bg-white border border-slate-200/90 shadow-2xl py-2 z-50 animate-fade-in text-slate-800"
+                role="menu"
+                aria-orientation="vertical"
+              >
+                <div className="px-4 py-2.5 border-b border-slate-100 space-y-0.5">
+                  <p className="text-xs font-bold text-[#004594] truncate">{profile?.display_name || profile?.full_name}</p>
+                  <p className="text-2xs text-slate-400 truncate">{profile?.email}</p>
+                </div>
+
+                <div className="py-1">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsUserMenuOpen(false)
+                      navigate('/motorizado')
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#004594] transition cursor-pointer"
+                  >
+                    <Home size={16} className="text-[#004594]" />
+                    Inicio / Resumen
+                  </button>
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsUserMenuOpen(false)
+                      navigate('/motorizado/tareas')
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#004594] transition cursor-pointer"
+                  >
+                    <ClipboardList size={16} className="text-[#004594]" />
+                    Mis Tareas
+                  </button>
+                </div>
+
+                <div className="border-t border-slate-100 pt-1">
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => {
+                      setIsUserMenuOpen(false)
+                      setIsLogoutConfirmOpen(true)
+                    }}
+                    className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-600 transition cursor-pointer"
+                  >
+                    <LogOut size={16} className="text-slate-400" />
+                    Cerrar sesión
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </header>
 
-      {/* Contenido de la página */}
-      <main className="flex-1 mb-nav overflow-y-auto" id="main-content">
-        <Outlet />
+      {/* Contenedor Principal Blanco Flotante (Estilo Tarjeta de App Móvil Banpro) */}
+      <main className="flex-1 pb-24 overflow-y-auto pt-2 px-2 sm:px-4" id="main-content">
+        <div className="max-w-md sm:max-w-2xl lg:max-w-4xl mx-auto bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl p-4 sm:p-6 space-y-6 min-h-[calc(100vh-6rem)] border border-slate-100">
+          <Outlet />
+        </div>
       </main>
 
-      {/* Barra de navegación inferior (mobile-first) */}
+      {/* Menú Inferior Móvil Blanco Limpio con Sombras */}
       <nav
-        className="fixed bottom-0 left-0 right-0 z-30 flex h-16 items-center border-t border-border bg-surface/95 pb-safe backdrop-blur-sm shadow-[0_-1px_8px_0_hsl(222_20%_0%/0.08)]"
+        className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-slate-200/80 bg-white/95 pb-safe shadow-xl px-2 backdrop-blur-md"
         aria-label="Navegación principal del motorizado"
       >
         {NAV_ITEMS.map((item) => {
@@ -87,26 +212,25 @@ export default function CourierLayout() {
               key={item.to}
               to={item.to}
               end={item.exact}
-              className={({ isActive }) =>
+              className={({ isActive }: { isActive: boolean }) =>
                 cn(
-                  'flex flex-1 flex-col items-center justify-center gap-1 py-2 text-center touch-target transition-colors',
-                  isActive
-                    ? 'text-accent'
-                    : 'text-foreground-muted hover:text-foreground'
+                  'flex flex-1 flex-col items-center justify-center gap-1 py-1 text-center transition-all min-h-[48px]',
+                  isActive ? 'text-[#004594] font-extrabold' : 'text-slate-400 hover:text-slate-600'
                 )
               }
               aria-label={item.label}
             >
               {({ isActive }) => (
                 <>
-                  <Icon
-                    size={22}
-                    strokeWidth={isActive ? 2.5 : 1.8}
-                    className={isActive ? 'text-accent' : ''}
-                  />
+                  <div className={cn(
+                    'p-1 rounded-xl transition-all duration-200 flex items-center justify-center',
+                    isActive ? 'text-[#004594] scale-110 bg-[#004594]/10' : 'text-slate-400'
+                  )}>
+                    <Icon size={22} strokeWidth={isActive ? 2.5 : 1.75} />
+                  </div>
                   <span className={cn(
-                    'text-[10px] font-medium leading-none',
-                    isActive ? 'text-accent' : 'text-foreground-muted'
+                    'text-[10px] leading-none tracking-tight',
+                    isActive ? 'text-[#004594] font-extrabold' : 'text-slate-400 font-medium'
                   )}>
                     {item.label}
                   </span>
@@ -115,36 +239,20 @@ export default function CourierLayout() {
             </NavLink>
           )
         })}
-
-        {/* Buses — ítem extra compacto */}
-        {MORE_ITEMS.slice(0, 1).map((item) => {
-          const Icon = item.icon
-          return (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              className={({ isActive }) =>
-                cn(
-                  'flex flex-1 flex-col items-center justify-center gap-1 py-2 text-center touch-target transition-colors',
-                  isActive
-                    ? 'text-accent'
-                    : 'text-foreground-muted hover:text-foreground'
-                )
-              }
-              aria-label={item.label}
-            >
-              {({ isActive }) => (
-                <>
-                  <Icon size={22} strokeWidth={isActive ? 2.5 : 1.8} className={isActive ? 'text-accent' : ''} />
-                  <span className={cn('text-[10px] font-medium leading-none', isActive ? 'text-accent' : 'text-foreground-muted')}>
-                    {item.label}
-                  </span>
-                </>
-              )}
-            </NavLink>
-          )
-        })}
       </nav>
+
+      {/* ConfirmDialog de Cierre de Sesión para el Motorizado */}
+      <ConfirmDialog
+        isOpen={isLogoutConfirmOpen}
+        onClose={() => setIsLogoutConfirmOpen(false)}
+        onConfirm={handleConfirmLogout}
+        title="¿Deseas cerrar tu sesión?"
+        description="Saldrás de la aplicación del motorizado. Recuerda haber finalizado tus entregas del turno."
+        confirmText="Cerrar sesión"
+        cancelText="Cancelar"
+        variant="primary"
+        isLoading={isLoggingOut}
+      />
     </div>
   )
 }
