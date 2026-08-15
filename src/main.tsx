@@ -4,15 +4,6 @@ import { AppProviders } from './app/providers'
 import { AppRouter } from './app/router'
 import './index.css'
 
-// Desregistrar cualquier Service Worker antiguo cached en dispositivos móviles durante desarrollo
-if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.getRegistrations().then((registrations) => {
-    for (const registration of registrations) {
-      registration.unregister()
-    }
-  })
-}
-
 const rootElement = document.getElementById('root')
 
 if (!rootElement) {

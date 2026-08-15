@@ -9,7 +9,15 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.svg', 'branding/bricklar-icon.svg', 'branding/bricklar-logo.svg'],
+      injectRegister: 'auto',
+      includeAssets: [
+        'favicon.svg',
+        'branding/bricklar-icon.svg',
+        'branding/bricklar-logo.svg',
+        'branding/bricklar-logo.png',
+        'branding/pwa-192x192.png',
+        'branding/pwa-512x512.png'
+      ],
       manifest: {
         name: 'Bricklar Gestor',
         short_name: 'Bricklar',
@@ -22,16 +30,28 @@ export default defineConfig({
         scope: '/',
         icons: [
           {
-            src: '/branding/bricklar-icon.svg',
-            sizes: '192x192 512x512',
-            type: 'image/svg+xml',
+            src: '/branding/pwa-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
             purpose: 'any'
+          },
+          {
+            src: '/branding/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'any'
+          },
+          {
+            src: '/branding/pwa-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
           },
           {
             src: '/branding/bricklar-icon.svg',
             sizes: '512x512',
             type: 'image/svg+xml',
-            purpose: 'maskable'
+            purpose: 'any'
           }
         ]
       },
