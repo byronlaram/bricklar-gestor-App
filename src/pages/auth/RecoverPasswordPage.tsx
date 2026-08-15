@@ -76,8 +76,8 @@ export default function RecoverPasswordPage() {
           aria-hidden="true"
         />
 
-        {/* Top Header Branding — Franja Blanca */}
-        <div className="relative z-10 w-full -mx-12 -mt-12 px-8 py-4 bg-white flex items-center justify-between shadow-sm">
+        {/* Top Header Branding — Franja Blanca con Esquinas Redondeadas */}
+        <div className="relative z-10 w-full -mx-12 -mt-12 px-8 py-4.5 bg-white rounded-b-2xl sm:rounded-b-3xl flex items-center justify-between shadow-md border-b border-x border-slate-100">
           <div className="flex items-center gap-3">
             <img
               src="/branding/bricklar-icon.svg"
