@@ -140,7 +140,7 @@ export async function deleteUser(id: string): Promise<void> {
           const res = (error as any).context as Response
           const json = await res.json()
           if (json?.error) edgeFunctionError = json.error
-        } catch (_) {}
+        } catch { }
       }
       if (!edgeFunctionError) {
         edgeFunctionError = error.message
@@ -188,7 +188,7 @@ export async function deleteUser(id: string): Promise<void> {
 
 // ─── Enviar Enlace de Recuperación de Contraseña ────────────────────────────────
 export async function sendPasswordResetLink(email: string, targetUserId: string): Promise<void> {
-  const redirectUrl = `${window.location.origin}/reset-password`
+  const redirectUrl = `${window.location.origin}/restablecer-contrasena`
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     redirectTo: redirectUrl,
   })

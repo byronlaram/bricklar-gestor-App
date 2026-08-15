@@ -194,7 +194,7 @@ export default function MaintenancePage() {
           {[
             { label: 'Aplicación', value: 'Bricklar Gestor v1.0' },
             { label: 'Backend', value: 'Supabase (PostgreSQL)' },
-            { label: 'Frontend', value: 'React 18 + Vite' },
+            { label: 'Frontend', value: 'React 19 + Vite' },
             { label: 'UI', value: 'TailwindCSS / CSS Variables' },
             { label: 'Estado', value: 'TanStack Query v5' },
             { label: 'Entorno', value: import.meta.env.MODE },

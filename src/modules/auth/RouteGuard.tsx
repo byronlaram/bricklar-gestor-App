@@ -35,8 +35,8 @@ export function RouteGuard({
   }
 
   // Cambio obligatorio de contraseña (clave temporal)
-  if (mustChangePassword && location.pathname !== '/reset-password') {
-    return <Navigate to="/reset-password" state={{ forcedChange: true }} replace />
+  if (mustChangePassword && location.pathname !== '/restablecer-contrasena') {
+    return <Navigate to="/restablecer-contrasena" state={{ forcedChange: true }} replace />
   }
 
   // Cuenta suspendida

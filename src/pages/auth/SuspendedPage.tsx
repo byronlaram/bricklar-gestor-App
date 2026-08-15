@@ -17,9 +17,11 @@ export default function SuspendedPage() {
       {/* ── Top Header Branding ─────────────────────────────────────────── */}
       <header className="max-w-md mx-auto w-full flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-xl bg-primary text-white flex items-center justify-center font-bold text-lg shadow-sm">
-            B
-          </div>
+          <img
+            src="/branding/bricklar-icon.svg"
+            alt="Bricklar"
+            className="h-9 w-9 rounded-xl shadow-sm"
+          />
           <div>
             <span className="text-sm font-bold text-slate-900 block leading-tight">Bricklar Gestor</span>
             <span className="text-2xs text-slate-400 font-medium">Estado de Cuenta</span>

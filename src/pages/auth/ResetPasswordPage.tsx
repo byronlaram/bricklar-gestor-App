@@ -113,9 +113,11 @@ export default function ResetPasswordPage() {
         {/* Top Header Branding */}
         <div className="relative z-10 w-full flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-accent text-white flex items-center justify-center font-bold text-xl shadow-md">
-              B
-            </div>
+            <img
+              src="/branding/bricklar-icon.svg"
+              alt="Bricklar"
+              className="h-10 w-10 rounded-xl shadow-md"
+            />
             <div>
               <span className="text-base font-bold tracking-tight block leading-tight">Bricklar</span>
               <span className="text-2xs text-slate-400 font-medium uppercase tracking-wider">Gestor Operativo</span>
@@ -163,9 +165,11 @@ export default function ResetPasswordPage() {
         {/* Header móvil */}
         <div className="flex items-center justify-between lg:hidden mb-8">
           <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-lg bg-accent text-white flex items-center justify-center font-bold text-lg">
-              B
-            </div>
+            <img
+              src="/branding/bricklar-icon.svg"
+              alt="Bricklar"
+              className="h-9 w-9 rounded-lg shadow-sm"
+            />
             <span className="text-base font-bold text-slate-900">Bricklar Gestor</span>
           </div>
         </div>

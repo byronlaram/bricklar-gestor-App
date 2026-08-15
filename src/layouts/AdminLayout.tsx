@@ -130,9 +130,11 @@ function Sidebar({
               onClick={onClose}
               className="flex items-center gap-3 hover:opacity-95 transition cursor-pointer"
             >
-              <div className="h-9 w-9 rounded-xl bg-accent text-white flex items-center justify-center font-bold text-lg shadow-xs shrink-0">
-                B
-              </div>
+              <img
+                src="/branding/bricklar-icon.svg"
+                alt="Bricklar"
+                className="h-9 w-9 rounded-xl shadow-xs shrink-0"
+              />
               <div>
                 <p className="text-sm font-bold leading-none text-white tracking-tight">Bricklar Gestor</p>
                 <p className="text-2xs text-slate-400 font-medium mt-0.5">Panel Administrativo</p>
