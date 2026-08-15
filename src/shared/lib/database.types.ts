@@ -1839,6 +1839,7 @@ export type Database = {
       get_my_role: { Args: never; Returns: string }
       is_admin: { Args: never; Returns: boolean }
       is_general_admin: { Args: never; Returns: boolean }
+      reset_database_for_new_client: { Args: never; Returns: Json }
       log_audit_event: {
         Args: {
           p_action: string

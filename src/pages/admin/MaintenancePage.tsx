@@ -12,7 +12,6 @@ import {
 } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
-import { useAuth } from '@/modules/auth/useAuth'
 import { Button } from '@/shared/components/ui/Button'
 import { ResetDatabaseModal } from './components/ResetDatabaseModal'
 
@@ -24,7 +23,6 @@ interface StatusItem {
 
 export default function MaintenancePage() {
   const queryClient = useQueryClient()
-  const { isGeneralAdmin } = useAuth()
 
   const [isClearingCache, setIsClearingCache] = useState(false)
   const [cacheCleared, setCacheCleared] = useState(false)
