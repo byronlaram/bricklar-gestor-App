@@ -65,7 +65,9 @@ export function ResetDatabaseModal({ isOpen, onClose }: ResetDatabaseModalProps)
       })
 
       if (authError) {
-        setErrorMessage('La contraseña ingresada es incorrecta. Verifique sus credenciales de Administrador.')
+        const msg = 'La contraseña ingresada es incorrecta. Verifique sus credenciales de Administrador.'
+        setErrorMessage(msg)
+        toast.error('Error de autenticación', msg)
         setIsLoading(false)
         return
       }
@@ -75,7 +77,12 @@ export function ResetDatabaseModal({ isOpen, onClose }: ResetDatabaseModalProps)
 
       if (rpcError) {
         console.error('[ResetDatabase] Error en RPC:', rpcError)
-        setErrorMessage(`Error del servidor: ${rpcError.message}`)
+        const isNotCreated = rpcError.message?.includes('function') && rpcError.message?.includes('does not exist')
+        const msg = isNotCreated
+          ? 'La función de restablecimiento no está creada en Supabase. Ejecute el script SQL en el SQL Editor.'
+          : `Error al restablecer: ${rpcError.message}`
+        setErrorMessage(msg)
+        toast.error('Error al restablecer base de datos', msg)
         setIsLoading(false)
         return
       }
@@ -98,7 +105,9 @@ export function ResetDatabaseModal({ isOpen, onClose }: ResetDatabaseModalProps)
       }, 1200)
     } catch (err: unknown) {
       console.error('[ResetDatabase] Error inesperado:', err)
-      setErrorMessage((err as Error).message || 'Ocurrió un error inesperado al restablecer la base de datos.')
+      const msg = (err as Error).message || 'Ocurrió un error inesperado al restablecer la base de datos.'
+      setErrorMessage(msg)
+      toast.error('Error inesperado', msg)
       setIsLoading(false)
     }
   }
