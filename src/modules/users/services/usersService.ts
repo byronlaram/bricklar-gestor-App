@@ -120,17 +120,69 @@ export async function toggleUserStatus(id: string, is_active: boolean): Promise<
 }
 
 export async function deleteUser(id: string): Promise<void> {
-  const { data, error } = await supabase.functions.invoke('delete-user', {
-    body: { userId: id },
-  })
+  let edgeFunctionError: string | null = null
 
-  if (error) {
-    console.error('[Users] deleteUser Edge Function error:', error)
-    throw new Error(error.message || 'Error al invocar Edge Function de eliminación.')
+  // 1. Intentar eliminar vía Edge Function (maneja borrado de auth.users y auditoría)
+  try {
+    const { data, error } = await supabase.functions.invoke('delete-user', {
+      body: { userId: id },
+    })
+
+    if (!error && !data?.error) {
+      return
+    }
+
+    if (data?.error) {
+      edgeFunctionError = data.error
+    } else if (error) {
+      if ('context' in error && (error as any).context) {
+        try {
+          const res = (error as any).context as Response
+          const json = await res.json()
+          if (json?.error) edgeFunctionError = json.error
+        } catch (_) {}
+      }
+      if (!edgeFunctionError) {
+        edgeFunctionError = error.message
+      }
+    }
+  } catch (err: any) {
+    console.warn('[Users] deleteUser Edge Function invocation exception:', err)
   }
 
-  if (data?.error) {
-    throw new Error(data.error)
+  // Si la Edge Function devolvió un mensaje claro de negocio (ej. dependencias/autoeliminación/administrador único)
+  if (edgeFunctionError && (
+    edgeFunctionError.includes('registros asociados') ||
+    edgeFunctionError.includes('único Administrador') ||
+    edgeFunctionError.includes('propia cuenta') ||
+    edgeFunctionError.includes('no se puede eliminar')
+  )) {
+    throw new Error(edgeFunctionError)
+  }
+
+  // 2. Fallback: Intentar eliminación directa en tablas de la BD si la Edge Function no está desplegada o falla por red
+  try {
+    await supabase.from('user_branches').delete().eq('user_id', id)
+    await supabase.from('user_roles').delete().eq('user_id', id)
+
+    const { error: profileDeleteErr } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', id)
+
+    if (profileDeleteErr) {
+      console.error('[Users] Direct profile delete error:', profileDeleteErr)
+      if (profileDeleteErr.code === '23503' || profileDeleteErr.message.includes('foreign key')) {
+        throw new Error(
+          'Este usuario no se puede eliminar permanentemente porque tiene tareas, jornadas u otros registros asociados. Te sugerimos cambiar su estado a Inactivo.'
+        )
+      }
+      throw new Error(edgeFunctionError || profileDeleteErr.message || 'Error al eliminar usuario.')
+    }
+  } catch (directErr: any) {
+    throw new Error(
+      edgeFunctionError || directErr.message || 'No se pudo eliminar el usuario de la base de datos.'
+    )
   }
 }
 
