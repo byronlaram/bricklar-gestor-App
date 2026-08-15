@@ -210,32 +210,30 @@ export default function MaintenancePage() {
       </div>
 
       {/* Zona de Peligro — Exclusivo Administrador General */}
-      {isGeneralAdmin && (
-        <div className="bg-rose-500/5 border border-rose-500/30 rounded-2xl p-6 shadow-xs space-y-4">
-          <div className="flex items-center gap-2">
-            <Flame className="h-4 w-4 text-rose-600 dark:text-rose-400" />
-            <h2 className="text-sm font-bold text-rose-600 dark:text-rose-400">
-              Zona de Peligro — Reinicio de Fábrica
-            </h2>
-          </div>
-          <p className="text-xs text-foreground-muted leading-relaxed">
-            Elimina todos los datos operativos (tareas, liquidaciones, historial, caja, jornadas,
-            sucursales de prueba y usuarios de prueba). Restablece la plataforma a un estado limpio
-            para entregar o vender la aplicación a un nuevo cliente, manteniendo únicamente su cuenta de
-            Administrador General y los catálogos base.
-          </p>
-          <div>
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => setIsResetModalOpen(true)}
-              leftIcon={<Flame className="h-4 w-4" />}
-            >
-              Restablecer Base de Datos para Nuevo Cliente
-            </Button>
-          </div>
+      <div className="bg-rose-500/5 border border-rose-500/30 rounded-2xl p-6 shadow-xs space-y-4">
+        <div className="flex items-center gap-2">
+          <Flame className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+          <h2 className="text-sm font-bold text-rose-600 dark:text-rose-400">
+            Zona de Peligro — Reinicio de Fábrica
+          </h2>
         </div>
-      )}
+        <p className="text-xs text-foreground-muted leading-relaxed">
+          Elimina todos los datos operativos (tareas, liquidaciones, historial, caja, jornadas,
+          sucursales de prueba y usuarios de prueba). Restablece la plataforma a un estado limpio
+          para entregar o vender la aplicación a un nuevo cliente, manteniendo únicamente su cuenta de
+          Administrador General y los catálogos base.
+        </p>
+        <div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setIsResetModalOpen(true)}
+            leftIcon={<Flame className="h-4 w-4" />}
+          >
+            Restablecer Base de Datos para Nuevo Cliente
+          </Button>
+        </div>
+      </div>
 
       {/* Modal de Confirmación de Alta Seguridad */}
       <ResetDatabaseModal
