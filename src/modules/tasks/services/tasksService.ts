@@ -168,11 +168,39 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
     financial_status: 'no_movement',
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('tasks')
     .insert(insert)
     .select()
     .single()
+
+  // Fallback de compatibilidad: si la BD remota aún no tiene las columnas de la migración de aprobación
+  if (error && error.message && (
+    error.message.includes('approval_status') ||
+    error.message.includes('creation_origin') ||
+    error.message.includes('evidence_url') ||
+    error.message.includes('workday_id')
+  )) {
+    console.warn('[Tasks] BD remota sin columnas de aprobación. Ejecutando inserción compatible:', error.message)
+    const baseInsert = { ...insert }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (baseInsert as any).approval_status
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (baseInsert as any).creation_origin
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (baseInsert as any).evidence_url
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (baseInsert as any).workday_id
+
+    const retry = await supabase
+      .from('tasks')
+      .insert(baseInsert)
+      .select()
+      .single()
+
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) {
     console.error('[Tasks] createTask insert error:', error)
@@ -201,13 +229,42 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
   const { data: session } = await supabase.auth.getSession()
   const userId = session?.session?.user?.id
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from('tasks')
     .update({ ...payload, updated_by: userId, updated_at: new Date().toISOString() })
     .eq('id', id)
     .is('deleted_at', null)
     .select()
     .single()
+
+  // Fallback de compatibilidad para actualización
+  if (error && error.message && (
+    error.message.includes('approval_status') ||
+    error.message.includes('creation_origin') ||
+    error.message.includes('evidence_url') ||
+    error.message.includes('workday_id')
+  )) {
+    const cleanPayload = { ...payload }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (cleanPayload as any).approval_status
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (cleanPayload as any).creation_origin
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (cleanPayload as any).evidence_url
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    delete (cleanPayload as any).workday_id
+
+    const retry = await supabase
+      .from('tasks')
+      .update({ ...cleanPayload, updated_by: userId, updated_at: new Date().toISOString() })
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select()
+      .single()
+
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) {
     console.error('[Tasks] updateTask error:', error)
