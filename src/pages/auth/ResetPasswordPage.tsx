@@ -110,20 +110,20 @@ export default function ResetPasswordPage() {
           aria-hidden="true"
         />
 
-        {/* Top Header Branding */}
-        <div className="relative z-10 w-full flex items-center justify-between">
+        {/* Top Header Branding — Franja Blanca */}
+        <div className="relative z-10 w-full -mx-12 -mt-12 px-8 py-4 bg-white flex items-center justify-between shadow-sm">
           <div className="flex items-center gap-3">
             <img
               src="/branding/bricklar-icon.svg"
               alt="Bricklar"
-              className="h-10 w-10 rounded-xl shadow-md"
+              className="h-10 w-10 rounded-xl shadow-sm"
             />
             <div>
-              <span className="text-base font-bold tracking-tight block leading-tight">Bricklar</span>
-              <span className="text-2xs text-slate-400 font-medium uppercase tracking-wider">Gestor Operativo</span>
+              <span className="text-base font-bold tracking-tight block leading-tight text-primary">Bricklar</span>
+              <span className="text-2xs text-slate-500 font-medium uppercase tracking-wider">Gestor Operativo</span>
             </div>
           </div>
-          <span className="text-2xs font-semibold px-3 py-1 bg-white/10 text-slate-300 rounded-full backdrop-blur-xs border border-white/10">
+          <span className="text-2xs font-semibold px-3 py-1 bg-primary/10 text-primary rounded-full border border-primary/20">
             Seguridad de Acceso
           </span>
         </div>

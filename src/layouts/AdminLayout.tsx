@@ -123,8 +123,8 @@ function Sidebar({
         aria-label="Navegación principal de administración"
       >
         <div>
-          {/* Header Marca / Logo */}
-          <div className="flex h-16 items-center justify-between border-b border-slate-800/80 px-5">
+          {/* Header Marca / Logo — Franja Blanca para contraste */}
+          <div className="flex h-16 items-center justify-between border-b border-slate-200 bg-white px-5 shadow-xs">
             <Link
               to="/admin"
               onClick={onClose}
@@ -136,14 +136,14 @@ function Sidebar({
                 className="h-9 w-9 rounded-xl shadow-xs shrink-0"
               />
               <div>
-                <p className="text-sm font-bold leading-none text-white tracking-tight">Bricklar Gestor</p>
-                <p className="text-2xs text-slate-400 font-medium mt-0.5">Panel Administrativo</p>
+                <p className="text-sm font-bold leading-none text-primary tracking-tight">Bricklar Gestor</p>
+                <p className="text-2xs text-slate-500 font-medium mt-0.5">Panel Administrativo</p>
               </div>
             </Link>
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white lg:hidden transition-colors cursor-pointer"
+              className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900 lg:hidden transition-colors cursor-pointer"
               aria-label="Cerrar menú"
             >
               <X size={18} />
