@@ -9,12 +9,27 @@ interface BeforeInstallPromptEvent extends Event {
 
 export function PwaInstallBanner() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
+  const [isMobile, setIsMobile] = useState(false)
   const [isIOS, setIsIOS] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
   const [isDismissed, setIsDismissed] = useState(false)
 
   useEffect(() => {
-    // 1. Detectar si la app ya está instalada o abierta en modo PWA / Standalone
+    // 1. Detectar si el dispositivo es un celular o tablet móvil
+    const userAgent = window.navigator.userAgent.toLowerCase()
+    const isMobileDevice =
+      /android|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/i.test(userAgent) ||
+      window.matchMedia('(max-width: 768px)').matches ||
+      ('ontouchstart' in window && window.innerWidth <= 1024)
+
+    setIsMobile(isMobileDevice)
+
+    // Si no es móvil, no inicializar listeners innecesarios
+    if (!isMobileDevice) {
+      return
+    }
+
+    // 2. Detectar si la app ya está instalada o abierta en modo PWA / Standalone
     const checkStandalone = () => {
       const isStandaloneMode =
         window.matchMedia('(display-mode: standalone)').matches ||
@@ -27,18 +42,17 @@ export function PwaInstallBanner() {
 
     checkStandalone()
 
-    // 2. Detectar si es iOS (iPhone / iPad)
-    const userAgent = window.navigator.userAgent.toLowerCase()
+    // 3. Detectar si es iOS (iPhone / iPad)
     const isIosDevice = /iphone|ipad|ipod/.test(userAgent) && !(window as unknown as { MSStream: unknown }).MSStream
     setIsIOS(isIosDevice)
 
-    // 3. Verificar si el usuario ya descartó el banner en esta sesión
+    // 4. Verificar si el usuario ya descartó el banner en esta sesión
     const dismissed = sessionStorage.getItem('pwa_banner_dismissed') === 'true'
     if (dismissed) {
       setIsDismissed(true)
     }
 
-    // 4. Capturar el evento nativo de instalación en Android / Chrome
+    // 5. Capturar el evento nativo de instalación en Android / Chrome
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault()
       setDeferredPrompt(e as BeforeInstallPromptEvent)
@@ -46,7 +60,7 @@ export function PwaInstallBanner() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt)
 
-    // 5. Escuchar cuando la app sea instalada con éxito
+    // 6. Escuchar cuando la app sea instalada con éxito
     const handleAppInstalled = () => {
       setDeferredPrompt(null)
       setIsStandalone(true)
@@ -76,8 +90,8 @@ export function PwaInstallBanner() {
     sessionStorage.setItem('pwa_banner_dismissed', 'true')
   }
 
-  // No mostrar si ya está instalada / standalone o si fue descartada
-  if (isStandalone || isDismissed) {
+  // NO mostrar en computadoras/escritorio, ni si ya está instalada, ni si fue descartada
+  if (!isMobile || isStandalone || isDismissed) {
     return null
   }
 
