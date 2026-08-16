@@ -104,11 +104,11 @@ export function PwaInstallBanner() {
         aria-live="polite"
       >
         <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-800 flex items-start gap-3.5 backdrop-blur-md">
-          <div className="h-10 w-10 rounded-xl bg-white p-1 shrink-0 flex items-center justify-center shadow-sm">
+          <div className="h-12 w-12 rounded-xl overflow-hidden shrink-0 shadow-md border border-slate-700/60">
             <img
-              src="/branding/bricklar-icon.svg"
-              alt="Bricklar"
-              className="h-8 w-8 object-contain"
+              src="/branding/pwa-512x512.png"
+              alt="Bricklar Gestor App"
+              className="h-full w-full object-cover"
             />
           </div>
 
@@ -116,7 +116,7 @@ export function PwaInstallBanner() {
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
                 <Smartphone className="h-4 w-4 text-accent" />
-                Instalar Bricklar App
+                Instalar Bricklar Gestor App
               </h3>
               <button
                 onClick={handleDismiss}
@@ -128,7 +128,7 @@ export function PwaInstallBanner() {
             </div>
 
             <p className="text-xs text-slate-300 mt-1 leading-relaxed">
-              Instala la aplicación en tu celular para acceder en 1 toque y trabajar con mayor rapidez.
+              Instala la aplicación en tu celular para acceder en 1 toque con su ícono oficial.
             </p>
 
             <div className="mt-3 flex items-center gap-2">
@@ -167,11 +167,11 @@ export function PwaInstallBanner() {
         aria-live="polite"
       >
         <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-2xl border border-slate-800 flex items-start gap-3.5 backdrop-blur-md">
-          <div className="h-10 w-10 rounded-xl bg-white p-1 shrink-0 flex items-center justify-center shadow-sm">
+          <div className="h-12 w-12 rounded-xl overflow-hidden shrink-0 shadow-md border border-slate-700/60">
             <img
-              src="/branding/bricklar-icon.svg"
-              alt="Bricklar"
-              className="h-8 w-8 object-contain"
+              src="/branding/pwa-512x512.png"
+              alt="Bricklar Gestor App"
+              className="h-full w-full object-cover"
             />
           </div>
 
@@ -179,7 +179,7 @@ export function PwaInstallBanner() {
             <div className="flex items-center justify-between gap-2">
               <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-1.5">
                 <Smartphone className="h-4 w-4 text-accent" />
-                Instalar en tu iPhone
+                Instalar Bricklar Gestor App
               </h3>
               <button
                 onClick={handleDismiss}

@@ -15,14 +15,20 @@ export default defineConfig({
         'branding/bricklar-icon.svg',
         'branding/bricklar-logo.svg',
         'branding/bricklar-logo.png',
+        'branding/bricklar-app-icon.png',
+        'branding/apple-touch-icon.png',
+        'branding/favicon-32x32.png',
+        'branding/favicon-16x16.png',
         'branding/pwa-192x192.png',
-        'branding/pwa-512x512.png'
+        'branding/pwa-512x512.png',
+        'branding/pwa-maskable-192x192.png',
+        'branding/pwa-maskable-512x512.png'
       ],
       manifest: {
-        id: 'com.bricklar.gestor',
-        name: 'Bricklar Gestor',
-        short_name: 'Bricklar',
-        description: 'Plataforma interna de gestión de entregas, rutas y operaciones para motorizados.',
+        id: 'com.bricklar.gestorapp',
+        name: 'Bricklar Gestor App',
+        short_name: 'Bricklar Gestor App',
+        description: 'Bricklar Gestor App - Plataforma interna de gestión de entregas, rutas y operaciones para motorizados.',
         lang: 'es',
         theme_color: '#1c2d5e',
         background_color: '#0f172a',
@@ -41,16 +47,28 @@ export default defineConfig({
             purpose: 'any'
           },
           {
+            src: '/branding/pwa-maskable-192x192.png',
+            sizes: '192x192',
+            type: 'image/png',
+            purpose: 'maskable'
+          },
+          {
             src: '/branding/pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/branding/pwa-512x512.png',
+            src: '/branding/pwa-maskable-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
+          },
+          {
+            src: '/branding/apple-touch-icon.png',
+            sizes: '180x180',
+            type: 'image/png',
+            purpose: 'any'
           },
           {
             src: '/branding/bricklar-icon.svg',
