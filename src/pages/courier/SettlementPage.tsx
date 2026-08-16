@@ -43,17 +43,20 @@ export default function CourierSettlementPage() {
   const [showCarryoverDetails, setShowCarryoverDetails] = useState(false)
 
   const { data: activeWorkday, isLoading: isLoadingWorkday } = useActiveWorkday(profile?.id)
+  const targetWorkDate = activeWorkday?.work_date || todayStr
+  const isPastWorkday = !!activeWorkday && activeWorkday.work_date < todayStr
+
   const { data: settlement, isLoading: isLoadingSettlement } = useWorkdaySettlement(activeWorkday?.id)
   const { data: movements = [], isLoading: isLoadingMovements } = useCashMovements(activeWorkday?.id)
   const { data: pendingBalances, isLoading: isLoadingPendingBalances } = useCourierPendingBalances(
     profile?.id,
-    activeWorkday?.work_date || todayStr
+    targetWorkDate
   )
 
   const { data: tasksData, isLoading: isLoadingTasks } = useTasks({
     branch_id: branchId,
     courier_id: profile?.id,
-    date: todayStr,
+    date: targetWorkDate,
     page_size: 100,
   })
 
@@ -248,6 +251,30 @@ export default function CourierSettlementPage() {
         </div>
       )}
 
+      {/* ⚠️ AVISO SI ESTÁ LIQUIDANDO UNA JORNADA ANTERIOR SIN CERRAR */}
+      {isPastWorkday && (
+        <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-3xl p-5 shadow-sm space-y-2.5 animate-fade-in">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-white/20 rounded-2xl shrink-0 mt-0.5">
+              <Clock className="h-6 w-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-100 block">
+                  Liquidando Jornada Anterior ({activeWorkday.work_date})
+                </span>
+                <span className="text-xs font-black bg-white/20 px-2.5 py-0.5 rounded-full font-tabular">
+                  Cierre Pendiente
+                </span>
+              </div>
+              <p className="text-xs text-white/95 mt-1 leading-snug">
+                Esta jornada del <strong>{activeWorkday.work_date}</strong> quedó abierta al finalizar el día. Revisa los montos cobrados y presiona <strong>"Enviar Liquidación a Revisión"</strong> para formalizar la entrega en caja y poder iniciar tu jornada de hoy.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Crema Pastel Ejecutivo */}
       <div className="bg-[#FCFAF4] border border-amber-100/70 rounded-3xl p-5 shadow-2xs flex items-center justify-between">
         <div>
@@ -272,10 +299,12 @@ export default function CourierSettlementPage() {
 
       {/* Grid Ejecutiva de Resumen Financiero en Tarjetas Pastel Suaves */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {/* Total Cobrado Hoy */}
+        {/* Total Cobrado */}
         <div className="bg-[#F3F9F6] border border-emerald-100/70 rounded-3xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-emerald-700">
-            <span className="text-2xs font-bold uppercase tracking-wider">Cobrado Hoy</span>
+            <span className="text-2xs font-bold uppercase tracking-wider">
+              {isPastWorkday ? 'Cobrado en Turno' : 'Cobrado Hoy'}
+            </span>
             <DollarSign size={16} />
           </div>
           <span className="text-xl font-black text-emerald-950 font-tabular mt-2 block">
@@ -283,10 +312,12 @@ export default function CourierSettlementPage() {
           </span>
         </div>
 
-        {/* Total Gastado Hoy */}
+        {/* Total Gastado */}
         <div className="bg-[#FCF5F7] border border-rose-100/70 rounded-3xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-rose-700">
-            <span className="text-2xs font-bold uppercase tracking-wider">Gastado Hoy</span>
+            <span className="text-2xs font-bold uppercase tracking-wider">
+              {isPastWorkday ? 'Gastado en Ruta' : 'Gastado Hoy'}
+            </span>
             <Receipt size={16} />
           </div>
           <span className="text-xl font-black text-rose-950 font-tabular mt-2 block">
@@ -294,10 +325,12 @@ export default function CourierSettlementPage() {
           </span>
         </div>
 
-        {/* Fondos Recibidos Hoy */}
+        {/* Fondos Recibidos */}
         <div className="bg-[#F5F8FE] border border-blue-100/70 rounded-3xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-blue-700">
-            <span className="text-2xs font-bold uppercase tracking-wider">Fondos Hoy</span>
+            <span className="text-2xs font-bold uppercase tracking-wider">
+              {isPastWorkday ? 'Fondos Recibidos' : 'Fondos Hoy'}
+            </span>
             <Banknote size={16} />
           </div>
           <span className="text-xl font-black text-blue-950 font-tabular mt-2 block">
@@ -327,7 +360,7 @@ export default function CourierSettlementPage() {
           </span>
           {hasPendingCarryover && (
             <span className="text-2xs text-emerald-100 font-semibold block">
-              (Hoy: C$ {todayNetCashToDeliver.toLocaleString('es-NI', { minimumFractionDigits: 2 })} + Días Anteriores: C$ {pendingCarryoverCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })})
+              (Turno: C$ {todayNetCashToDeliver.toLocaleString('es-NI', { minimumFractionDigits: 2 })} + Días Anteriores: C$ {pendingCarryoverCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })})
             </span>
           )}
         </div>
