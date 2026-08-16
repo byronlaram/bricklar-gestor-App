@@ -42,7 +42,7 @@ async function fetchDashboardData(branchIds: string[]) {
   try {
     let tasksQuery = supabase
       .from('tasks')
-      .select('id, status, financial_status, created_at, branch_id')
+      .select('id, status, financial_status, created_at, scheduled_date, branch_id')
 
     let workdaysQuery = supabase
       .from('workdays')
@@ -178,7 +178,11 @@ export default function DashboardPage() {
     const settlements = data?.settlements ?? []
 
     const today = getLocalDateString()
-    const todayTasks = tasks.filter((t) => t.created_at?.startsWith(today))
+    const todayTasks = tasks.filter((t) => {
+      const isScheduledToday = t.scheduled_date === today
+      const isCreatedToday = t.created_at ? getLocalDateString(new Date(t.created_at)) === today : false
+      return isScheduledToday || isCreatedToday
+    })
 
     const totalCash = settlements.reduce((s, r) => s + (Number(r.actual_cash) || 0), 0)
     const totalTransfer = settlements.reduce((s, r) => s + (Number(r.actual_transfers) || 0), 0)
@@ -278,7 +282,7 @@ export default function DashboardPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <Link to="/admin/tareas">
                 <MetricCard
-                  title="Tareas Creadas Hoy"
+                  title="Tareas Registradas Hoy"
                   value={kpis.todayTasks}
                   subtitle={`${kpis.totalTasks} registradas en total`}
                   icon={<ClipboardList className="h-5 w-5 text-accent" />}
@@ -311,11 +315,11 @@ export default function DashboardPage() {
 
               <Link to="/admin/tareas">
                 <MetricCard
-                  title="Sin Completar"
-                  value={kpis.notCompleted}
-                  subtitle="Pendientes de revisión"
-                  icon={<AlertCircle className="h-5 w-5 text-rose-600" />}
-                  accentColor="destructive"
+                  title="Por Completar / Asignadas"
+                  value={kpis.pending + kpis.notCompleted}
+                  subtitle={`${kpis.pending} asignadas activas`}
+                  icon={<AlertCircle className="h-5 w-5 text-amber-500" />}
+                  accentColor="warning"
                   className="hover:shadow-card-hover cursor-pointer"
                 />
               </Link>
