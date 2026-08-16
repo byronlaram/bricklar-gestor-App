@@ -28,6 +28,7 @@ import { ConfirmDialog, useToast } from '@/shared/components/ui'
 import { TASK_TYPE_CONFIGS } from '../config/taskTypeConfig'
 import { useBusRoutes } from '@/modules/buses/hooks/useBuses'
 import { useCouriers } from '../hooks/useCouriers'
+import { getLocalDateString } from '@/shared/utils/date'
 
 interface TaskFormModalProps {
   taskToEdit?: TaskWithCourier | null
@@ -64,7 +65,7 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
 
   const isTitleCustomized = useRef(false)
   const previousTypeRef = useRef<TaskType>('delivery')
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateString()
 
   const {
     register,

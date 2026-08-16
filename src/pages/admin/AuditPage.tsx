@@ -66,8 +66,10 @@ const ACTION_COLORS: Record<string, string> = {
   CLOSE: 'text-foreground-muted bg-muted border-border',
 }
 
+import { getLocalDateString } from '@/shared/utils/date'
+
 export default function AuditPage() {
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateString()
   const [from, setFrom] = useState(todayStr)
   const [to, setTo] = useState(todayStr)
   const [search, setSearch] = useState('')

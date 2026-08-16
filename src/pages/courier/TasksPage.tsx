@@ -24,6 +24,7 @@ import {
   EmptyState,
   useToast,
 } from '@/shared/components/ui'
+import { getLocalDateString } from '@/shared/utils/date'
 
 export default function CourierTasksPage() {
   const navigate = useNavigate()
@@ -39,7 +40,7 @@ export default function CourierTasksPage() {
   const weekDays = Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today)
     d.setDate(today.getDate() + i)
-    const isoDate = d.toISOString().split('T')[0]
+    const isoDate = getLocalDateString(d)
     const dayName = i === 0 ? 'Hoy' : d.toLocaleDateString('es-NI', { weekday: 'short' })
     const dayNum = d.getDate()
     const monthName = d.toLocaleDateString('es-NI', { month: 'short' })

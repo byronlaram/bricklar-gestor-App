@@ -20,11 +20,12 @@ import {
   EmptyState,
   useToast,
 } from '@/shared/components/ui'
+import { getLocalDateString } from '@/shared/utils/date'
 
 export default function CourierFundsPage() {
   const { profile } = useAuth()
   const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateString()
   const toast = useToast()
 
   const [isAddMovementOpen, setIsAddMovementOpen] = useState(false)

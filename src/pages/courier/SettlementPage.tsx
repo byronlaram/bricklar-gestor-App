@@ -25,11 +25,12 @@ import {
   Skeleton,
   EmptyState,
 } from '@/shared/components/ui'
+import { getLocalDateString } from '@/shared/utils/date'
 
 export default function CourierSettlementPage() {
   const { profile } = useAuth()
   const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateString()
   const [notes, setNotes] = useState('')
 
   const { data: activeWorkday, isLoading: isLoadingWorkday } = useActiveWorkday(profile?.id)

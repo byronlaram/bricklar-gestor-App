@@ -18,11 +18,12 @@ import {
   Skeleton,
   ConfirmDialog,
 } from '@/shared/components/ui'
+import { getLocalDateString } from '@/shared/utils/date'
 
 export default function AdminDailyClosurePage() {
   const { profile } = useAuth()
   const defaultBranchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateString()
 
   const [date, setDate] = useState(todayStr)
   const [isClosed, setIsClosed] = useState(false)

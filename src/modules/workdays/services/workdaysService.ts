@@ -7,6 +7,8 @@ import type {
   WorkdayFilters,
 } from '../types/workdays.types'
 
+import { getLocalDateString } from '@/shared/utils/date'
+
 const WORKDAY_SELECT = `
   *,
   courier_profile:profiles!workdays_courier_id_fkey (
@@ -46,7 +48,7 @@ export async function startWorkday(payload: StartWorkdayPayload): Promise<Workda
     throw new Error('Ya tienes una jornada laboral abierta.')
   }
 
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateString()
 
   // Verificar si ya existe un registro de jornada para hoy (ej. fondo asignado previamente por admin)
   const { data: existingRow } = await supabase

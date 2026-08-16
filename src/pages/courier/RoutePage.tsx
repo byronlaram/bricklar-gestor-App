@@ -23,12 +23,13 @@ import { SortableTaskCard } from '@/modules/tasks/components/SortableTaskCard'
 import { TaskStatusModal } from '@/modules/tasks/components/TaskStatusModal'
 import type { TaskWithCourier } from '@/modules/tasks/types/task.types'
 import { Card, Badge, Skeleton, EmptyState, useToast } from '@/shared/components/ui'
+import { getLocalDateString } from '@/shared/utils/date'
 
 export default function RoutePage() {
   const navigate = useNavigate()
   const toast = useToast()
   const { profile } = useAuth()
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateString()
 
   const [statusTaskTarget, setStatusTaskTarget] = useState<TaskWithCourier | null>(null)
 

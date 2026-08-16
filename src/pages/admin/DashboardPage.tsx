@@ -32,11 +32,12 @@ import {
   Button,
   Divider,
 } from '@/shared/components/ui'
+import { getLocalDateString } from '@/shared/utils/date'
 
 // ─── Queries de KPI ──────────────────────────────────────────────────────────
 
 async function fetchDashboardData(branchIds: string[]) {
-  const today = new Date().toISOString().split('T')[0]
+  const today = getLocalDateString()
 
   try {
     let tasksQuery = supabase
@@ -176,7 +177,7 @@ export default function DashboardPage() {
     const workdays = data?.workdays ?? []
     const settlements = data?.settlements ?? []
 
-    const today = new Date().toISOString().split('T')[0]
+    const today = getLocalDateString()
     const todayTasks = tasks.filter((t) => t.created_at?.startsWith(today))
 
     const totalCash = settlements.reduce((s, r) => s + (Number(r.actual_cash) || 0), 0)

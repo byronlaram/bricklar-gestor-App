@@ -9,6 +9,8 @@ import {
 import { useAuth } from '@/modules/auth/useAuth'
 import { supabase } from '@/shared/lib/supabaseClient'
 
+import { getLocalDateString } from '@/shared/utils/date'
+
 interface StartWorkdayModalProps {
   branchId: string
   isOpen: boolean
@@ -51,7 +53,7 @@ export function StartWorkdayModal({ branchId, isOpen, onClose }: StartWorkdayMod
         setKmSettings(settings)
 
         if (user?.id) {
-          const todayStr = new Date().toISOString().split('T')[0]
+          const todayStr = getLocalDateString()
           const { data: wd } = await supabase
             .from('workdays')
             .select('initial_cash')
