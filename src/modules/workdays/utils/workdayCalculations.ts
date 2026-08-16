@@ -26,8 +26,11 @@ export function calculateWorkdayCashSummary(
   tasks: Array<{
     expected_collection_amount?: number | null
     expected_collection_currency?: string | null
-    status?: string
     requires_collection?: boolean
+    expected_payment_amount?: number | null
+    expected_payment_currency?: string | null
+    requires_payment?: boolean
+    status?: string
   }> = [],
   movements: Array<{
     amount: number
@@ -43,13 +46,24 @@ export function calculateWorkdayCashSummary(
   let alreadyReceivedNIO = 0
   let alreadyReceivedUSD = 0
 
-  // 1. Cobros de tareas completadas que requerían cobro
+  // 1. Cobros y pagos de tareas completadas
   tasks.forEach((t) => {
-    if (t.status === 'completed' && t.requires_collection && t.expected_collection_amount) {
-      const amt = t.expected_collection_amount
-      const curr = t.expected_collection_currency || 'NIO'
-      if (curr === 'USD') collectionsUSD += amt
-      else collectionsNIO += amt
+    const isCompleted = !t.status || t.status === 'completed'
+    if (isCompleted) {
+      // Cobros a favor de la empresa
+      if (t.requires_collection && t.expected_collection_amount) {
+        const amt = t.expected_collection_amount
+        const curr = t.expected_collection_currency || 'NIO'
+        if (curr === 'USD') collectionsUSD += amt
+        else collectionsNIO += amt
+      }
+      // Pagos a proveedores / compras realizadas en ruta
+      if (t.requires_payment && t.expected_payment_amount) {
+        const amt = t.expected_payment_amount
+        const curr = t.expected_payment_currency || 'NIO'
+        if (curr === 'USD') expensesUSD += amt
+        else expensesNIO += amt
+      }
     }
   })
 

@@ -196,11 +196,10 @@ export async function getWorkdays(filters: WorkdayFilters = {}): Promise<Workday
   // 1. Carga en lote de tareas completadas
   const { data: batchTasks } = await supabase
     .from('tasks')
-    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, status, requires_collection')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
     .in('assigned_courier_id', courierIds)
     .in('scheduled_date', workDates)
     .eq('status', 'completed')
-    .eq('requires_collection', true)
 
   // 2. Carga en lote de movimientos de caja
   const { data: batchMovements } = await supabase
