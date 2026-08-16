@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react'
 import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useTasksRealtime } from '@/modules/tasks/hooks/useTasksRealtime'
 import { Avatar, Button, ConfirmDialog, useToast } from '@/shared/components/ui'
@@ -273,6 +275,27 @@ export default function AdminLayout() {
     }
   }, [userMenuOpen])
 
+  // Consulta en tiempo real de notificaciones no leídas para Admin
+  const { data: unreadNotifications = [] } = useQuery({
+    queryKey: ['notifications', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return []
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('id, read_at')
+        .eq('user_id', profile.id)
+        .is('read_at', null)
+        .limit(50)
+
+      if (error) return []
+      return data ?? []
+    },
+    enabled: !!profile?.id,
+    refetchInterval: 1000 * 30,
+  })
+
+  const unreadCount = unreadNotifications.length
+
   // Ejecución segura de Logout
   const handleConfirmLogout = async () => {
     setIsLoggingOut(true)
@@ -338,7 +361,11 @@ export default function AdminLayout() {
               title="Notificaciones y Registro de Auditoría"
             >
               <Bell size={18} />
-              <span className="absolute top-2 right-2 h-2 w-2 rounded-full bg-accent animate-pulse" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-extrabold flex items-center justify-center shadow-xs">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
             </Button>
 
             {/* User Profile Dropdown en Escritorio/Topbar */}

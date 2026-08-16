@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useTasksRealtime } from '@/modules/tasks/hooks/useTasksRealtime'
 import { Avatar, ConfirmDialog, useToast } from '@/shared/components/ui'
@@ -37,6 +39,29 @@ export default function CourierLayout() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false)
 
   const dropdownRef = useRef<HTMLDivElement>(null)
+
+  // Consulta en tiempo real de notificaciones no leídas
+  const { data: unreadNotifications = [] } = useQuery({
+    queryKey: ['notifications', profile?.id],
+    queryFn: async () => {
+      if (!profile?.id) return []
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('id, read_at')
+        .eq('user_id', profile.id)
+        .is('read_at', null)
+        .limit(50)
+
+      if (error) {
+        return []
+      }
+      return data ?? []
+    },
+    enabled: !!profile?.id,
+    refetchInterval: 1000 * 30,
+  })
+
+  const unreadCount = unreadNotifications.length
 
   // Cierre de menú al hacer clic fuera o presionar Escape
   useEffect(() => {
@@ -117,9 +142,11 @@ export default function CourierLayout() {
             aria-label="Notificaciones"
           >
             <Bell size={18} className="text-white" />
-            <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-extrabold flex items-center justify-center shadow-xs">
-              3
-            </span>
+            {unreadCount > 0 && (
+              <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-extrabold flex items-center justify-center shadow-xs animate-scale-in">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </NavLink>
 
           {/* Menú de Perfil con Avatar */}
