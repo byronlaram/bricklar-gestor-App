@@ -25,7 +25,7 @@ export default defineConfig({
         'branding/pwa-maskable-512x512.png'
       ],
       manifest: {
-        id: 'com.bricklar.gestorapp',
+        id: '/?source=pwa',
         name: 'Bricklar Gestor App',
         short_name: 'Bricklar Gestor App',
         description: 'Bricklar Gestor App - Plataforma interna de gestión de entregas, rutas y operaciones para motorizados.',
