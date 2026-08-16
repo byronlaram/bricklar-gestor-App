@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Plus,
   Fuel,
@@ -8,10 +8,16 @@ import {
   ArrowUpRight,
   ArrowDownLeft,
   Banknote,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  Package,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
 import { useCashMovements } from '@/modules/settlements/hooks/useSettlements'
+import { useCourierPendingBalances } from '@/modules/settlements/hooks/usePendingBalances'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { AddMovementModal } from '@/modules/settlements/components/AddMovementModal'
 import {
@@ -29,56 +35,189 @@ export default function CourierFundsPage() {
   const toast = useToast()
 
   const [isAddMovementOpen, setIsAddMovementOpen] = useState(false)
+  const [showCarryoverDetails, setShowCarryoverDetails] = useState(false)
 
-  const { data: activeWorkday } = useActiveWorkday(profile?.id)
+  const { data: activeWorkday, isLoading: isLoadingWorkday } = useActiveWorkday(profile?.id)
+  const targetWorkDate = activeWorkday?.work_date || todayStr
+  const isPastWorkday = !!activeWorkday && activeWorkday.work_date < todayStr
 
-  const handleOpenGastoModal = () => {
-    if (!activeWorkday) {
-      toast.error(
-        'Jornada requerida',
-        'Debes iniciar tu jornada laboral de hoy en la pantalla de Inicio para poder registrar un gasto.'
-      )
-      return
-    }
-    setIsAddMovementOpen(true)
-  }
   const { data: movements = [], isLoading: isLoadingMovements } = useCashMovements(activeWorkday?.id)
+  const { data: pendingBalances, isLoading: isLoadingPendingBalances } = useCourierPendingBalances(
+    profile?.id,
+    targetWorkDate
+  )
 
-  const { data: tasksData } = useTasks({
+  const { data: tasksData, isLoading: isLoadingTasks } = useTasks({
     branch_id: branchId,
     courier_id: profile?.id,
-    date: todayStr,
+    date: targetWorkDate,
     page_size: 100,
   })
 
-  const completedTasks = (tasksData?.data || []).filter((t) => t.status === 'completed')
+  const completedTasks = useMemo(
+    () => (tasksData?.data || []).filter((t) => t.status === 'completed'),
+    [tasksData?.data]
+  )
 
-  // Total cobrado en efectivo
-  const cashCollections = completedTasks
-    .filter((t) => (t.expected_payment_method || 'cash') === 'cash' && t.requires_collection)
-    .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
+  // Total cobrado en efectivo en tareas completadas
+  const cashCollections = useMemo(
+    () =>
+      completedTasks
+        .filter((t) => (t.expected_payment_method || 'cash') === 'cash' && t.requires_collection)
+        .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0),
+    [completedTasks]
+  )
+
+  // Pagos a proveedores / compras realizadas en tareas completadas
+  const taskPayments = useMemo(
+    () =>
+      completedTasks
+        .filter((t) => t.requires_payment && (t.expected_payment_amount || 0) > 0)
+        .reduce((acc, t) => acc + (t.expected_payment_amount || 0), 0),
+    [completedTasks]
+  )
 
   // Entregas de efectivo / adelantos recibidos de administración
-  const totalCashAdvances = movements
-    .filter((m) => m.direction === 'income' && m.movement_type === 'cash_advance')
-    .reduce((acc, m) => acc + m.amount, 0)
+  const totalCashAdvances = useMemo(
+    () =>
+      movements
+        .filter((m) => m.direction === 'income' && m.movement_type === 'cash_advance')
+        .reduce((acc, m) => acc + m.amount, 0),
+    [movements]
+  )
 
-  // Total gastos
-  const totalExpenses = movements
-    .filter((m) => m.direction === 'expense')
-    .reduce((acc, m) => acc + m.amount, 0)
+  // Gastos manuales de ruta (combustible, compras varias)
+  const manualExpenses = useMemo(
+    () =>
+      movements
+        .filter((m) => m.direction === 'expense')
+        .reduce((acc, m) => acc + m.amount, 0),
+    [movements]
+  )
 
-  // Fondo inicial
+  // Total gastos y pagos del turno
+  const totalExpenses = manualExpenses + taskPayments
+
+  // Fondo inicial de la jornada
   const initialCash = activeWorkday?.initial_cash || 0
 
   // Fondo total recibido (Fondo inicial + Entregas adicionales de efectivo)
   const totalFundsReceived = initialCash + totalCashAdvances
 
-  // Efectivo total disponible en mano
-  const cashInHand = Math.max(0, totalFundsReceived + cashCollections - totalExpenses)
+  // Saldo exclusivo del turno actual
+  const todayNetCash = Math.max(0, totalFundsReceived + cashCollections - totalExpenses)
+
+  // Saldo pendiente acumulado de jornadas anteriores
+  const pendingCarryoverCash = pendingBalances?.totalPendingCash || 0
+  const hasPendingCarryover =
+    (pendingBalances?.hasPendingBalances ?? false) &&
+    (pendingCarryoverCash > 0 || (pendingBalances?.breakdown?.length || 0) > 0)
+
+  // Total efectivo disponible en mano (Turno actual + Días anteriores no liquidados)
+  const grandTotalCashInHand = todayNetCash + pendingCarryoverCash
+
+  const handleOpenGastoModal = () => {
+    if (!activeWorkday) {
+      toast.error(
+        'Jornada requerida',
+        'Debes iniciar tu jornada laboral en la pantalla de Inicio para poder registrar un gasto.'
+      )
+      return
+    }
+    setIsAddMovementOpen(true)
+  }
+
+  // Tareas con pago para listado de movimientos combinados
+  const completedPaymentTasks = useMemo(
+    () =>
+      completedTasks.filter((t) => t.requires_payment && (t.expected_payment_amount || 0) > 0),
+    [completedTasks]
+  )
+
+  if (isLoadingWorkday || isLoadingMovements || isLoadingTasks || isLoadingPendingBalances) {
+    return (
+      <div className="space-y-4 max-w-2xl mx-auto">
+        <Skeleton className="h-28 rounded-2xl" />
+        <Skeleton className="h-48 rounded-2xl" />
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-5 animate-fade-in pb-20 max-w-2xl mx-auto">
+      {/* ⚠️ ALERTA DE SALDO PENDIENTE ARRASTRADO DE DÍAS ANTERIORES */}
+      {hasPendingCarryover && (
+        <div className="bg-gradient-to-r from-amber-500 to-rose-600 text-white rounded-3xl p-5 shadow-sm space-y-3 animate-fade-in">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-white/20 rounded-2xl shrink-0 mt-0.5">
+                <AlertTriangle className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <span className="text-xs font-black uppercase tracking-wider text-amber-100 block">
+                  Saldos Pendientes de Días Anteriores
+                </span>
+                <span className="text-2xl font-black block mt-0.5 font-tabular">
+                  + C$ {pendingCarryoverCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <p className="text-xs text-white/90 mt-1">
+                  Corresponde a {pendingBalances?.breakdown.length} jornada(s) anterior(es) no liquidadas o entregadas a caja.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowCarryoverDetails((prev) => !prev)}
+              className="p-2 bg-white/20 hover:bg-white/30 rounded-xl transition cursor-pointer shrink-0"
+              title="Ver detalle de días pendientes"
+            >
+              {showCarryoverDetails ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
+
+          {showCarryoverDetails && (
+            <div className="bg-black/15 rounded-2xl p-3.5 space-y-2 text-xs border border-white/10 animate-slide-up">
+              <span className="font-bold text-amber-100 block">Desglose por fecha:</span>
+              {pendingBalances?.breakdown.map((b, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-white/10 rounded-xl p-2.5">
+                  <div>
+                    <span className="font-bold text-white block">📅 {b.workDate}</span>
+                    <span className="text-[11px] text-white/80">{b.reason}</span>
+                  </div>
+                  <span className="font-mono font-bold text-white text-sm">
+                    C$ {b.amount.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ⚠️ AVISO SI ESTÁ OPERANDO EN JORNADA ANTERIOR SIN CERRAR */}
+      {isPastWorkday && (
+        <div className="bg-gradient-to-r from-amber-600 to-orange-600 text-white rounded-3xl p-5 shadow-sm space-y-2.5 animate-fade-in">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-white/20 rounded-2xl shrink-0 mt-0.5">
+              <Clock className="h-6 w-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-100 block">
+                  Turno Activo: {activeWorkday.work_date}
+                </span>
+                <span className="text-xs font-black bg-white/20 px-2.5 py-0.5 rounded-full font-tabular">
+                  Cierre Pendiente
+                </span>
+              </div>
+              <p className="text-xs text-white/95 mt-1 leading-snug">
+                Esta jornada pertenece al <strong>{activeWorkday.work_date}</strong> y está abierta. Recuerda liquidarla en la pestaña <strong>"Liquidación"</strong> para entregar cuentas e iniciar tu jornada de hoy.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Menta Pastel Ejecutivo */}
       <div className="bg-[#F3F9F6] border border-emerald-100/70 rounded-3xl p-5 shadow-2xs flex items-center justify-between">
         <div>
@@ -110,32 +249,45 @@ export default function CourierFundsPage() {
             Dinero Disponible en Mano
           </span>
           <span className="text-2xs bg-indigo-950/80 text-teal-200 px-3 py-1 rounded-full font-mono border border-indigo-700/60 font-bold">
-            {todayStr}
+            {targetWorkDate}
           </span>
         </div>
 
         <div className="space-y-1">
-          <span className="text-2xs text-indigo-200 uppercase font-semibold tracking-wider">Saldo Total Disponible</span>
+          <span className="text-2xs text-indigo-200 uppercase font-semibold tracking-wider">
+            {hasPendingCarryover ? 'Saldo Total en Mano (Turno + Días Anteriores)' : 'Saldo Total en Mano'}
+          </span>
           <p className="text-4xl sm:text-5xl font-black tracking-tight text-white font-tabular">
-            C$ {cashInHand.toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+            C$ {grandTotalCashInHand.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </p>
+          {hasPendingCarryover && (
+            <span className="text-2xs text-teal-200 font-semibold block pt-0.5">
+              (Turno Actual: C$ {todayNetCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })} + Días Anteriores: C$ {pendingCarryoverCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })})
+            </span>
+          )}
         </div>
 
-        {/* Desglose rápido 3 tarjetas integradas */}
+        {/* Desglose rápido 3 tarjetas integradas del turno */}
         <div className="grid grid-cols-3 gap-2.5 pt-2 text-center text-xs">
           <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-xs border border-white/10">
             <span className="text-2xs block text-indigo-200 uppercase tracking-wider font-semibold">Fondos Recibidos</span>
-            <span className="font-bold text-white text-sm font-tabular mt-0.5 block">C$ {totalFundsReceived.toFixed(2)}</span>
+            <span className="font-bold text-white text-sm font-tabular mt-0.5 block">
+              C$ {totalFundsReceived.toFixed(2)}
+            </span>
           </div>
 
           <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-xs border border-white/10">
             <span className="text-2xs block text-teal-200 uppercase tracking-wider font-semibold">Cobros Tareas</span>
-            <span className="font-bold text-teal-300 text-sm font-tabular mt-0.5 block">+C$ {cashCollections.toFixed(2)}</span>
+            <span className="font-bold text-teal-300 text-sm font-tabular mt-0.5 block">
+              +C$ {cashCollections.toFixed(2)}
+            </span>
           </div>
 
           <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-xs border border-white/10">
-            <span className="text-2xs block text-amber-200 uppercase tracking-wider font-semibold">Gastos Ruta</span>
-            <span className="font-bold text-amber-300 text-sm font-tabular mt-0.5 block">-C$ {totalExpenses.toFixed(2)}</span>
+            <span className="text-2xs block text-amber-200 uppercase tracking-wider font-semibold">Gastos / Pagos</span>
+            <span className="font-bold text-amber-300 text-sm font-tabular mt-0.5 block">
+              -C$ {totalExpenses.toFixed(2)}
+            </span>
           </div>
         </div>
       </div>
@@ -144,7 +296,7 @@ export default function CourierFundsPage() {
       <div className="grid grid-cols-3 gap-3">
         <div className="bg-[#F3F9F6] border border-emerald-100/70 rounded-3xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-emerald-700">
-            <span className="text-2xs font-bold uppercase tracking-wider">Fondos</span>
+            <span className="text-2xs font-bold uppercase tracking-wider">Fondos Turno</span>
             <Banknote size={16} />
           </div>
           <span className="text-base sm:text-lg font-bold text-emerald-950 font-tabular mt-2 block">
@@ -164,7 +316,7 @@ export default function CourierFundsPage() {
 
         <div className="bg-[#FCFAF4] border border-amber-100/70 rounded-3xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-amber-700">
-            <span className="text-2xs font-bold uppercase tracking-wider">Gastos</span>
+            <span className="text-2xs font-bold uppercase tracking-wider">Gastos / Pagos</span>
             <ArrowUpRight size={16} />
           </div>
           <span className="text-base sm:text-lg font-bold text-amber-950 font-tabular mt-2 block">
@@ -173,23 +325,55 @@ export default function CourierFundsPage() {
         </div>
       </div>
 
-      {/* Lista de Movimientos Recientes */}
+      {/* Lista de Movimientos y Pagos Recientes */}
       <div className="space-y-3">
-        <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">Movimientos Recientes de Caja</h2>
+        <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">
+          Movimientos y Pagos en Ruta ({targetWorkDate})
+        </h2>
 
         {isLoadingMovements ? (
           <div className="space-y-2.5">
             <Skeleton className="h-16 rounded-3xl" />
             <Skeleton className="h-16 rounded-3xl" />
           </div>
-        ) : movements.length === 0 ? (
+        ) : movements.length === 0 && completedPaymentTasks.length === 0 ? (
           <EmptyState
-            title="Sin gastos ni movimientos registrados"
-            description="Si realizas compras, combustible o entregas de efectivo, regístralos usando el botón superior."
+            title="Sin gastos ni pagos registrados"
+            description="Si realizas compras, combustible o pagos a proveedores, se reflejarán automáticamente aquí."
             icon={<Receipt className="h-8 w-8 text-slate-400" />}
           />
         ) : (
           <div className="space-y-2.5">
+            {/* Tareas con Pagos Realizados a Proveedores */}
+            {completedPaymentTasks.map((t) => (
+              <div
+                key={`task-${t.id}`}
+                className="p-4 bg-[#FCF5F7] border border-rose-100/80 rounded-3xl shadow-2xs flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="p-3 rounded-2xl bg-white/90 text-rose-700 border border-slate-200/60 shadow-2xs">
+                    <Package className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-[#0A2540]">{t.title}</h3>
+                    <p className="text-2xs text-slate-500 font-semibold font-mono mt-0.5">
+                      Pago a proveedor completado ({t.code})
+                    </p>
+                  </div>
+                </div>
+
+                <div className="text-right">
+                  <span className="text-sm font-bold text-rose-700 font-tabular block">
+                    -C$ {(t.expected_payment_amount || 0).toFixed(2)}
+                  </span>
+                  <span className="text-2xs text-slate-500 font-mono uppercase font-semibold">
+                    Pago Tarea
+                  </span>
+                </div>
+              </div>
+            ))}
+
+            {/* Movimientos de Caja Registrados */}
             {movements.map((m, idx) => {
               const itemPastels = [
                 'bg-[#FCFAF4] border-amber-100/70',

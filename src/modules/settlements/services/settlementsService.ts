@@ -86,32 +86,37 @@ export async function submitSettlement(workdayId: string, notes?: string): Promi
 
   if (workdayErr || !workday) throw new Error('Jornada laboral no encontrada.')
 
-  // Calcular cobros de tareas completadas de esta jornada/motorizado
+  // Calcular cobros y pagos de tareas completadas de esta jornada/motorizado
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('expected_collection_amount, expected_payment_method')
+    .select('expected_collection_amount, expected_payment_method, requires_collection, requires_payment, expected_payment_amount')
     .eq('assigned_courier_id', userId)
     .eq('scheduled_date', workday.work_date)
     .eq('status', 'completed')
-    .eq('requires_collection', true)
 
   const totalExpectedCash = (tasks || [])
-    .filter((t) => (t.expected_payment_method || 'cash') === 'cash')
+    .filter((t) => t.requires_collection && (t.expected_payment_method || 'cash') === 'cash')
     .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
 
   const totalExpectedTransfers = (tasks || [])
-    .filter((t) => t.expected_payment_method && t.expected_payment_method !== 'cash')
+    .filter((t) => t.requires_collection && t.expected_payment_method && t.expected_payment_method !== 'cash')
     .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
 
-  // Obtener movimientos de caja de esta jornada (gastos e ingresos por adelantos de efectivo)
+  const totalTaskPayments = (tasks || [])
+    .filter((t) => t.requires_payment && (t.expected_payment_amount || 0) > 0)
+    .reduce((acc, t) => acc + (t.expected_payment_amount || 0), 0)
+
+  // Obtener movimientos de caja de esta jornada (gastos manuales e ingresos por adelantos de efectivo)
   const { data: movements } = await supabase
     .from('cash_movements')
     .select('amount, direction, movement_type')
     .eq('workday_id', workdayId)
 
-  const totalExpenses = (movements || [])
+  const manualExpenses = (movements || [])
     .filter((m) => m.direction === 'expense')
     .reduce((acc, m) => acc + m.amount, 0)
+
+  const totalExpenses = manualExpenses + totalTaskPayments
 
   const totalCashAdvances = (movements || [])
     .filter((m) => m.direction === 'income' && m.movement_type === 'cash_advance')
@@ -347,24 +352,29 @@ export async function getCourierPendingBalances(
       // Calcular desde tareas y movimientos
       const { data: dayTasks } = await supabase
         .from('tasks')
-        .select('expected_collection_amount, expected_payment_method')
+        .select('expected_collection_amount, expected_payment_method, requires_collection, requires_payment, expected_payment_amount')
         .eq('assigned_courier_id', courierId)
         .eq('scheduled_date', wd.work_date)
         .eq('status', 'completed')
-        .eq('requires_collection', true)
 
       const cashCollections = (dayTasks || [])
-        .filter((t) => (t.expected_payment_method || 'cash') === 'cash')
+        .filter((t) => t.requires_collection && (t.expected_payment_method || 'cash') === 'cash')
         .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
+
+      const dayTaskPayments = (dayTasks || [])
+        .filter((t) => t.requires_payment && (t.expected_payment_amount || 0) > 0)
+        .reduce((acc, t) => acc + (t.expected_payment_amount || 0), 0)
 
       const { data: dayMovements } = await supabase
         .from('cash_movements')
         .select('amount, direction, movement_type')
         .eq('workday_id', wd.id)
 
-      const expenses = (dayMovements || [])
+      const manualExpenses = (dayMovements || [])
         .filter((m) => m.direction === 'expense')
         .reduce((acc, m) => acc + m.amount, 0)
+
+      const expenses = manualExpenses + dayTaskPayments
 
       const advances = (dayMovements || [])
         .filter((m) => m.direction === 'income' && m.movement_type === 'cash_advance')

@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ChevronUp,
+  Package,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
@@ -86,8 +87,17 @@ export default function CourierSettlementPage() {
     [completedTasks]
   )
 
-  // Gastos registrados en ruta
-  const liveExpenses = useMemo(
+  // Pagos a proveedores / compras realizadas en tareas completadas
+  const liveTaskPayments = useMemo(
+    () =>
+      completedTasks
+        .filter((t) => t.requires_payment && (t.expected_payment_amount || 0) > 0)
+        .reduce((acc, t) => acc + (t.expected_payment_amount || 0), 0),
+    [completedTasks]
+  )
+
+  // Gastos manuales registrados en ruta (gasolina, etc.)
+  const liveManualExpenses = useMemo(
     () =>
       movements
         .filter((m) => m.direction === 'expense')
@@ -107,6 +117,9 @@ export default function CourierSettlementPage() {
   const initialCash = activeWorkday?.initial_cash || 0
   const totalFundsReceived = initialCash + totalCashAdvances
 
+  // Total combinado de gastos y pagos
+  const liveCombinedExpenses = liveManualExpenses + liveTaskPayments
+
   // Si la liquidación ya fue formalmente aprobada por el admin, tomamos el snapshot; de lo contrario, datos en vivo
   const isSettlementFinalized = settlement?.status === 'approved'
 
@@ -119,19 +132,21 @@ export default function CourierSettlementPage() {
     : liveTransferCollections
 
   const totalExpenses = isSettlementFinalized
-    ? (settlement?.total_expenses ?? liveExpenses)
-    : liveExpenses
+    ? (settlement?.total_expenses ?? liveCombinedExpenses)
+    : liveCombinedExpenses
 
-  // Saldo exclusivo del día de hoy
+  // Saldo exclusivo del turno actual a entregar
   const todayNetCashToDeliver = isSettlementFinalized
     ? Math.max(0, (settlement?.actual_cash ?? expectedCash) - totalExpenses)
     : Math.max(0, totalFundsReceived + expectedCash - totalExpenses)
 
-  // Saldo arrastrado acumulado de días anteriores
+  // Saldo arrastrado acumulado de días anteriores no liquidados
   const pendingCarryoverCash = pendingBalances?.totalPendingCash || 0
-  const hasPendingCarryover = (pendingBalances?.hasPendingBalances ?? false) && (pendingCarryoverCash > 0 || (pendingBalances?.breakdown?.length || 0) > 0)
+  const hasPendingCarryover =
+    (pendingBalances?.hasPendingBalances ?? false) &&
+    (pendingCarryoverCash > 0 || (pendingBalances?.breakdown?.length || 0) > 0)
 
-  // Total General a entregar en caja
+  // Total General a entregar en caja (Turno actual + Días anteriores)
   const grandTotalNetCashToDeliver = todayNetCashToDeliver + pendingCarryoverCash
 
   const handleSubmitReview = async () => {
@@ -312,11 +327,11 @@ export default function CourierSettlementPage() {
           </span>
         </div>
 
-        {/* Total Gastado */}
+        {/* Total Gastado / Pagado */}
         <div className="bg-[#FCF5F7] border border-rose-100/70 rounded-3xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-rose-700">
             <span className="text-2xs font-bold uppercase tracking-wider">
-              {isPastWorkday ? 'Gastado en Ruta' : 'Gastado Hoy'}
+              {isPastWorkday ? 'Gastado / Pagado' : 'Gastado Hoy'}
             </span>
             <Receipt size={16} />
           </div>
@@ -377,7 +392,7 @@ export default function CourierSettlementPage() {
           <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
             <span className="text-slate-600 flex items-center gap-2">
               <Banknote className="h-4 w-4 text-blue-600" />
-              Fondo Inicial / Adelantos de Hoy:
+              Fondo Inicial / Adelantos de Hoy (+):
             </span>
             <span className="font-bold text-slate-900 font-tabular text-sm">
               C$ {totalFundsReceived.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -390,7 +405,7 @@ export default function CourierSettlementPage() {
               Cobros en Efectivo de Hoy (+):
             </span>
             <span className="font-bold text-slate-900 font-tabular text-sm">
-              C$ {expectedCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              + C$ {expectedCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
 
@@ -404,13 +419,38 @@ export default function CourierSettlementPage() {
             </span>
           </div>
 
-          <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
-            <span className="text-slate-600 flex items-center gap-2">
-              <Receipt className="h-4 w-4 text-rose-600" />
-              Gastos / Egresos en Ruta de Hoy (-):
+          {liveTaskPayments > 0 && (
+            <div className="flex justify-between items-center p-3.5 bg-rose-50/60 rounded-2xl border border-rose-100">
+              <span className="text-rose-700 flex items-center gap-2">
+                <Package className="h-4 w-4 text-rose-600" />
+                Pagos a Proveedores en Tareas Completadas (-):
+              </span>
+              <span className="font-bold text-rose-700 font-tabular text-sm">
+                - C$ {liveTaskPayments.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
+
+          {liveManualExpenses > 0 && (
+            <div className="flex justify-between items-center p-3.5 bg-rose-50/60 rounded-2xl border border-rose-100">
+              <span className="text-rose-700 flex items-center gap-2">
+                <Receipt className="h-4 w-4 text-rose-600" />
+                Gastos de Ruta / Combustible (-):
+              </span>
+              <span className="font-bold text-rose-700 font-tabular text-sm">
+                - C$ {liveManualExpenses.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
+
+          {/* Saldo Neto del Turno Actual */}
+          <div className="flex justify-between items-center p-3.5 bg-indigo-50/70 rounded-2xl border border-indigo-100 font-bold">
+            <span className="text-indigo-950 flex items-center gap-2">
+              <Calculator className="h-4 w-4 text-indigo-600" />
+              Saldo Neto de este Turno ({activeWorkday.work_date}):
             </span>
-            <span className="font-bold text-rose-700 font-tabular text-sm">
-              - C$ {totalExpenses.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            <span className="font-black text-indigo-950 font-tabular text-sm">
+              C$ {todayNetCashToDeliver.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
 
