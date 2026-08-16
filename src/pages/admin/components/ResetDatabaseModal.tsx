@@ -172,7 +172,7 @@ export function ResetDatabaseModal({ isOpen, onClose }: ResetDatabaseModalProps)
                   <span className="text-accent">{profile?.email || user?.email}</span>
                 </li>
                 <li>Catálogo de 20 municipios/destinos</li>
-                <li>Directorio de 8 rutas de buses</li>
+                <li>Directorio completo de 121 rutas de buses</li>
                 <li>Estructura técnica y roles del sistema</li>
                 <li>Configuración de fábrica de odómetro</li>
               </ul>
