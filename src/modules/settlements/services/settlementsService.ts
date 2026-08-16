@@ -257,3 +257,178 @@ export async function getDailyClosure(branchId: string, date: string): Promise<D
     net_cash_in_hand: netCashInHand,
   }
 }
+
+export interface PendingBalanceBreakdown {
+  workdayId?: string
+  workDate: string
+  amount: number
+  status: 'unclosed_workday' | 'pending_settlement' | 'unapproved_settlement'
+  reason: string
+}
+
+export interface CourierPendingBalancesSummary {
+  courierId: string
+  courierName?: string
+  totalPendingCash: number
+  hasPendingBalances: boolean
+  unclosedWorkdaysCount: number
+  breakdown: PendingBalanceBreakdown[]
+}
+
+export async function getCourierPendingBalances(
+  courierId: string,
+  beforeDate?: string
+): Promise<CourierPendingBalancesSummary> {
+  const currentDate = beforeDate || new Date().toISOString().split('T')[0]
+
+  // 1. Obtener jornadas pasadas del motorizado
+  const { data: pastWorkdays, error: workdaysErr } = await supabase
+    .from('workdays')
+    .select('id, work_date, status, initial_cash, branch_id')
+    .eq('courier_id', courierId)
+    .lt('work_date', currentDate)
+    .order('work_date', { ascending: true })
+
+  if (workdaysErr) {
+    console.error('[Settlements] Error fetching past workdays:', workdaysErr)
+    return {
+      courierId,
+      totalPendingCash: 0,
+      hasPendingBalances: false,
+      unclosedWorkdaysCount: 0,
+      breakdown: [],
+    }
+  }
+
+  // 2. Obtener liquidaciones pasadas
+  const { data: settlements, error: settlementsErr } = await supabase
+    .from('settlements')
+    .select('id, workday_id, settlement_date, status, expected_cash, actual_cash, difference')
+    .eq('courier_id', courierId)
+    .lt('settlement_date', currentDate)
+
+  if (settlementsErr) {
+    console.error('[Settlements] Error fetching past settlements:', settlementsErr)
+  }
+
+  const settlementsByWorkday = new Map<string, any>()
+  const settlementsByDate = new Map<string, any>()
+  ;(settlements || []).forEach((s) => {
+    if (s.workday_id) settlementsByWorkday.set(s.workday_id, s)
+    if (s.settlement_date) settlementsByDate.set(s.settlement_date, s)
+  })
+
+  const breakdown: PendingBalanceBreakdown[] = []
+  let totalPendingCash = 0
+  let unclosedWorkdaysCount = 0
+
+  for (const wd of pastWorkdays || []) {
+    const settlement = settlementsByWorkday.get(wd.id) || settlementsByDate.get(wd.work_date)
+    const isApproved = settlement && settlement.status === 'approved'
+
+    // Si ya está aprobada por el administrador, este día quedó formalmente liquidado en caja
+    if (isApproved) continue
+
+    // Si la jornada nunca se cerró
+    if (wd.status === 'open') {
+      unclosedWorkdaysCount++
+    }
+
+    // Calcular montos de este día no aprobado
+    let dayPendingAmount = 0
+    let reason = ''
+    let statusType: PendingBalanceBreakdown['status'] = 'unclosed_workday'
+
+    if (settlement && settlement.status === 'pending_review') {
+      dayPendingAmount = settlement.actual_cash || settlement.expected_cash || 0
+      statusType = 'pending_settlement'
+      reason = 'Liquidación enviada pero aún pendiente de aprobación en caja'
+    } else {
+      // Calcular desde tareas y movimientos
+      const { data: dayTasks } = await supabase
+        .from('tasks')
+        .select('expected_collection_amount, expected_payment_method')
+        .eq('assigned_courier_id', courierId)
+        .eq('scheduled_date', wd.work_date)
+        .eq('status', 'completed')
+        .eq('requires_collection', true)
+
+      const cashCollections = (dayTasks || [])
+        .filter((t) => (t.expected_payment_method || 'cash') === 'cash')
+        .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
+
+      const { data: dayMovements } = await supabase
+        .from('cash_movements')
+        .select('amount, direction, movement_type')
+        .eq('workday_id', wd.id)
+
+      const expenses = (dayMovements || [])
+        .filter((m) => m.direction === 'expense')
+        .reduce((acc, m) => acc + m.amount, 0)
+
+      const advances = (dayMovements || [])
+        .filter((m) => m.direction === 'income' && m.movement_type === 'cash_advance')
+        .reduce((acc, m) => acc + m.amount, 0)
+
+      const initial = wd.initial_cash || 0
+      dayPendingAmount = Math.max(0, initial + advances + cashCollections - expenses)
+
+      if (wd.status === 'open') {
+        statusType = 'unclosed_workday'
+        reason = 'Jornada no cerrada ni liquidada al finalizar el día'
+      } else {
+        statusType = 'unapproved_settlement'
+        reason = 'Cierre ejecutado sin liquidación entregada a caja'
+      }
+    }
+
+    if (dayPendingAmount > 0 || wd.status === 'open') {
+      breakdown.push({
+        workdayId: wd.id,
+        workDate: wd.work_date,
+        amount: dayPendingAmount,
+        status: statusType,
+        reason,
+      })
+      totalPendingCash += dayPendingAmount
+    }
+  }
+
+  return {
+    courierId,
+    totalPendingCash,
+    hasPendingBalances: totalPendingCash > 0 || breakdown.length > 0,
+    unclosedWorkdaysCount,
+    breakdown,
+  }
+}
+
+export async function getAllCouriersPendingBalances(
+  branchId?: string
+): Promise<CourierPendingBalancesSummary[]> {
+  // Obtener todos los perfiles de motorizados
+  let query = supabase
+    .from('profiles')
+    .select('id, full_name, display_name, primary_branch_id')
+    .eq('role', 'courier')
+    .eq('is_active', true)
+
+  if (branchId) {
+    query = query.eq('primary_branch_id', branchId)
+  }
+
+  const { data: couriers, error } = await query
+  if (error || !couriers) return []
+
+  const results: CourierPendingBalancesSummary[] = []
+  for (const c of couriers) {
+    const summary = await getCourierPendingBalances(c.id)
+    if (summary.hasPendingBalances) {
+      summary.courierName = c.display_name || c.full_name
+      results.push(summary)
+    }
+  }
+
+  return results
+}
+

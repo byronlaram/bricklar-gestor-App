@@ -11,6 +11,9 @@ import {
   Banknote,
   ShieldCheck,
   CheckSquare,
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
@@ -19,6 +22,7 @@ import {
   useSettlementMutations,
   useCashMovements,
 } from '@/modules/settlements/hooks/useSettlements'
+import { useCourierPendingBalances } from '@/modules/settlements/hooks/usePendingBalances'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { SETTLEMENT_STATUS_LABELS } from '@/shared/types'
 import {
@@ -36,10 +40,15 @@ export default function CourierSettlementPage() {
   const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
   const todayStr = getLocalDateString()
   const [notes, setNotes] = useState('')
+  const [showCarryoverDetails, setShowCarryoverDetails] = useState(false)
 
   const { data: activeWorkday, isLoading: isLoadingWorkday } = useActiveWorkday(profile?.id)
   const { data: settlement, isLoading: isLoadingSettlement } = useWorkdaySettlement(activeWorkday?.id)
   const { data: movements = [], isLoading: isLoadingMovements } = useCashMovements(activeWorkday?.id)
+  const { data: pendingBalances, isLoading: isLoadingPendingBalances } = useCourierPendingBalances(
+    profile?.id,
+    activeWorkday?.work_date || todayStr
+  )
 
   const { data: tasksData, isLoading: isLoadingTasks } = useTasks({
     branch_id: branchId,
@@ -110,9 +119,17 @@ export default function CourierSettlementPage() {
     ? (settlement?.total_expenses ?? liveExpenses)
     : liveExpenses
 
-  const netCashToDeliver = isSettlementFinalized
+  // Saldo exclusivo del día de hoy
+  const todayNetCashToDeliver = isSettlementFinalized
     ? Math.max(0, (settlement?.actual_cash ?? expectedCash) - totalExpenses)
     : Math.max(0, totalFundsReceived + expectedCash - totalExpenses)
+
+  // Saldo arrastrado acumulado de días anteriores
+  const pendingCarryoverCash = pendingBalances?.totalPendingCash || 0
+  const hasPendingCarryover = (pendingBalances?.hasPendingBalances ?? false) && (pendingCarryoverCash > 0 || (pendingBalances?.breakdown?.length || 0) > 0)
+
+  // Total General a entregar en caja
+  const grandTotalNetCashToDeliver = todayNetCashToDeliver + pendingCarryoverCash
 
   const handleSubmitReview = async () => {
     if (!activeWorkday) return
@@ -123,7 +140,7 @@ export default function CourierSettlementPage() {
     }
   }
 
-  if (isLoadingWorkday || isLoadingSettlement || isLoadingMovements || isLoadingTasks) {
+  if (isLoadingWorkday || isLoadingSettlement || isLoadingMovements || isLoadingTasks || isLoadingPendingBalances) {
     return (
       <div className="space-y-4 max-w-2xl mx-auto">
         <Skeleton className="h-28 rounded-2xl" />
@@ -134,10 +151,46 @@ export default function CourierSettlementPage() {
 
   if (!activeWorkday) {
     return (
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl mx-auto space-y-4">
+        {hasPendingCarryover && (
+          <div className="bg-gradient-to-r from-amber-500 to-rose-600 text-white rounded-3xl p-5 shadow-sm space-y-3 animate-fade-in">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-white/20 rounded-2xl shrink-0 mt-0.5">
+                <AlertTriangle className="h-6 w-6 text-white" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-100 block">
+                  Atención: Saldo / Cierres Pendientes de Días Anteriores
+                </span>
+                <span className="text-2xl font-black block mt-0.5 font-tabular">
+                  C$ {pendingCarryoverCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <p className="text-xs text-white/90 mt-1">
+                  Tienes {pendingBalances?.breakdown.length} jornada(s) pasada(s) sin cerrar o con liquidación pendiente de entrega y aprobación en caja.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-black/15 rounded-2xl p-3.5 space-y-2 text-xs">
+              <span className="font-bold text-amber-100 block">Detalle de jornadas anteriores:</span>
+              {pendingBalances?.breakdown.map((b, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-white/10 rounded-xl p-2.5">
+                  <div>
+                    <span className="font-bold text-white block">📅 {b.workDate}</span>
+                    <span className="text-[11px] text-white/80">{b.reason}</span>
+                  </div>
+                  <span className="font-mono font-bold text-white text-sm">
+                    C$ {b.amount.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <EmptyState
           title="No tienes una jornada activa hoy"
-          description="Inicia tu jornada desde la pantalla de inicio para generar tu resumen de liquidación de turno."
+          description="Inicia tu jornada desde la pantalla de inicio para generar tu arqueo de hoy."
           icon={<AlertCircle className="h-8 w-8 text-slate-400" />}
         />
       </div>
@@ -146,6 +199,55 @@ export default function CourierSettlementPage() {
 
   return (
     <div className="space-y-5 animate-fade-in pb-20 max-w-2xl mx-auto">
+      {/* ⚠️ ALERTA DE SALDO PENDIENTE ARRASTRADO DE DÍAS ANTERIORES */}
+      {hasPendingCarryover && (
+        <div className="bg-gradient-to-r from-amber-500 to-rose-600 text-white rounded-3xl p-5 shadow-sm space-y-3 animate-fade-in">
+          <div className="flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-white/20 rounded-2xl shrink-0 mt-0.5">
+                <AlertTriangle className="h-6 w-6 text-white" />
+              </div>
+              <div>
+                <span className="text-xs font-black uppercase tracking-wider text-amber-100 block">
+                  Saldo Pendiente Acumulado (Días Anteriores)
+                </span>
+                <span className="text-2xl font-black block mt-0.5 font-tabular">
+                  + C$ {pendingCarryoverCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+                <p className="text-xs text-white/90 mt-1">
+                  Corresponde a {pendingBalances?.breakdown.length} jornada(s) anterior(es) no liquidadas o entregadas a caja.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowCarryoverDetails((prev) => !prev)}
+              className="p-2 bg-white/20 hover:bg-white/30 rounded-xl transition cursor-pointer shrink-0"
+              title="Ver detalle de días adeudados"
+            >
+              {showCarryoverDetails ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
+            </button>
+          </div>
+
+          {showCarryoverDetails && (
+            <div className="bg-black/15 rounded-2xl p-3.5 space-y-2 text-xs border border-white/10 animate-slide-up">
+              <span className="font-bold text-amber-100 block">Desglose por fecha:</span>
+              {pendingBalances?.breakdown.map((b, idx) => (
+                <div key={idx} className="flex justify-between items-center bg-white/10 rounded-xl p-2.5">
+                  <div>
+                    <span className="font-bold text-white block">📅 {b.workDate}</span>
+                    <span className="text-[11px] text-white/80">{b.reason}</span>
+                  </div>
+                  <span className="font-mono font-bold text-white text-sm">
+                    C$ {b.amount.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Header Crema Pastel Ejecutivo */}
       <div className="bg-[#FCFAF4] border border-amber-100/70 rounded-3xl p-5 shadow-2xs flex items-center justify-between">
         <div>
@@ -154,7 +256,7 @@ export default function CourierSettlementPage() {
             Liquidación de Turno
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Resumen ejecutivo del arqueo y cierre diario de entregas.
+            Resumen ejecutivo del arqueo y cierre diario de entregas ({activeWorkday.work_date}).
           </p>
         </div>
 
@@ -170,10 +272,10 @@ export default function CourierSettlementPage() {
 
       {/* Grid Ejecutiva de Resumen Financiero en Tarjetas Pastel Suaves */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-        {/* Total Cobrado */}
+        {/* Total Cobrado Hoy */}
         <div className="bg-[#F3F9F6] border border-emerald-100/70 rounded-3xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-emerald-700">
-            <span className="text-2xs font-bold uppercase tracking-wider">Total Cobrado</span>
+            <span className="text-2xs font-bold uppercase tracking-wider">Cobrado Hoy</span>
             <DollarSign size={16} />
           </div>
           <span className="text-xl font-black text-emerald-950 font-tabular mt-2 block">
@@ -181,10 +283,10 @@ export default function CourierSettlementPage() {
           </span>
         </div>
 
-        {/* Total Gastado */}
+        {/* Total Gastado Hoy */}
         <div className="bg-[#FCF5F7] border border-rose-100/70 rounded-3xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-rose-700">
-            <span className="text-2xs font-bold uppercase tracking-wider">Total Gastado</span>
+            <span className="text-2xs font-bold uppercase tracking-wider">Gastado Hoy</span>
             <Receipt size={16} />
           </div>
           <span className="text-xl font-black text-rose-950 font-tabular mt-2 block">
@@ -192,10 +294,10 @@ export default function CourierSettlementPage() {
           </span>
         </div>
 
-        {/* Fondos Recibidos */}
+        {/* Fondos Recibidos Hoy */}
         <div className="bg-[#F5F8FE] border border-blue-100/70 rounded-3xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-blue-700">
-            <span className="text-2xs font-bold uppercase tracking-wider">Fondos Recibidos</span>
+            <span className="text-2xs font-bold uppercase tracking-wider">Fondos Hoy</span>
             <Banknote size={16} />
           </div>
           <span className="text-xl font-black text-blue-950 font-tabular mt-2 block">
@@ -218,11 +320,16 @@ export default function CourierSettlementPage() {
         <div className="col-span-2 sm:col-span-2 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-3xl p-4 shadow-md space-y-1">
           <span className="text-2xs font-bold uppercase tracking-wider text-emerald-100 flex items-center gap-1.5">
             <ShieldCheck size={16} className="text-emerald-200" />
-            Saldo Neto a Entregar en Caja
+            {hasPendingCarryover ? 'Total General a Entregar en Caja' : 'Saldo Neto a Entregar en Caja'}
           </span>
           <span className="text-2xl sm:text-3xl font-black font-tabular block text-white">
-            C$ {netCashToDeliver.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            C$ {grandTotalNetCashToDeliver.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
+          {hasPendingCarryover && (
+            <span className="text-2xs text-emerald-100 font-semibold block">
+              (Hoy: C$ {todayNetCashToDeliver.toLocaleString('es-NI', { minimumFractionDigits: 2 })} + Días Anteriores: C$ {pendingCarryoverCash.toLocaleString('es-NI', { minimumFractionDigits: 2 })})
+            </span>
+          )}
         </div>
       </div>
 
@@ -230,14 +337,14 @@ export default function CourierSettlementPage() {
       <div className="p-5 bg-white border border-slate-200/80 rounded-3xl shadow-2xs space-y-3.5">
         <h3 className="text-xs uppercase tracking-wider border-b border-slate-100 pb-2.5 flex items-center gap-1.5 text-slate-700 font-bold">
           <Calculator className="h-4 w-4 text-indigo-600" />
-          Detalle Arqueo de Caja ({activeWorkday.work_date})
+          Detalle Arqueo de Caja
         </h3>
 
         <div className="space-y-2.5 text-xs font-medium">
           <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
             <span className="text-slate-600 flex items-center gap-2">
               <Banknote className="h-4 w-4 text-blue-600" />
-              Fondo Inicial / Adelantos Recibidos:
+              Fondo Inicial / Adelantos de Hoy:
             </span>
             <span className="font-bold text-slate-900 font-tabular text-sm">
               C$ {totalFundsReceived.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -247,7 +354,7 @@ export default function CourierSettlementPage() {
           <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
             <span className="text-slate-600 flex items-center gap-2">
               <DollarSign className="h-4 w-4 text-emerald-600" />
-              Cobros en Efectivo (+):
+              Cobros en Efectivo de Hoy (+):
             </span>
             <span className="font-bold text-slate-900 font-tabular text-sm">
               C$ {expectedCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -257,7 +364,7 @@ export default function CourierSettlementPage() {
           <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
             <span className="text-slate-600 flex items-center gap-2">
               <CreditCard className="h-4 w-4 text-sky-600" />
-              Cobros por Transferencia / Billetera:
+              Cobros por Transferencia / Billetera de Hoy:
             </span>
             <span className="font-bold text-slate-900 font-tabular text-sm">
               C$ {expectedTransfers.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
@@ -267,10 +374,32 @@ export default function CourierSettlementPage() {
           <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
             <span className="text-slate-600 flex items-center gap-2">
               <Receipt className="h-4 w-4 text-rose-600" />
-              Gastos / Egresos en Ruta (-):
+              Gastos / Egresos en Ruta de Hoy (-):
             </span>
             <span className="font-bold text-rose-700 font-tabular text-sm">
               - C$ {totalExpenses.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          {hasPendingCarryover && (
+            <div className="flex justify-between items-center p-3.5 bg-amber-50 rounded-2xl border border-amber-200">
+              <span className="text-amber-900 font-bold flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4 text-amber-600" />
+                Saldo Pendiente Acumulado (Días Anteriores +):
+              </span>
+              <span className="font-black text-amber-950 font-tabular text-sm">
+                + C$ {pendingCarryoverCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center p-3.5 bg-emerald-50 rounded-2xl border border-emerald-200 font-bold">
+            <span className="text-emerald-950 flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              Total Neto Final a Entregar en Caja (=):
+            </span>
+            <span className="font-black text-emerald-950 font-tabular text-base">
+              C$ {grandTotalNetCashToDeliver.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>

@@ -16,9 +16,11 @@ import {
   Clock,
   StopCircle,
   AlertTriangle,
+  ArrowRight,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday, useWorkdayMutations } from '@/modules/workdays/hooks/useWorkday'
+import { useCourierPendingBalances } from '@/modules/settlements/hooks/usePendingBalances'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { StartWorkdayModal } from '@/modules/courier/components/StartWorkdayModal'
 import { NewCourierGestionModal } from '@/modules/courier/components/NewCourierGestionModal'
@@ -62,6 +64,7 @@ export default function CourierHomePage() {
   const [isEndOpen, setIsEndOpen] = useState(false)
 
   const { data: activeWorkday } = useActiveWorkday(profile?.id)
+  const { data: pendingBalances } = useCourierPendingBalances(profile?.id)
   
   // Consultar todas las tareas asignadas al motorizado
   const { data: tasksData, isLoading: isLoadingTasks } = useTasks({
@@ -202,6 +205,37 @@ export default function CourierHomePage() {
           <SlidersHorizontal size={18} className="text-slate-600" />
         </button>
       </div>
+
+      {/* ⚠️ ALERTA DE SALDO / CIERRES PENDIENTES DE DÍAS ANTERIORES */}
+      {pendingBalances?.hasPendingBalances && (
+        <div className="bg-gradient-to-r from-amber-500 to-rose-600 text-white p-4.5 rounded-3xl shadow-sm space-y-2.5 animate-fade-in">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-white/20 rounded-2xl shrink-0 mt-0.5">
+              <AlertTriangle className="h-5 w-5 text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <h4 className="text-xs font-black uppercase tracking-wider text-amber-100">
+                  Saldo Pendiente Acumulado
+                </h4>
+                <span className="text-xs font-black bg-white/20 px-2.5 py-0.5 rounded-full font-tabular">
+                  + C$ {pendingBalances.totalPendingCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+              <p className="text-xs text-white/95 mt-1 leading-snug">
+                Tienes {pendingBalances.breakdown.length} jornada(s) anterior(es) con saldo o liquidación pendiente por entregar en caja.
+              </p>
+              <button
+                onClick={() => navigate('/motorizado/liquidacion')}
+                className="mt-2.5 inline-flex items-center gap-1.5 bg-white text-[#0A2540] text-xs font-bold px-3 py-1.5 rounded-xl shadow-2xs hover:bg-slate-100 transition cursor-pointer"
+              >
+                <span>Ver Liquidación y Detalle</span>
+                <ArrowRight size={13} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 2. Resumen de Estados (Filtros Circulares Interactivos) */}
       <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-2xs space-y-4">

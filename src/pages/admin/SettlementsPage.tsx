@@ -6,9 +6,11 @@ import {
   Clock,
   DollarSign,
   ListFilter,
+  AlertTriangle,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useSettlements } from '@/modules/settlements/hooks/useSettlements'
+import { useAllCouriersPendingBalances } from '@/modules/settlements/hooks/usePendingBalances'
 import type { SettlementFilters, Settlement } from '@/modules/settlements/types/settlements.types'
 import { SETTLEMENT_STATUS_LABELS } from '@/shared/types'
 import { ApproveSettlementModal } from '@/modules/settlements/components/ApproveSettlementModal'
@@ -33,6 +35,7 @@ export default function AdminSettlementsPage() {
   const [targetSettlement, setTargetSettlement] = useState<Settlement | null>(null)
 
   const { data: settlements = [], isLoading, isError, error } = useSettlements(filters)
+  const { data: allPendingBalances = [] } = useAllCouriersPendingBalances(filters.branch_id || undefined)
 
   // Métricas
   const pendingCount = settlements.filter((s) => s.status === 'pending_review').length
@@ -50,6 +53,37 @@ export default function AdminSettlementsPage() {
           </p>
         </div>
       </div>
+
+      {/* ⚠️ ALERTA DE MOTORIZADOS CON SALDOS O CIERRES PENDIENTES DE DÍAS ANTERIORES */}
+      {allPendingBalances && allPendingBalances.length > 0 && (
+        <div className="bg-amber-50/90 border border-amber-200 rounded-3xl p-5 shadow-2xs space-y-3.5 animate-fade-in">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-amber-950 font-extrabold text-sm">
+              <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0" />
+              <span>Atención: {allPendingBalances.length} Motorizado(s) con saldos o cierres pendientes de días anteriores</span>
+            </div>
+            <span className="text-xs font-bold text-amber-800 bg-amber-100/80 px-2.5 py-1 rounded-full border border-amber-200">
+              Total acumulado: C$ {allPendingBalances.reduce((acc, c) => acc + c.totalPendingCash, 0).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {allPendingBalances.map((item) => (
+              <div key={item.courierId} className="bg-white border border-amber-200/90 rounded-2xl p-3.5 shadow-2xs space-y-1.5">
+                <div className="flex justify-between items-center">
+                  <span className="font-bold text-slate-900 text-xs">👤 {item.courierName}</span>
+                  <span className="font-mono font-black text-rose-600 text-xs">
+                    C$ {item.totalPendingCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500 font-medium">
+                  {item.breakdown.length} jornada(s) adeudada(s): {item.breakdown.map((b) => b.workDate).join(', ')}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Métricas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
