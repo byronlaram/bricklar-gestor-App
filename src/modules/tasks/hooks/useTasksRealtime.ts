@@ -59,6 +59,12 @@ export function useTasksRealtime() {
       queryClient.invalidateQueries({ queryKey: ['workdays'] })
       queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
 
+      queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
+      queryClient.refetchQueries({ queryKey: ['cash_movements'], type: 'active' })
+
+      queryClient.invalidateQueries({ queryKey: ['settlements'] })
+      queryClient.refetchQueries({ queryKey: ['settlements'], type: 'active' })
+
       queryClient.invalidateQueries({ queryKey: ['notifications', userId] })
       queryClient.refetchQueries({ queryKey: ['notifications', userId], type: 'active' })
 

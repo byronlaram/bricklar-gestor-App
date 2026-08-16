@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import {
   Calculator,
   CheckCircle2,
@@ -14,7 +14,11 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
-import { useWorkdaySettlement, useSettlementMutations } from '@/modules/settlements/hooks/useSettlements'
+import {
+  useWorkdaySettlement,
+  useSettlementMutations,
+  useCashMovements,
+} from '@/modules/settlements/hooks/useSettlements'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { SETTLEMENT_STATUS_LABELS } from '@/shared/types'
 import {
@@ -35,7 +39,9 @@ export default function CourierSettlementPage() {
 
   const { data: activeWorkday, isLoading: isLoadingWorkday } = useActiveWorkday(profile?.id)
   const { data: settlement, isLoading: isLoadingSettlement } = useWorkdaySettlement(activeWorkday?.id)
-  const { data: tasksData } = useTasks({
+  const { data: movements = [], isLoading: isLoadingMovements } = useCashMovements(activeWorkday?.id)
+
+  const { data: tasksData, isLoading: isLoadingTasks } = useTasks({
     branch_id: branchId,
     courier_id: profile?.id,
     date: todayStr,
@@ -44,7 +50,69 @@ export default function CourierSettlementPage() {
 
   const { submitSettlement, isSubmitting } = useSettlementMutations()
 
-  const completedTasksCount = (tasksData?.data || []).filter((t) => t.status === 'completed').length
+  const completedTasks = useMemo(
+    () => (tasksData?.data || []).filter((t) => t.status === 'completed'),
+    [tasksData?.data]
+  )
+
+  const completedTasksCount = completedTasks.length
+
+  // Cálculo en vivo de cobros en efectivo y transferencias
+  const liveCashCollections = useMemo(
+    () =>
+      completedTasks
+        .filter((t) => (t.expected_payment_method || 'cash') === 'cash' && t.requires_collection)
+        .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0),
+    [completedTasks]
+  )
+
+  const liveTransferCollections = useMemo(
+    () =>
+      completedTasks
+        .filter((t) => (t.expected_payment_method || 'cash') !== 'cash' && t.requires_collection)
+        .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0),
+    [completedTasks]
+  )
+
+  // Gastos registrados en ruta
+  const liveExpenses = useMemo(
+    () =>
+      movements
+        .filter((m) => m.direction === 'expense')
+        .reduce((acc, m) => acc + m.amount, 0),
+    [movements]
+  )
+
+  // Entregas adicionales de efectivo / adelantos recibidos
+  const totalCashAdvances = useMemo(
+    () =>
+      movements
+        .filter((m) => m.direction === 'income' && m.movement_type === 'cash_advance')
+        .reduce((acc, m) => acc + m.amount, 0),
+    [movements]
+  )
+
+  const initialCash = activeWorkday?.initial_cash || 0
+  const totalFundsReceived = initialCash + totalCashAdvances
+
+  // Si la liquidación ya fue formalmente aprobada por el admin, tomamos el snapshot; de lo contrario, datos en vivo
+  const isSettlementFinalized = settlement?.status === 'approved'
+
+  const expectedCash = isSettlementFinalized
+    ? (settlement?.expected_cash ?? liveCashCollections)
+    : liveCashCollections
+
+  const expectedTransfers = isSettlementFinalized
+    ? (settlement?.expected_transfers ?? liveTransferCollections)
+    : liveTransferCollections
+
+  const totalExpenses = isSettlementFinalized
+    ? (settlement?.total_expenses ?? liveExpenses)
+    : liveExpenses
+
+  const netCashToDeliver = isSettlementFinalized
+    ? Math.max(0, (settlement?.actual_cash ?? expectedCash) - totalExpenses)
+    : Math.max(0, totalFundsReceived + expectedCash - totalExpenses)
 
   const handleSubmitReview = async () => {
     if (!activeWorkday) return
@@ -55,7 +123,7 @@ export default function CourierSettlementPage() {
     }
   }
 
-  if (isLoadingWorkday || isLoadingSettlement) {
+  if (isLoadingWorkday || isLoadingSettlement || isLoadingMovements || isLoadingTasks) {
     return (
       <div className="space-y-4 max-w-2xl mx-auto">
         <Skeleton className="h-28 rounded-2xl" />
@@ -75,10 +143,6 @@ export default function CourierSettlementPage() {
       </div>
     )
   }
-
-  const expectedCash = settlement?.expected_cash || 0
-  const totalExpenses = settlement?.total_expenses || 0
-  const netCashToDeliver = Math.max(0, expectedCash - totalExpenses)
 
   return (
     <div className="space-y-5 animate-fade-in pb-20 max-w-2xl mx-auto">
@@ -113,7 +177,7 @@ export default function CourierSettlementPage() {
             <DollarSign size={16} />
           </div>
           <span className="text-xl font-black text-emerald-950 font-tabular mt-2 block">
-            C$ {expectedCash.toFixed(2)}
+            C$ {expectedCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
 
@@ -124,7 +188,7 @@ export default function CourierSettlementPage() {
             <Receipt size={16} />
           </div>
           <span className="text-xl font-black text-rose-950 font-tabular mt-2 block">
-            -C$ {totalExpenses.toFixed(2)}
+            -C$ {totalExpenses.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
 
@@ -135,7 +199,7 @@ export default function CourierSettlementPage() {
             <Banknote size={16} />
           </div>
           <span className="text-xl font-black text-blue-950 font-tabular mt-2 block">
-            C$ {(activeWorkday.initial_cash || 0).toFixed(2)}
+            C$ {totalFundsReceived.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
 
@@ -157,7 +221,7 @@ export default function CourierSettlementPage() {
             Saldo Neto a Entregar en Caja
           </span>
           <span className="text-2xl sm:text-3xl font-black font-tabular block text-white">
-            C$ {netCashToDeliver.toFixed(2)}
+            C$ {netCashToDeliver.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </span>
         </div>
       </div>
@@ -172,31 +236,41 @@ export default function CourierSettlementPage() {
         <div className="space-y-2.5 text-xs font-medium">
           <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
             <span className="text-slate-600 flex items-center gap-2">
-              <DollarSign className="h-4 w-4 text-emerald-600" />
-              Cobros en Efectivo Esperados:
+              <Banknote className="h-4 w-4 text-blue-600" />
+              Fondo Inicial / Adelantos Recibidos:
             </span>
             <span className="font-bold text-slate-900 font-tabular text-sm">
-              C$ {settlement?.expected_cash.toFixed(2) || '0.00'}
+              C$ {totalFundsReceived.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+
+          <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
+            <span className="text-slate-600 flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-emerald-600" />
+              Cobros en Efectivo (+):
+            </span>
+            <span className="font-bold text-slate-900 font-tabular text-sm">
+              C$ {expectedCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
 
           <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
             <span className="text-slate-600 flex items-center gap-2">
               <CreditCard className="h-4 w-4 text-sky-600" />
-              Cobros en Transferencia / Billetera:
+              Cobros por Transferencia / Billetera:
             </span>
             <span className="font-bold text-slate-900 font-tabular text-sm">
-              C$ {settlement?.expected_transfers.toFixed(2) || '0.00'}
+              C$ {expectedTransfers.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
 
           <div className="flex justify-between items-center p-3.5 bg-slate-50/80 rounded-2xl border border-slate-100">
             <span className="text-slate-600 flex items-center gap-2">
-              <Receipt className="h-4 w-4 text-amber-600" />
-              Gastos / Egresos en Ruta:
+              <Receipt className="h-4 w-4 text-rose-600" />
+              Gastos / Egresos en Ruta (-):
             </span>
-            <span className="font-bold text-amber-700 font-tabular text-sm">
-              - C$ {settlement?.total_expenses.toFixed(2) || '0.00'}
+            <span className="font-bold text-rose-700 font-tabular text-sm">
+              - C$ {totalExpenses.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </span>
           </div>
         </div>
@@ -229,7 +303,7 @@ export default function CourierSettlementPage() {
             onClick={handleSubmitReview}
             isLoading={isSubmitting}
             leftIcon={<Send className="h-4 w-4" />}
-            className="w-full justify-center text-sm font-bold shadow-xs py-3"
+            className="w-full justify-center text-sm font-bold shadow-xs py-3 bg-[#004594] hover:bg-[#083570]"
           >
             Enviar Liquidación a Revisión
           </Button>

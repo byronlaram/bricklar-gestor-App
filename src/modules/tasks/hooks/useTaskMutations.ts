@@ -21,6 +21,9 @@ export function useTaskMutations() {
 
   const invalidateTaskQueries = (taskId?: string) => {
     queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    queryClient.invalidateQueries({ queryKey: ['workdays'] })
+    queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
+    queryClient.invalidateQueries({ queryKey: ['settlements'] })
     if (taskId) {
       queryClient.invalidateQueries({ queryKey: ['task', taskId] })
       queryClient.invalidateQueries({ queryKey: ['task-history', taskId] })
