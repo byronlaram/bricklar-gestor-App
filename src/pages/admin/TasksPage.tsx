@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Plus,
@@ -17,10 +17,12 @@ import {
   PackageCheck,
   Check,
   X,
+  Building2,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { useCouriers } from '@/modules/tasks/hooks/useCouriers'
+import { useBranches } from '@/modules/branches/hooks/useBranches'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
 import type { TaskFilters as FilterType, TaskWithCourier } from '@/modules/tasks/types/task.types'
 import { TaskStatusBadge } from '@/modules/tasks/components/TaskStatusBadge'
@@ -51,13 +53,22 @@ import {
 export default function TasksPage() {
   const navigate = useNavigate()
   const { profile } = useAuth()
-  const defaultBranchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
+  const { data: branches = [] } = useBranches()
+  const defaultBranchId = profile?.primary_branch_id || profile?.branch_ids[0] || (branches[0]?.id ?? '')
 
   const [filters, setFilters] = useState<FilterType>({
     branch_id: defaultBranchId,
     page: 1,
     page_size: 15,
   })
+
+  // Sincronizar automáticamente la sucursal activa cuando carguen las sucursales
+  useEffect(() => {
+    if (!filters.branch_id && branches.length > 0) {
+      const fallbackId = profile?.primary_branch_id || profile?.branch_ids[0] || branches[0].id
+      setFilters((prev) => ({ ...prev, branch_id: fallbackId }))
+    }
+  }, [branches, filters.branch_id, profile])
 
   // State para modales
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -69,8 +80,9 @@ export default function TasksPage() {
   const [previewEvidenceUrl, setPreviewEvidenceUrl] = useState<string | null>(null)
 
   const toast = useToast()
+  const effectiveBranchId = filters.branch_id || defaultBranchId || (branches[0]?.id ?? '')
   const { data, isLoading, isError, error } = useTasks(filters)
-  const { data: couriers = [] } = useCouriers(filters.branch_id || defaultBranchId)
+  const { data: couriers = [] } = useCouriers(effectiveBranchId)
   const { deleteTask, isDeleting, approveTask, isApproving, rejectTask, isRejecting } = useTaskMutations()
 
   const tasks = data?.data || []
@@ -140,15 +152,37 @@ export default function TasksPage() {
           </p>
         </div>
 
-        <Button
-          onClick={handleCreateNew}
-          variant="primary"
-          size="md"
-          leftIcon={<Plus className="h-4 w-4" />}
-          className="shrink-0 font-semibold shadow-md"
-        >
-          Nueva Tarea
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Selector de Sucursal Activa */}
+          {branches.length > 0 && (
+            <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs">
+              <Building2 className="h-4 w-4 text-accent shrink-0" />
+              <span className="text-xs font-bold text-slate-500 hidden sm:inline">Sucursal:</span>
+              <select
+                value={filters.branch_id || ''}
+                onChange={(e) => setFilters((f) => ({ ...f, branch_id: e.target.value, page: 1 }))}
+                className="text-xs font-bold text-slate-900 bg-transparent focus:outline-none cursor-pointer pr-1"
+                aria-label="Seleccionar sucursal activa"
+              >
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name} ({b.code})
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          <Button
+            onClick={handleCreateNew}
+            variant="primary"
+            size="md"
+            leftIcon={<Plus className="h-4 w-4" />}
+            className="shrink-0 font-semibold shadow-md"
+          >
+            Nueva Tarea
+          </Button>
+        </div>
       </div>
 
       {/* Banner Alerta de Aprobaciones Pendientes */}
@@ -214,7 +248,12 @@ export default function TasksPage() {
       </div>
 
       {/* Componente de Filtros */}
-      <TaskFilters filters={filters} onFilterChange={setFilters} couriers={couriers} />
+      <TaskFilters
+        filters={filters}
+        onFilterChange={setFilters}
+        couriers={couriers}
+        branches={branches}
+      />
 
       {/* Tabla de Tareas */}
       <Card className="p-0 overflow-hidden bg-white border-slate-200 shadow-xs">
@@ -482,9 +521,13 @@ export default function TasksPage() {
       {/* Modales Reutilizables */}
       <TaskFormModal
         isOpen={isFormOpen}
-        onClose={() => setIsFormOpen(false)}
+        onClose={() => {
+          setIsFormOpen(false)
+          setTaskToEdit(null)
+        }}
         taskToEdit={taskToEdit}
-        branchId={filters.branch_id || defaultBranchId}
+        branchId={effectiveBranchId}
+        branches={branches}
       />
 
       <AssignCourierModal

@@ -519,43 +519,79 @@ export async function getTaskStatusHistory(task_id: string): Promise<TaskStatusH
 
 // ─── getCouriersForBranch ─────────────────────────────────────────────────────
 // Lista los motorizados activos de una sucursal para el selector de asignación.
+// Consulta user_branches, profiles.primary_branch_id y fallback para máxima resiliencia.
 
-export async function getCouriersForBranch(branch_id: string) {
-  const { data, error } = await supabase
-    .from('user_branches')
-    .select(`
-      user_id,
-      profile:profiles!user_branches_user_id_fkey (
-        id, full_name, display_name, phone, avatar_url, role, is_active
-      )
-    `)
-    .eq('branch_id', branch_id)
+export async function getCouriersForBranch(branch_id?: string) {
+  const couriersMap = new Map<
+    string,
+    {
+      id: string
+      full_name: string
+      display_name: string | null
+      phone: string | null
+      avatar_url: string | null
+      role: string
+      is_active: boolean
+    }
+  >()
 
-  if (error) throw new Error(error.message)
+  try {
+    // 1. Si hay branch_id, buscar en user_branches
+    if (branch_id) {
+      const { data: ubData, error: ubError } = await supabase
+        .from('user_branches')
+        .select(`
+          user_id,
+          profile:profiles!user_branches_user_id_fkey (
+            id, full_name, display_name, phone, avatar_url, role, is_active
+          )
+        `)
+        .eq('branch_id', branch_id)
 
-  // Filtrar estrictamente los usuarios activos que tienen rol "courier"
-  const couriers = (data ?? [])
-    .map((row: unknown) => {
-      const r = row as {
-        user_id: string
-        profile: {
-          id: string
-          full_name: string
-          display_name: string | null
-          phone: string | null
-          avatar_url: string | null
-          role: string
-          is_active: boolean
-        } | null
+      if (!ubError && ubData) {
+        ubData.forEach((row: any) => {
+          const p = row.profile
+          if (p && p.is_active && p.role === 'courier') {
+            couriersMap.set(p.id, p)
+          }
+        })
       }
-      return r.profile
-    })
-    .filter(
-      (p): p is NonNullable<typeof p> =>
-        p !== null && p.is_active === true && p.role === 'courier'
-    )
 
-  return couriers
+      // 2. Buscar también en profiles con primary_branch_id
+      const { data: profData, error: profError } = await supabase
+        .from('profiles')
+        .select('id, full_name, display_name, phone, avatar_url, role, is_active')
+        .eq('role', 'courier')
+        .eq('is_active', true)
+        .eq('primary_branch_id', branch_id)
+
+      if (!profError && profData) {
+        profData.forEach((p) => {
+          couriersMap.set(p.id, p)
+        })
+      }
+    }
+
+    // 3. Fallback: Si no se encontraron por sucursal específica o no se pasó branch_id,
+    // obtener todos los motorizados activos para que el administrador siempre pueda asignar.
+    if (couriersMap.size === 0) {
+      const { data: allCouriers, error: allErr } = await supabase
+        .from('profiles')
+        .select('id, full_name, display_name, phone, avatar_url, role, is_active')
+        .eq('role', 'courier')
+        .eq('is_active', true)
+
+      if (!allErr && allCouriers) {
+        allCouriers.forEach((p) => {
+          couriersMap.set(p.id, p)
+        })
+      }
+    }
+  } catch (err) {
+    console.error('[Tasks] Error in getCouriersForBranch:', err)
+  }
+
+  return Array.from(couriersMap.values())
 }
 
 // ─── Reordenar Tareas de Ruta en Lote ───────────────────────────────────────────

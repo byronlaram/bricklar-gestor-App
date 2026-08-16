@@ -8,9 +8,10 @@ interface TaskFiltersProps {
   filters: FilterType
   onFilterChange: (filters: FilterType) => void
   couriers?: { id: string; full_name: string; display_name: string | null }[]
+  branches?: { id: string; name: string; code: string }[]
 }
 
-export function TaskFilters({ filters, onFilterChange, couriers = [] }: TaskFiltersProps) {
+export function TaskFilters({ filters, onFilterChange, couriers = [], branches = [] }: TaskFiltersProps) {
   const handleSearchChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     onFilterChange({ ...filters, search: e.target.value, page: 1 })
   }
@@ -90,7 +91,25 @@ export function TaskFilters({ filters, onFilterChange, couriers = [] }: TaskFilt
       </div>
 
       {/* Selectores Secundarios */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100">
+        {/* Sucursal */}
+        {branches.length > 0 && (
+          <div>
+            <select
+              value={filters.branch_id || ''}
+              onChange={(e) => onFilterChange({ ...filters, branch_id: e.target.value, page: 1 })}
+              className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-bold"
+              aria-label="Filtrar por sucursal"
+            >
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  🏢 {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {/* Estado */}
         <div>
           <select

@@ -28,15 +28,31 @@ import { useCouriers } from '../hooks/useCouriers'
 interface TaskFormModalProps {
   taskToEdit?: TaskWithCourier | null
   branchId: string
+  branches?: { id: string; name: string; code: string }[]
   isOpen: boolean
   onClose: () => void
 }
 
-export function TaskFormModal({ taskToEdit, branchId, isOpen, onClose }: TaskFormModalProps) {
+export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onClose }: TaskFormModalProps) {
   const isEditing = !!taskToEdit
   const { createTask, updateTask, isCreating, isUpdating } = useTaskMutations()
   const { data: busRoutes = [] } = useBusRoutes()
-  const { data: couriers = [] } = useCouriers(branchId)
+
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(branchId || branches[0]?.id || '')
+
+  useEffect(() => {
+    if (branchId) {
+      setSelectedBranchId(branchId)
+    } else if (branches.length > 0) {
+      setSelectedBranchId((prev) => prev || branches[0].id)
+    }
+  }, [branchId, branches])
+
+  const effectiveBranchId = isEditing
+    ? (taskToEdit?.branch_id || branchId || branches[0]?.id || '')
+    : (selectedBranchId || branchId || branches[0]?.id || '')
+
+  const { data: couriers = [] } = useCouriers(effectiveBranchId)
   const toast = useToast()
 
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
@@ -211,7 +227,7 @@ export function TaskFormModal({ taskToEdit, branchId, isOpen, onClose }: TaskFor
   }
 
   const onSubmit = async (data: TaskBaseInput) => {
-    if (!isEditing && !branchId) {
+    if (!isEditing && !effectiveBranchId) {
       toast.error('No se pudo identificar la sucursal activa. Selecciona una sucursal.')
       return
     }
@@ -250,7 +266,7 @@ export function TaskFormModal({ taskToEdit, branchId, isOpen, onClose }: TaskFor
       } else {
         await createTask({
           ...sanitizedPayload,
-          branch_id: branchId,
+          branch_id: effectiveBranchId,
         })
         toast.success('Tarea creada correctamente.')
       }
