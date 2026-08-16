@@ -66,7 +66,7 @@ export const TASK_TYPE_CONFIGS: Record<TaskType, TaskTypeConfig> = {
     addressPlaceholder: 'Ej: Semáforos del Zumen 2c al lago',
     addressReferenceLabel: 'Referencia de Ubicación',
     addressReferencePlaceholder: 'Ej: Casa azul con portón negro frente al parque',
-    defaultRequiresCollection: false,
+    defaultRequiresCollection: true,
     defaultRequiresPayment: false,
     fastModeFields: ['contact_name', 'phone', 'address', 'address_reference', 'financial'],
   },

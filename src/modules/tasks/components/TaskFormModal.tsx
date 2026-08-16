@@ -15,7 +15,11 @@ import {
   ChevronUp,
   Sparkles,
   Calendar,
+  ArrowDownLeft,
+  ArrowUpRight,
+  Ban,
 } from 'lucide-react'
+import { cn } from '@/shared/utils/cn'
 import { taskBaseSchema, type TaskBaseInput } from '@/shared/validations/schemas'
 import type { TaskWithCourier } from '../types/task.types'
 import { useTaskMutations } from '../hooks/useTaskMutations'
@@ -107,7 +111,39 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
   const requiresCollection = watch('requires_collection')
   const requiresPayment = watch('requires_payment')
 
-  // Auto-sugerir título al cambiar de tipo de tarea (si el usuario no lo ha personalizado manualmente)
+  const financialMode: 'none' | 'income' | 'expense' = requiresCollection
+    ? 'income'
+    : requiresPayment
+    ? 'expense'
+    : 'none'
+
+  const handleFinancialModeChange = (mode: 'none' | 'income' | 'expense') => {
+    if (mode === 'none') {
+      setValue('requires_collection', false, { shouldDirty: true })
+      setValue('requires_payment', false, { shouldDirty: true })
+      setValue('expected_collection_amount', undefined, { shouldDirty: true })
+      setValue('expected_payment_amount', undefined, { shouldDirty: true })
+    } else if (mode === 'income') {
+      setValue('requires_collection', true, { shouldDirty: true })
+      setValue('requires_payment', false, { shouldDirty: true })
+      setValue('expected_payment_amount', undefined, { shouldDirty: true })
+      if (!watch('expected_collection_currency')) {
+        setValue('expected_collection_currency', 'NIO')
+      }
+    } else if (mode === 'expense') {
+      setValue('requires_payment', true, { shouldDirty: true })
+      setValue('requires_collection', false, { shouldDirty: true })
+      setValue('expected_collection_amount', undefined, { shouldDirty: true })
+      if (!watch('expected_payment_currency')) {
+        setValue('expected_payment_currency', 'NIO')
+      }
+      if (!watch('expected_payment_method')) {
+        setValue('expected_payment_method', 'cash')
+      }
+    }
+  }
+
+  // Auto-sugerir título y predeterminar movimiento financiero según el tipo de tarea
   useEffect(() => {
     if (!isOpen) return
 
@@ -121,10 +157,15 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
         isTitleCustomized.current = false
       }
 
-      // Aplicar valores financieros por defecto según el tipo si no es edición
+      // Aplicar valores financieros por defecto según el tipo de tarea si no es edición
       if (!isEditing) {
-        setValue('requires_collection', config.defaultRequiresCollection)
-        setValue('requires_payment', config.defaultRequiresPayment)
+        if (config.defaultRequiresCollection) {
+          handleFinancialModeChange('income')
+        } else if (config.defaultRequiresPayment) {
+          handleFinancialModeChange('expense')
+        } else {
+          handleFinancialModeChange('none')
+        }
         if (config.defaultPaymentMethod) {
           setValue('expected_payment_method', config.defaultPaymentMethod)
         }
@@ -548,126 +589,193 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
             </div>
 
             {/* Sección Movimientos Financieros Previstos */}
-            <div className="space-y-4 pt-3 border-t border-border/40">
-              <h3 className="text-xs font-semibold text-foreground flex items-center gap-1.5">
-                <DollarSign className="h-3.5 w-3.5 text-emerald-500" />
-                Movimientos Financieros Previstos
-              </h3>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {/* Requiere Cobro */}
-                <div className="p-3 bg-muted/30 border border-border/50 rounded-xl space-y-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      {...register('requires_collection')}
-                      className="h-4 w-4 rounded text-accent focus:ring-accent accent-accent"
-                    />
-                    <span className="text-xs font-semibold text-foreground">
-                      Requiere Cobro al Cliente
-                    </span>
-                  </label>
-
-                  {requiresCollection && (
-                    <div className="space-y-2 pt-1">
-                      <div>
-                        <label className="block text-[11px] font-medium text-foreground-muted mb-1">
-                          Monto a Cobrar
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="0.00"
-                          {...register('expected_collection_amount', { valueAsNumber: true })}
-                          className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground font-semibold"
-                        />
-                        {errors.expected_collection_amount && (
-                          <p className="text-[11px] text-destructive mt-1">
-                            {errors.expected_collection_amount.message}
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-medium text-foreground-muted mb-1">
-                          Moneda
-                        </label>
-                        <select
-                          {...register('expected_collection_currency')}
-                          className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
-                        >
-                          <option value="NIO">Córdobas (C$)</option>
-                          <option value="USD">Dólares (US$)</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Requiere Pago */}
-                <div className="p-3 bg-muted/30 border border-border/50 rounded-xl space-y-3">
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      {...register('requires_payment')}
-                      className="h-4 w-4 rounded text-accent focus:ring-accent accent-accent"
-                    />
-                    <span className="text-xs font-semibold text-foreground">
-                      Requiere Pago / Viático (Desembolso)
-                    </span>
-                  </label>
-
-                  {requiresPayment && (
-                    <div className="space-y-2 pt-1">
-                      <div>
-                        <label className="block text-[11px] font-medium text-foreground-muted mb-1">
-                          Monto a Pagar
-                        </label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          placeholder="0.00"
-                          {...register('expected_payment_amount', { valueAsNumber: true })}
-                          className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground font-semibold"
-                        />
-                        {errors.expected_payment_amount && (
-                          <p className="text-[11px] text-destructive mt-1">
-                            {errors.expected_payment_amount.message}
-                          </p>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className="block text-[11px] font-medium text-foreground-muted mb-1">
-                          Moneda
-                        </label>
-                        <select
-                          {...register('expected_payment_currency')}
-                          className="w-full px-3 py-1.5 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
-                        >
-                          <option value="NIO">Córdobas (C$)</option>
-                          <option value="USD">Dólares (US$)</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                </div>
+            <div className="space-y-3.5 pt-3 border-t border-border/40">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
+                  <DollarSign className="h-4 w-4 text-emerald-600" />
+                  Movimiento Financiero en Caja
+                </h3>
+                <span className="text-[11px] text-foreground-muted">
+                  Flujo de efectivo para la caja del motorizado
+                </span>
               </div>
 
-              {(requiresCollection || requiresPayment) && (
-                <div>
-                  <label className="block text-xs font-medium text-foreground-muted mb-1">
-                    Forma de Pago Prevista
-                  </label>
-                  <select
-                    {...register('expected_payment_method')}
-                    className="w-full sm:w-1/2 px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
-                  >
-                    <option value="cash">Efectivo</option>
-                    <option value="bank_transfer">Transferencia Bancaria</option>
-                    <option value="mobile_wallet">Billetera Móvil</option>
-                    <option value="other">Otra Forma</option>
-                  </select>
+              {/* Selector Exclusivo de 3 Opciones */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                {/* 1. Sin Dinero */}
+                <button
+                  type="button"
+                  onClick={() => handleFinancialModeChange('none')}
+                  className={cn(
+                    'flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer relative',
+                    financialMode === 'none'
+                      ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
+                      : 'bg-background text-foreground border-border hover:bg-muted/40'
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="text-xs font-bold flex items-center gap-1.5">
+                      <Ban className="h-3.5 w-3.5 opacity-70" />
+                      Sin Dinero
+                    </span>
+                    <span className={cn('h-2 w-2 rounded-full', financialMode === 'none' ? 'bg-white' : 'bg-border')} />
+                  </div>
+                  <span className={cn('text-[11px] leading-tight', financialMode === 'none' ? 'text-slate-300' : 'text-foreground-muted')}>
+                    Trámite simple o entrega prepagada sin cobro.
+                  </span>
+                </button>
+
+                {/* 2. Ingreso (Entrada a Caja) */}
+                <button
+                  type="button"
+                  onClick={() => handleFinancialModeChange('income')}
+                  className={cn(
+                    'flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer relative',
+                    financialMode === 'income'
+                      ? 'bg-emerald-50 text-emerald-950 border-emerald-500 shadow-sm ring-2 ring-emerald-500/20'
+                      : 'bg-background text-foreground border-border hover:bg-emerald-50/40'
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+                      <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-600" />
+                      Ingreso (Entrada)
+                    </span>
+                    <span className={cn('h-2 w-2 rounded-full', financialMode === 'income' ? 'bg-emerald-600' : 'bg-border')} />
+                  </div>
+                  <span className={cn('text-[11px] leading-tight', financialMode === 'income' ? 'text-emerald-800 font-medium' : 'text-foreground-muted')}>
+                    Cobro a cliente, Retiro de ATM o Recolección.
+                  </span>
+                </button>
+
+                {/* 3. Egreso (Salida / Pago) */}
+                <button
+                  type="button"
+                  onClick={() => handleFinancialModeChange('expense')}
+                  className={cn(
+                    'flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer relative',
+                    financialMode === 'expense'
+                      ? 'bg-rose-50 text-rose-950 border-rose-500 shadow-sm ring-2 ring-rose-500/20'
+                      : 'bg-background text-foreground border-border hover:bg-rose-50/40'
+                  )}
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
+                      <ArrowUpRight className="h-3.5 w-3.5 text-rose-600" />
+                      Egreso (Salida)
+                    </span>
+                    <span className={cn('h-2 w-2 rounded-full', financialMode === 'expense' ? 'bg-rose-600' : 'bg-border')} />
+                  </div>
+                  <span className={cn('text-[11px] leading-tight', financialMode === 'expense' ? 'text-rose-800 font-medium' : 'text-foreground-muted')}>
+                    Compra de insumos, Flete de bus o Viáticos.
+                  </span>
+                </button>
+              </div>
+
+              {/* Panel de Ingreso (Entrada) */}
+              {financialMode === 'income' && (
+                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-xl space-y-3 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                      💵 Entrada de Efectivo a la Caja del Motorizado
+                    </span>
+                    <span className="text-[10px] bg-emerald-100 text-emerald-800 font-semibold px-2 py-0.5 rounded-full">
+                      Suma a la liquidación
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-emerald-900 uppercase tracking-wider mb-1">
+                        Monto a Recibir / Retirar *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        {...register('expected_collection_amount', { valueAsNumber: true })}
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/40 text-slate-900 font-bold"
+                      />
+                      {errors.expected_collection_amount && (
+                        <p className="text-[11px] text-destructive mt-1 font-semibold">
+                          {errors.expected_collection_amount.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-emerald-900 uppercase tracking-wider mb-1">
+                        Moneda *
+                      </label>
+                      <select
+                        {...register('expected_collection_currency')}
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/40 text-slate-900 font-semibold"
+                      >
+                        <option value="NIO">Córdobas (C$)</option>
+                        <option value="USD">Dólares (US$)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Panel de Egreso (Salida / Pago) */}
+              {financialMode === 'expense' && (
+                <div className="p-3.5 bg-rose-50/70 border border-rose-200 rounded-xl space-y-3 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
+                      💸 Salida de Dinero / Desembolso de Caja
+                    </span>
+                    <span className="text-[10px] bg-rose-100 text-rose-800 font-semibold px-2 py-0.5 rounded-full">
+                      Resta a la liquidación
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] font-bold text-rose-900 uppercase tracking-wider mb-1">
+                        Monto a Desembolsar *
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        {...register('expected_payment_amount', { valueAsNumber: true })}
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-rose-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500/40 text-slate-900 font-bold"
+                      />
+                      {errors.expected_payment_amount && (
+                        <p className="text-[11px] text-destructive mt-1 font-semibold">
+                          {errors.expected_payment_amount.message}
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-rose-900 uppercase tracking-wider mb-1">
+                        Moneda *
+                      </label>
+                      <select
+                        {...register('expected_payment_currency')}
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-rose-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500/40 text-slate-900 font-semibold"
+                      >
+                        <option value="NIO">Córdobas (C$)</option>
+                        <option value="USD">Dólares (US$)</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-bold text-rose-900 uppercase tracking-wider mb-1">
+                        Forma de Pago
+                      </label>
+                      <select
+                        {...register('expected_payment_method')}
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-rose-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500/40 text-slate-900 font-semibold"
+                      >
+                        <option value="cash">Efectivo en Mano</option>
+                        <option value="bank_transfer">Transferencia Bancaria</option>
+                        <option value="mobile_wallet">Billetera Móvil</option>
+                        <option value="other">Otra Forma</option>
+                      </select>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
