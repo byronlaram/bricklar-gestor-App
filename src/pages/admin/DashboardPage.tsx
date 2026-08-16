@@ -14,6 +14,7 @@ import {
   Package,
   Layers,
   Building2,
+  Calendar,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -36,24 +37,22 @@ import { getLocalDateString } from '@/shared/utils/date'
 
 // ─── Queries de KPI ──────────────────────────────────────────────────────────
 
-async function fetchDashboardData(branchIds: string[]) {
-  const today = getLocalDateString()
-
+async function fetchDashboardData(branchIds: string[], targetDate: string) {
   try {
     let tasksQuery = supabase
       .from('tasks')
       .select('id, status, financial_status, created_at, scheduled_date, branch_id')
+      .eq('scheduled_date', targetDate)
 
     let workdaysQuery = supabase
       .from('workdays')
       .select('id, courier_id, status, initial_cash, branch_id')
-      .gte('work_date', today)
-      .lte('work_date', today)
+      .eq('work_date', targetDate)
 
     let settlementsQuery = supabase
       .from('settlements')
       .select('id, status, actual_cash, actual_transfers, total_expenses, branch_id')
-      .gte('settlement_date', today)
+      .eq('settlement_date', targetDate)
 
     // Si se especificaron sucursales, filtrar por ellas
     if (branchIds && branchIds.length > 0) {
@@ -83,10 +82,10 @@ async function fetchDashboardData(branchIds: string[]) {
   }
 }
 
-function useDashboard(branchIds: string[]) {
+function useDashboard(branchIds: string[], targetDate: string) {
   return useQuery({
-    queryKey: ['dashboard', branchIds],
-    queryFn: () => fetchDashboardData(branchIds),
+    queryKey: ['dashboard', branchIds, targetDate],
+    queryFn: () => fetchDashboardData(branchIds, targetDate),
     enabled: true,
     refetchInterval: 1000 * 60, // Refresca cada minuto
     staleTime: 1000 * 30,
@@ -95,7 +94,7 @@ function useDashboard(branchIds: string[]) {
 
 // ─── Componente Barra de distribución de estados de tareas ──────────────────
 
-function TaskStatusBar({ tasks }: { tasks: { status: string }[] }) {
+function TaskStatusBar({ tasks, dateLabel }: { tasks: { status: string }[]; dateLabel?: string }) {
   const total = tasks.length
   if (total === 0) return null
 
@@ -119,7 +118,7 @@ function TaskStatusBar({ tasks }: { tasks: { status: string }[] }) {
     <Card className="p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <CardTitle className="text-base">Distribución de Tareas de Hoy</CardTitle>
+          <CardTitle className="text-base">Distribución de Tareas ({dateLabel || 'Fecha Seleccionada'})</CardTitle>
           <CardDescription>Resumen gráfico del progreso operativo</CardDescription>
         </div>
         <Badge variant="neutral" size="md">
@@ -157,12 +156,17 @@ function TaskStatusBar({ tasks }: { tasks: { status: string }[] }) {
   )
 }
 
-// ─── Página Principal Dashboard Rediseñada (Fase 2A) ─────────────────────────
+// ─── Página Principal Dashboard Rediseñada ──────────────────────────────────
 
 export default function DashboardPage() {
   const { profile } = useAuth()
   const { data: branches = [] } = useBranches()
+  const todayStr = getLocalDateString()
+
   const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
+  const [selectedDate, setSelectedDate] = useState<string>(todayStr)
+
+  const isToday = selectedDate === todayStr
 
   const effectiveBranchIds = useMemo(() => {
     if (selectedBranchId !== 'all') return [selectedBranchId]
@@ -170,19 +174,12 @@ export default function DashboardPage() {
     return []
   }, [selectedBranchId, profile?.branch_ids])
 
-  const { data, isLoading } = useDashboard(effectiveBranchIds)
+  const { data, isLoading } = useDashboard(effectiveBranchIds, selectedDate)
 
   const kpis = useMemo(() => {
     const tasks = data?.tasks ?? []
     const workdays = data?.workdays ?? []
     const settlements = data?.settlements ?? []
-
-    const today = getLocalDateString()
-    const todayTasks = tasks.filter((t) => {
-      const isScheduledToday = t.scheduled_date === today
-      const isCreatedToday = t.created_at ? getLocalDateString(new Date(t.created_at)) === today : false
-      return isScheduledToday || isCreatedToday
-    })
 
     const totalCash = settlements.reduce((s, r) => s + (Number(r.actual_cash) || 0), 0)
     const totalTransfer = settlements.reduce((s, r) => s + (Number(r.actual_transfers) || 0), 0)
@@ -191,7 +188,6 @@ export default function DashboardPage() {
 
     return {
       totalTasks: tasks.length,
-      todayTasks: todayTasks.length,
       pending: tasks.filter((t) => ['pending', 'assigned'].includes(t.status)).length,
       inRoute: tasks.filter((t) => ['en_route', 'in_progress'].includes(t.status)).length,
       completed: tasks.filter((t) => t.status === 'completed').length,
@@ -205,12 +201,17 @@ export default function DashboardPage() {
     }
   }, [data])
 
-  const todayDateFormatted = new Date().toLocaleDateString('es-NI', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  })
+  const dateFormatted = useMemo(() => {
+    // Parse YYYY-MM-DD safely
+    const [year, month, day] = selectedDate.split('-').map(Number)
+    const dateObj = new Date(year, month - 1, day)
+    return dateObj.toLocaleDateString('es-NI', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    })
+  }, [selectedDate])
 
   return (
     <div className="space-y-8 animate-fade-in">
@@ -225,14 +226,28 @@ export default function DashboardPage() {
               Bienvenido, {profile?.full_name ?? 'Administrador'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 capitalize">
-              {todayDateFormatted}
+              {dateFormatted} {isToday && '(Hoy)'}
             </p>
           </div>
+
           <div className="flex flex-wrap items-center gap-3">
+            {/* Selector de Fecha */}
+            <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs">
+              <Calendar className="h-4 w-4 text-accent shrink-0" />
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="text-xs font-bold text-slate-900 bg-transparent focus:outline-none cursor-pointer"
+                aria-label="Seleccionar fecha para el dashboard"
+              />
+            </div>
+
+            {/* Selector de Sucursal */}
             {branches.length > 0 && (
               <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs">
                 <Building2 className="h-4 w-4 text-accent shrink-0" />
-                <span className="text-xs font-bold text-slate-500 hidden sm:inline">Filtrar:</span>
+                <span className="text-xs font-bold text-slate-500 hidden sm:inline">Sucursal:</span>
                 <select
                   value={selectedBranchId}
                   onChange={(e) => setSelectedBranchId(e.target.value)}
@@ -248,6 +263,7 @@ export default function DashboardPage() {
                 </select>
               </div>
             )}
+
             <Link to="/admin/tareas">
               <Button variant="primary" size="sm" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
                 Ver Listado de Tareas
@@ -274,17 +290,19 @@ export default function DashboardPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                Operaciones del Día
+                {isToday ? 'Operaciones del Día (Hoy)' : `Operaciones del ${selectedDate}`}
               </h3>
-              <Badge variant="assigned" size="sm">Actualización en vivo</Badge>
+              <Badge variant={isToday ? 'assigned' : 'neutral'} size="sm">
+                {isToday ? 'Actualización en vivo' : selectedDate}
+              </Badge>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Link to="/admin/tareas">
+              <Link to={`/admin/tareas`}>
                 <MetricCard
-                  title="Tareas Registradas Hoy"
-                  value={kpis.todayTasks}
-                  subtitle={`${kpis.totalTasks} registradas en total`}
+                  title={isToday ? 'Tareas Registradas Hoy' : 'Tareas Registradas'}
+                  value={kpis.totalTasks}
+                  subtitle={`${kpis.totalTasks} asignadas para esta fecha`}
                   icon={<ClipboardList className="h-5 w-5 text-accent" />}
                   accentColor="accent"
                   className="hover:shadow-card-hover cursor-pointer"
@@ -331,7 +349,7 @@ export default function DashboardPage() {
           {/* SECCIÓN 2: PERSONAL Y RECAUDACIÓN (MetricCards) */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Personal & Estado Financiero
+              Personal & Estado Financiero ({selectedDate})
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -339,7 +357,7 @@ export default function DashboardPage() {
                 <MetricCard
                   title="Motorizados Activos"
                   value={kpis.activeCouriers}
-                  subtitle="Jornadas abiertas hoy"
+                  subtitle="Jornadas abiertas en la fecha"
                   icon={<Bike className="h-5 w-5 text-purple-600" />}
                   accentColor="accent"
                   className="hover:shadow-card-hover cursor-pointer"
@@ -383,15 +401,15 @@ export default function DashboardPage() {
 
           {/* SECCIÓN 3: DISTRIBUCIÓN O ESTADO VACÍO */}
           {data && data.tasks && data.tasks.length > 0 ? (
-            <TaskStatusBar tasks={data.tasks} />
+            <TaskStatusBar tasks={data.tasks} dateLabel={isToday ? 'Hoy' : selectedDate} />
           ) : (
             <EmptyState
-              title="Sin tareas registradas el día de hoy"
-              description="Actualmente no hay órdenes de despacho o entregas iniciadas para la fecha actual."
+              title={`Sin tareas registradas para el ${selectedDate}`}
+              description="Actualmente no hay órdenes de despacho o entregas agendadas para esta fecha."
               icon={<PackageCheck className="h-7 w-7 text-slate-400" />}
               action={
                 <Link to="/admin/tareas">
-                  <Button variant="primary" size="sm">Crear Primera Tarea</Button>
+                  <Button variant="primary" size="sm">Crear Nueva Tarea</Button>
                 </Link>
               }
             />
