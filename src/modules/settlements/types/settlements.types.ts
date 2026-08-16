@@ -72,6 +72,36 @@ export interface ApproveSettlementPayload {
   actual_cash: number
   actual_transfers?: number
   notes?: string
+  adjustment_reason_type?: string
+  adjustment_notes?: string
+}
+
+export interface SettlementAdjustmentRecord {
+  id: string
+  settlement_id: string
+  adjusted_by: string
+  adjustment_amount: number
+  reason: string
+  created_at: string
+  settlement?: {
+    id: string
+    settlement_date: string
+    expected_cash: number
+    actual_cash: number
+    courier?: {
+      id: string
+      full_name: string
+      display_name: string | null
+    } | null
+    branch?: {
+      id: string
+      name: string
+    } | null
+  } | null
+  adjuster?: {
+    id: string
+    full_name: string
+  } | null
 }
 
 export interface SettlementFilters {
@@ -90,3 +120,4 @@ export interface DailyClosureSummary {
   total_expenses: number
   net_cash_in_hand: number
 }
+

@@ -191,8 +191,119 @@ export async function approveSettlement(payload: ApproveSettlementPayload): Prom
     throw new Error(error.message)
   }
 
+  // Si existe una diferencia contable, registrar formalmente el ajuste en settlement_adjustments
+  if (Math.abs(difference) > 0.001) {
+    const reasonPrefixMap: Record<string, string> = {
+      faltante_descuento_nomina: 'Faltante — A deducir en nómina',
+      faltante_reponer_manana: 'Faltante — A reponer por motorizado',
+      sobrante_propina: 'Sobrante — Propina / Redondeo a favor',
+      redondeo_cambio: 'Diferencia por redondeo / vuelto',
+      otro: 'Ajuste operativo',
+    }
+
+    const typeTitle = payload.adjustment_reason_type
+      ? reasonPrefixMap[payload.adjustment_reason_type] || 'Ajuste de Liquidación'
+      : difference > 0
+        ? 'Sobrante en Liquidación'
+        : 'Faltante en Liquidación'
+
+    const fullReason = payload.adjustment_notes
+      ? `[${typeTitle}] ${payload.adjustment_notes}`
+      : payload.notes
+        ? `[${typeTitle}] ${payload.notes}`
+        : typeTitle
+
+    // Limpiar ajustes previos si existían para esta liquidación (en caso de re-aprobación)
+    await supabase
+      .from('settlement_adjustments')
+      .delete()
+      .eq('settlement_id', payload.settlement_id)
+
+    const { error: adjError } = await supabase.from('settlement_adjustments').insert({
+      settlement_id: payload.settlement_id,
+      adjusted_by: adminId,
+      adjustment_amount: difference,
+      reason: fullReason,
+    })
+
+    if (adjError) {
+      console.warn('[Settlements] Warning: could not persist settlement_adjustment:', adjError.message)
+    }
+  }
+
   return data as unknown as Settlement
 }
+
+export async function getSettlementAdjustments(params: {
+  branchIds?: string[]
+  from?: string
+  to?: string
+  courierId?: string
+}) {
+  let query = supabase
+    .from('settlement_adjustments')
+    .select(`
+      id,
+      settlement_id,
+      adjusted_by,
+      adjustment_amount,
+      reason,
+      created_at,
+      settlement:settlements!settlement_adjustments_settlement_id_fkey (
+        id,
+        settlement_date,
+        expected_cash,
+        actual_cash,
+        branch_id,
+        courier_id,
+        courier:profiles!settlements_courier_id_fkey (
+          id,
+          full_name,
+          display_name
+        ),
+        branch:branches!settlements_branch_id_fkey (
+          id,
+          name
+        )
+      ),
+      adjuster:profiles!settlement_adjustments_adjusted_by_fkey (
+        id,
+        full_name
+      )
+    `)
+    .order('created_at', { ascending: false })
+
+  if (params.from) {
+    query = query.gte('created_at', `${params.from}T00:00:00`)
+  }
+  if (params.to) {
+    query = query.lte('created_at', `${params.to}T23:59:59`)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error('[Settlements] getSettlementAdjustments error:', error)
+    throw new Error(error.message)
+  }
+
+  let results = data ?? []
+
+  if (params.branchIds && params.branchIds.length > 0) {
+    results = results.filter((item: any) =>
+      params.branchIds!.includes(item.settlement?.branch_id)
+    )
+  }
+
+  if (params.courierId) {
+    results = results.filter((item: any) =>
+      item.settlement?.courier_id === params.courierId
+    )
+  }
+
+  return results
+}
+
 
 export async function getCashMovements(workdayId: string): Promise<CashMovement[]> {
   const { data, error } = await supabase

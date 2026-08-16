@@ -193,27 +193,48 @@ export default function AdminSettlementsPage() {
 
                       <td className="py-3 px-3">
                         {diff === 0 ? (
-                          <span className="text-2xs font-bold text-emerald-600">
+                          <span className="text-2xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
                             Cuadre exacto (C$0)
                           </span>
                         ) : diff > 0 ? (
-                          <span className="text-2xs font-bold text-sky-600">
-                            +C$ {diff.toFixed(2)} (Sobrante)
-                          </span>
+                          <div className="space-y-0.5">
+                            <span className="text-2xs font-bold text-sky-700 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200 inline-block">
+                              +C$ {diff.toFixed(2)} (Sobrante)
+                            </span>
+                            {s.status === 'approved' && (
+                              <div className="text-[10px] text-slate-500 font-medium truncate max-w-[150px]" title={s.notes || ''}>
+                                {s.notes ? s.notes : 'Ajuste registrado'}
+                              </div>
+                            )}
+                          </div>
                         ) : (
-                          <span className="text-2xs font-bold text-rose-600">
-                            -C$ {Math.abs(diff).toFixed(2)} (Faltante)
-                          </span>
+                          <div className="space-y-0.5">
+                            <span className="text-2xs font-bold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200 inline-block">
+                              -C$ {Math.abs(diff).toFixed(2)} (Faltante)
+                            </span>
+                            {s.status === 'approved' && (
+                              <div className="text-[10px] text-slate-500 font-medium truncate max-w-[150px]" title={s.notes || ''}>
+                                {s.notes ? s.notes : 'Ajuste registrado'}
+                              </div>
+                            )}
+                          </div>
                         )}
                       </td>
 
                       <td className="py-3 px-3">
-                        <Badge
-                          variant={s.status === 'approved' ? 'completed' : 'pending'}
-                          size="sm"
-                        >
-                          {(SETTLEMENT_STATUS_LABELS && SETTLEMENT_STATUS_LABELS[s.status]) || s.status}
-                        </Badge>
+                        <div className="space-y-1">
+                          <Badge
+                            variant={s.status === 'approved' ? 'completed' : 'pending'}
+                            size="sm"
+                          >
+                            {(SETTLEMENT_STATUS_LABELS && SETTLEMENT_STATUS_LABELS[s.status]) || s.status}
+                          </Badge>
+                          {s.status === 'approved' && Math.abs(diff) > 0.001 && (
+                            <span className="inline-block text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                              Cerrado c/ Ajuste
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       <td className="py-3 px-4 text-right">
