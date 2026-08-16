@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import {
   ClipboardList,
   CheckCircle2,
@@ -13,11 +13,13 @@ import {
   PackageCheck,
   Package,
   Layers,
+  Building2,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
+import { useBranches } from '@/modules/branches/hooks/useBranches'
 import {
   Card,
   CardTitle,
@@ -36,28 +38,47 @@ import {
 async function fetchDashboardData(branchIds: string[]) {
   const today = new Date().toISOString().split('T')[0]
 
-  const [tasksRes, workdaysRes, settlementsRes] = await Promise.all([
-    supabase
+  try {
+    let tasksQuery = supabase
       .from('tasks')
-      .select('id, status, financial_status, created_at')
-      .in('branch_id', branchIds),
-    supabase
+      .select('id, status, financial_status, created_at, branch_id')
+
+    let workdaysQuery = supabase
       .from('workdays')
-      .select('id, courier_id, status, initial_cash')
+      .select('id, courier_id, status, initial_cash, branch_id')
       .gte('work_date', today)
       .lte('work_date', today)
-      .in('branch_id', branchIds),
-    supabase
-      .from('settlements')
-      .select('id, status, actual_cash, actual_transfers, total_expenses')
-      .gte('settlement_date', today)
-      .in('branch_id', branchIds),
-  ])
 
-  return {
-    tasks: tasksRes.data ?? [],
-    workdays: workdaysRes.data ?? [],
-    settlements: settlementsRes.data ?? [],
+    let settlementsQuery = supabase
+      .from('settlements')
+      .select('id, status, actual_cash, actual_transfers, total_expenses, branch_id')
+      .gte('settlement_date', today)
+
+    // Si se especificaron sucursales, filtrar por ellas
+    if (branchIds && branchIds.length > 0) {
+      tasksQuery = tasksQuery.in('branch_id', branchIds)
+      workdaysQuery = workdaysQuery.in('branch_id', branchIds)
+      settlementsQuery = settlementsQuery.in('branch_id', branchIds)
+    }
+
+    const [tasksRes, workdaysRes, settlementsRes] = await Promise.all([
+      tasksQuery,
+      workdaysQuery,
+      settlementsQuery,
+    ])
+
+    return {
+      tasks: tasksRes.data ?? [],
+      workdays: workdaysRes.data ?? [],
+      settlements: settlementsRes.data ?? [],
+    }
+  } catch (err) {
+    console.error('[Dashboard] Error fetching dashboard data:', err)
+    return {
+      tasks: [],
+      workdays: [],
+      settlements: [],
+    }
   }
 }
 
@@ -65,7 +86,7 @@ function useDashboard(branchIds: string[]) {
   return useQuery({
     queryKey: ['dashboard', branchIds],
     queryFn: () => fetchDashboardData(branchIds),
-    enabled: branchIds.length > 0,
+    enabled: true,
     refetchInterval: 1000 * 60, // Refresca cada minuto
     staleTime: 1000 * 30,
   })
@@ -139,20 +160,28 @@ function TaskStatusBar({ tasks }: { tasks: { status: string }[] }) {
 
 export default function DashboardPage() {
   const { profile } = useAuth()
-  const branchIds = profile?.branch_ids ?? []
+  const { data: branches = [] } = useBranches()
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
 
-  const { data, isLoading } = useDashboard(branchIds)
+  const effectiveBranchIds = useMemo(() => {
+    if (selectedBranchId !== 'all') return [selectedBranchId]
+    if (profile?.branch_ids && profile.branch_ids.length > 0) return profile.branch_ids
+    return []
+  }, [selectedBranchId, profile?.branch_ids])
+
+  const { data, isLoading } = useDashboard(effectiveBranchIds)
 
   const kpis = useMemo(() => {
-    if (!data) return null
-    const { tasks, workdays, settlements } = data
+    const tasks = data?.tasks ?? []
+    const workdays = data?.workdays ?? []
+    const settlements = data?.settlements ?? []
 
     const today = new Date().toISOString().split('T')[0]
     const todayTasks = tasks.filter((t) => t.created_at?.startsWith(today))
 
-    const totalCash = settlements.reduce((s, r) => s + (r.actual_cash ?? 0), 0)
-    const totalTransfer = settlements.reduce((s, r) => s + (r.actual_transfers ?? 0), 0)
-    const totalExpenses = settlements.reduce((s, r) => s + (r.total_expenses ?? 0), 0)
+    const totalCash = settlements.reduce((s, r) => s + (Number(r.actual_cash) || 0), 0)
+    const totalTransfer = settlements.reduce((s, r) => s + (Number(r.actual_transfers) || 0), 0)
+    const totalExpenses = settlements.reduce((s, r) => s + (Number(r.total_expenses) || 0), 0)
     const netCash = totalCash - totalExpenses
 
     return {
@@ -167,7 +196,7 @@ export default function DashboardPage() {
       totalTransfer,
       totalExpenses,
       netCash,
-      pendingSettlements: settlements.filter((s) => s.status === 'pending_review').length,
+      pendingSettlements: settlements.filter((s) => s.status === 'pending_review' || s.status === 'pending_settlement').length,
     }
   }, [data])
 
@@ -194,7 +223,26 @@ export default function DashboardPage() {
               {todayDateFormatted}
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-3">
+            {branches.length > 0 && (
+              <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs">
+                <Building2 className="h-4 w-4 text-accent shrink-0" />
+                <span className="text-xs font-bold text-slate-500 hidden sm:inline">Filtrar:</span>
+                <select
+                  value={selectedBranchId}
+                  onChange={(e) => setSelectedBranchId(e.target.value)}
+                  className="text-xs font-bold text-slate-900 bg-transparent focus:outline-none cursor-pointer pr-1"
+                  aria-label="Filtrar métricas por sucursal"
+                >
+                  <option value="all">Todas las sucursales</option>
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             <Link to="/admin/tareas">
               <Button variant="primary" size="sm" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
                 Ver Listado de Tareas
@@ -307,7 +355,7 @@ export default function DashboardPage() {
               <Link to="/admin/liquidaciones">
                 <MetricCard
                   title="Recaudado en Efectivo"
-                  value={`C$ ${kpis.totalCash.toFixed(2)}`}
+                  value={`C$ ${(Number(kpis.totalCash) || 0).toFixed(2)}`}
                   subtitle="Monto reportado en caja"
                   icon={<DollarSign className="h-5 w-5 text-emerald-600" />}
                   accentColor="success"
@@ -318,8 +366,8 @@ export default function DashboardPage() {
               <Link to="/admin/cierre-diario">
                 <MetricCard
                   title="Neto Consolidado"
-                  value={`C$ ${kpis.netCash.toFixed(2)}`}
-                  subtitle={`Transf: C$ ${kpis.totalTransfer.toFixed(2)}`}
+                  value={`C$ ${(Number(kpis.netCash) || 0).toFixed(2)}`}
+                  subtitle={`Transf: C$ ${(Number(kpis.totalTransfer) || 0).toFixed(2)}`}
                   icon={<TrendingUp className="h-5 w-5 text-primary" />}
                   accentColor="primary"
                   className="hover:shadow-card-hover cursor-pointer"
