@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -9,6 +9,8 @@ import {
   Check,
   MoreVertical,
   CheckSquare,
+  Calendar,
+  RotateCcw,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
@@ -36,30 +38,74 @@ export default function CourierTasksPage() {
   const { data: activeWorkday } = useActiveWorkday(profile?.id)
   const [isNewGestionOpen, setIsNewGestionOpen] = useState(false)
 
-  // Generar dinámicamente los próximos 7 días a partir de la fecha actual real
+  // Generar dinámicamente días pasados (-14 días) y futuros (+7 días)
   const today = new Date()
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(today)
-    d.setDate(today.getDate() + i)
-    const isoDate = getLocalDateString(d)
-    const dayName = i === 0 ? 'Hoy' : d.toLocaleDateString('es-NI', { weekday: 'short' })
-    const dayNum = d.getDate()
-    const monthName = d.toLocaleDateString('es-NI', { month: 'short' })
-    const fullDateStr = d.toLocaleDateString('es-NI', { weekday: 'long', day: 'numeric', month: 'long' })
-    return {
-      isoDate,
-      dayName: dayName.charAt(0).toUpperCase() + dayName.slice(1).replace('.', ''),
-      dateLabel: `${dayNum} ${monthName.replace('.', '')}`,
-      fullDateStr,
-      isToday: i === 0,
-    }
-  })
+  const todayIso = getLocalDateString(today)
+  const [selectedDateIso, setSelectedDateIso] = useState<string>(todayIso)
 
-  const [selectedDateIso, setSelectedDateIso] = useState<string>(weekDays[0].isoDate)
+  const weekDays = useMemo(() => {
+    // Rango de -14 a +7 días
+    const days = []
+    for (let i = -14; i <= 7; i++) {
+      const d = new Date(today)
+      d.setDate(today.getDate() + i)
+      const isoDate = getLocalDateString(d)
+      let dayName = d.toLocaleDateString('es-NI', { weekday: 'short' })
+      if (i === 0) dayName = 'Hoy'
+      else if (i === -1) dayName = 'Ayer'
+
+      const dayNum = d.getDate()
+      const monthName = d.toLocaleDateString('es-NI', { month: 'short' })
+      const fullDateStr = d.toLocaleDateString('es-NI', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+      days.push({
+        isoDate,
+        dayName: dayName.charAt(0).toUpperCase() + dayName.slice(1).replace('.', ''),
+        dateLabel: `${dayNum} ${monthName.replace('.', '')}`,
+        fullDateStr,
+        isToday: i === 0,
+        isPast: i < 0,
+      })
+    }
+
+    // Si la fecha seleccionada está fuera del rango de -14 a +7, agregarla dinámicamente
+    if (selectedDateIso && !days.some((d) => d.isoDate === selectedDateIso)) {
+      const customD = new Date(`${selectedDateIso}T12:00:00`)
+      if (!isNaN(customD.getTime())) {
+        const dayName = customD.toLocaleDateString('es-NI', { weekday: 'short' })
+        const dayNum = customD.getDate()
+        const monthName = customD.toLocaleDateString('es-NI', { month: 'short' })
+        const fullDateStr = customD.toLocaleDateString('es-NI', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+        days.unshift({
+          isoDate: selectedDateIso,
+          dayName: dayName.charAt(0).toUpperCase() + dayName.slice(1).replace('.', ''),
+          dateLabel: `${dayNum} ${monthName.replace('.', '')}`,
+          fullDateStr,
+          isToday: selectedDateIso === todayIso,
+          isPast: selectedDateIso < todayIso,
+        })
+      }
+    }
+
+    return days
+  }, [selectedDateIso, todayIso])
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
   const [completeTargetTask, setCompleteTargetTask] = useState<TaskWithCourier | null>(null)
+
+  const daysCarouselRef = useRef<HTMLDivElement>(null)
+  const activeDayRef = useRef<HTMLButtonElement>(null)
+
+  // Auto-scroll para centrar el día activo en la barra de fecha
+  useEffect(() => {
+    if (activeDayRef.current && daysCarouselRef.current) {
+      activeDayRef.current.scrollIntoView({
+        behavior: 'smooth',
+        inline: 'center',
+        block: 'nearest',
+      })
+    }
+  }, [selectedDateIso])
 
   const { data: tasksData, isLoading } = useTasks({
     courier_id: profile?.id,
@@ -181,25 +227,76 @@ export default function CourierTasksPage() {
         </div>
       )}
 
-      {/* 2. Selector de Días Horizontal (Carrusel de Píldora Activa Azul Marino) */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 no-scrollbar scroll-smooth">
-        {weekDays.map((day) => {
-          const isSelected = selectedDateIso === day.isoDate
-          return (
+      {/* 2. Selector de Días Horizontal y Selector de Calendario */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-slate-700 capitalize flex items-center gap-1.5">
+              📅 {selectedDayObj.fullDateStr}
+            </span>
+            {selectedDateIso !== todayIso && (
+              <button
+                onClick={() => setSelectedDateIso(todayIso)}
+                className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#004594] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full hover:bg-blue-100 transition cursor-pointer"
+                title="Volver al día actual"
+              >
+                <RotateCcw size={11} />
+                <span>Ir a Hoy</span>
+              </button>
+            )}
+          </div>
+
+          {/* Botón Selector de Fecha con Calendario Completo */}
+          <div className="relative inline-flex items-center">
             <button
-              key={day.isoDate}
-              onClick={() => setSelectedDateIso(day.isoDate)}
-              className={`flex flex-col items-center justify-center min-w-[70px] py-2 px-3 rounded-2xl transition-all cursor-pointer ${
-                isSelected
-                  ? 'bg-[#004594] text-white font-extrabold shadow-sm scale-105'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200/80 font-semibold'
-              }`}
+              type="button"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-slate-200/90 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition cursor-pointer"
+              title="Seleccionar otra fecha del calendario"
             >
-              <span className="text-2xs uppercase tracking-tight opacity-90">{day.dayName}</span>
-              <span className="text-xs font-mono font-bold leading-tight mt-0.5">{day.dateLabel}</span>
+              <Calendar size={14} className="text-[#004594]" />
+              <span className="hidden sm:inline">Elegir fecha</span>
             </button>
-          )
-        })}
+            <input
+              type="date"
+              value={selectedDateIso}
+              onChange={(e) => {
+                if (e.target.value) {
+                  setSelectedDateIso(e.target.value)
+                }
+              }}
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              aria-label="Seleccionar fecha específica"
+            />
+          </div>
+        </div>
+
+        {/* Carrusel de Días Horizontal */}
+        <div
+          ref={daysCarouselRef}
+          className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar scroll-smooth"
+        >
+          {weekDays.map((day) => {
+            const isSelected = selectedDateIso === day.isoDate
+            return (
+              <button
+                key={day.isoDate}
+                ref={isSelected ? activeDayRef : null}
+                onClick={() => setSelectedDateIso(day.isoDate)}
+                className={cn(
+                  'flex flex-col items-center justify-center min-w-[72px] py-2 px-2.5 rounded-2xl transition-all shrink-0 cursor-pointer',
+                  isSelected
+                    ? 'bg-[#004594] text-white font-extrabold shadow-sm scale-105 ring-2 ring-[#004594]/30'
+                    : day.isToday
+                    ? 'bg-blue-50/80 text-blue-900 border border-blue-200 font-bold hover:bg-blue-100'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200/80 font-semibold'
+                )}
+              >
+                <span className="text-2xs uppercase tracking-tight opacity-90">{day.dayName}</span>
+                <span className="text-xs font-mono font-bold leading-tight mt-0.5">{day.dateLabel}</span>
+              </button>
+            )
+          })}
+        </div>
       </div>
 
       {/* 3. Píldoras de Filtro Rápido de Estado */}
