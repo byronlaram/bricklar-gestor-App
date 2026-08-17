@@ -13,6 +13,7 @@ import {
   TrendingDown,
   TrendingUp,
   Building2,
+  Printer,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
@@ -319,17 +320,235 @@ function exportCSV(data: unknown[], filename: string) {
   URL.revokeObjectURL(url)
 }
 
+function exportPDF({
+  data,
+  reportTitle,
+  from,
+  to,
+  branchName,
+  authorName,
+}: {
+  data: Record<string, unknown>[]
+  reportTitle: string
+  from: string
+  to: string
+  branchName: string
+  authorName: string
+}) {
+  if (!data.length) return
+
+  const rawHeaders = Object.keys(data[0])
+  const headers = rawHeaders.filter((h) => h !== 'id' && h !== 'monto_numerico')
+  const nowStr = new Date().toLocaleString('es-NI')
+
+  const rowsHtml = data
+    .map((row, idx) => {
+      const cells = headers
+        .map((h) => {
+          let val = row[h]
+          if (val && typeof val === 'object') val = JSON.stringify(val)
+          const str = String(val ?? '—')
+          return `<td style="padding: 7px 9px; border-bottom: 1px solid #e2e8f0; font-size: 10px; color: #1e293b; white-space: nowrap;">${str}</td>`
+        })
+        .join('')
+      const bg = idx % 2 === 0 ? '#ffffff' : '#f8fafc'
+      return `<tr style="background-color: ${bg};">${cells}</tr>`
+    })
+    .join('')
+
+  const headersHtml = headers
+    .map(
+      (h) =>
+        `<th style="padding: 8px 9px; background-color: #0f172a; color: #ffffff; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; border-right: 1px solid #334155; white-space: nowrap;">${h.replace(/_/g, ' ')}</th>`
+    )
+    .join('')
+
+  const logoUrl = window.location.origin + '/branding/bricklar-logo.png'
+
+  const printWindow = window.open('', '_blank')
+  if (!printWindow) {
+    alert('Por favor permite las ventanas emergentes en tu navegador para generar el PDF.')
+    return
+  }
+
+  printWindow.document.write(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <title>${reportTitle} - Bricklar</title>
+        <style>
+          @page {
+            size: landscape;
+            margin: 10mm;
+          }
+          * {
+            box-sizing: border-box;
+          }
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #0f172a;
+            margin: 0;
+            padding: 12px;
+            background: #ffffff;
+            font-size: 11px;
+          }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #0f172a;
+            padding-bottom: 12px;
+            margin-bottom: 14px;
+          }
+          .logo-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+          }
+          .logo-img {
+            height: 46px;
+            object-fit: contain;
+          }
+          .company-name {
+            font-size: 20px;
+            font-weight: 900;
+            color: #0f172a;
+            letter-spacing: -0.5px;
+          }
+          .report-badge {
+            font-size: 10px;
+            font-weight: 800;
+            color: #4338ca;
+            background: #eef2ff;
+            padding: 2px 8px;
+            border-radius: 6px;
+            display: inline-block;
+            margin-top: 2px;
+            border: 1px solid #c7d2fe;
+          }
+          .meta-box {
+            text-align: right;
+            font-size: 11px;
+            color: #475569;
+            line-height: 1.45;
+          }
+          .meta-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: #0f172a;
+            margin-bottom: 2px;
+          }
+          .summary-bar {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 9px 14px;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            font-size: 11px;
+            font-weight: 600;
+            color: #334155;
+          }
+          table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 4px;
+          }
+          .footer {
+            margin-top: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            padding-top: 16px;
+            border-top: 1px dashed #cbd5e1;
+            font-size: 10px;
+            color: #64748b;
+          }
+          .signature-box {
+            border-top: 1px solid #64748b;
+            width: 200px;
+            text-align: center;
+            padding-top: 5px;
+            color: #334155;
+            font-weight: 700;
+          }
+          @media print {
+            body {
+              padding: 0;
+            }
+            .no-print {
+              display: none;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div class="logo-box">
+            <img src="${logoUrl}" class="logo-img" alt="Logo Bricklar" onerror="this.style.display='none'" />
+            <div>
+              <div class="company-name">BRICKLAR GESTOR</div>
+              <div class="report-badge">${reportTitle.toUpperCase()}</div>
+            </div>
+          </div>
+          <div class="meta-box">
+            <div class="meta-title">${reportTitle}</div>
+            <div><strong>Rango:</strong> ${from} al ${to}</div>
+            <div><strong>Sucursal:</strong> ${branchName}</div>
+            <div><strong>Generado por:</strong> ${authorName}</div>
+            <div><strong>Fecha de Emisión:</strong> ${nowStr}</div>
+          </div>
+        </div>
+
+        <div class="summary-bar">
+          <div>Total de Registros: <span style="color: #4338ca; font-weight: 800;">${data.length}</span></div>
+          <div>Módulo de Reportes Ejecutivos & Auditoría</div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>${headersHtml}</tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          <div>
+            <div>Documento oficial generado por el Sistema Bricklar Gestor.</div>
+            <div>Impreso el: ${nowStr}</div>
+          </div>
+          <div class="signature-box">
+            Firma y Sello de Autorización
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+    </html>
+  `)
+  printWindow.document.close()
+}
+
 export default function ReportsPage() {
   const { profile } = useAuth()
-  const defaultBranchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
-
   const { data: branches = [] } = useBranches()
+
   const todayStr = new Date().toISOString().split('T')[0]
   const [reportType, setReportType] = useState<ReportType>('tasks')
-  const [selectedBranchId, setSelectedBranchId] = useState<string>(defaultBranchId || '')
+  const [selectedBranchId, setSelectedBranchId] = useState<string>('')
   const [from, setFrom] = useState(todayStr)
   const [to, setTo] = useState(todayStr)
-  const [enabled, setEnabled] = useState(false)
+  const [enabled, setEnabled] = useState(true)
 
   const { data = [], isLoading, refetch } = useQuery({
     queryKey: ['report', reportType, from, to, selectedBranchId],
@@ -341,6 +560,7 @@ export default function ReportsPage() {
     setEnabled(true)
     refetch()
   }
+
 
   const selectedOption = REPORT_OPTIONS.find((o) => o.id === reportType)!
 
@@ -538,13 +758,33 @@ export default function ReportsPage() {
             <p className="text-xs font-semibold text-foreground">
               {selectedOption.label} — {data.length} registro{data.length !== 1 ? 's' : ''}
             </p>
-            <button
-              onClick={() => exportCSV(data, reportType)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-accent border border-accent/30 bg-accent/10 hover:bg-accent/20 rounded-lg transition cursor-pointer"
-            >
-              <Download className="h-3.5 w-3.5" />
-              Exportar CSV
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() =>
+                  exportPDF({
+                    data,
+                    reportTitle: selectedOption.label,
+                    from,
+                    to,
+                    branchName:
+                      branches.find((b) => b.id === selectedBranchId)?.name || 'Todas las sucursales',
+                    authorName:
+                      profile?.display_name || profile?.full_name || 'Administrador General',
+                  })
+                }
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 border border-rose-300 bg-rose-50 hover:bg-rose-100 rounded-lg transition cursor-pointer shadow-2xs"
+              >
+                <Printer className="h-3.5 w-3.5" />
+                Exportar PDF
+              </button>
+              <button
+                onClick={() => exportCSV(data, reportType)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-accent border border-accent/30 bg-accent/10 hover:bg-accent/20 rounded-lg transition cursor-pointer shadow-2xs"
+              >
+                <Download className="h-3.5 w-3.5" />
+                Exportar CSV
+              </button>
+            </div>
           </div>
 
           {/* Tabla de resultados */}
