@@ -12,11 +12,14 @@ import {
   Scale,
   TrendingDown,
   TrendingUp,
+  Building2,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
+import { useBranches } from '@/modules/branches/hooks/useBranches'
 import { useAuth } from '@/modules/auth/useAuth'
-import { TASK_STATUS_LABELS, TASK_TYPE_LABELS } from '@/shared/types'
+import { TASK_STATUS_LABELS, TASK_TYPE_LABELS, WORKDAY_STATUS_LABELS } from '@/shared/types'
+import { calculateWorkdayCashSummary } from '@/modules/workdays/utils/workdayCalculations'
 
 type ReportType = 'tasks' | 'settlements' | 'workdays' | 'adjustments'
 
@@ -51,46 +54,149 @@ async function fetchReportData(
   type: ReportType,
   from: string,
   to: string,
-  branchIds: string[]
+  branchId?: string
 ) {
   if (type === 'tasks') {
-    const { data } = await supabase
+    let query = supabase
       .from('tasks')
-      .select(`id, code, title, task_type, status, priority,
-        expected_collection_amount, expected_payment_amount, created_at,
-        courier:profiles!tasks_assigned_courier_id_fkey(full_name)`)
-      .in('branch_id', branchIds)
-      .gte('created_at', `${from}T00:00:00`)
-      .lte('created_at', `${to}T23:59:59`)
+      .select(`
+        id, code, title, task_type, status, priority,
+        scheduled_date, scheduled_time_start,
+        requires_collection, expected_collection_amount, expected_collection_currency, expected_payment_method,
+        requires_payment, expected_payment_amount, expected_payment_currency,
+        created_at,
+        courier:profiles!tasks_assigned_courier_id_fkey (full_name, display_name),
+        branch:branches!tasks_branch_id_fkey (name)
+      `)
+      .gte('scheduled_date', from)
+      .lte('scheduled_date', to)
+      .order('scheduled_date', { ascending: false })
       .order('created_at', { ascending: false })
-    return (data ?? []) as unknown as Record<string, unknown>[]
+
+    if (branchId) {
+      query = query.eq('branch_id', branchId)
+    }
+
+    const { data, error } = await query
+    if (error) {
+      console.error('[Reports] Error fetching tasks:', error)
+      return []
+    }
+
+    const formatted = (data ?? []).map((t: any) => ({
+      id: t.id,
+      codigo: t.code || 'N/A',
+      titulo: t.title || 'Sin título',
+      fecha_programada: t.scheduled_date || 'N/A',
+      tipo: TASK_TYPE_LABELS[t.task_type as keyof typeof TASK_TYPE_LABELS] || t.task_type,
+      estado: TASK_STATUS_LABELS[t.status as keyof typeof TASK_STATUS_LABELS] || t.status,
+      prioridad: t.priority?.toUpperCase() || 'NORMAL',
+      motorizado: t.courier?.display_name || t.courier?.full_name || 'Sin asignar',
+      sucursal: t.branch?.name || 'N/A',
+      requiere_cobro: t.requires_collection ? 'Sí' : 'No',
+      monto_cobro: t.requires_collection ? `C$ ${(t.expected_collection_amount || 0).toFixed(2)}` : '—',
+      metodo_cobro: t.requires_collection ? (t.expected_payment_method === 'transfer' ? 'Transferencia' : 'Efectivo') : '—',
+      requiere_pago: t.requires_payment ? 'Sí' : 'No',
+      monto_pago: t.requires_payment ? `C$ ${(t.expected_payment_amount || 0).toFixed(2)}` : '—',
+    }))
+
+    return formatted as unknown as Record<string, unknown>[]
   }
 
   if (type === 'settlements') {
-    const { data } = await supabase
+    let query = supabase
       .from('settlements')
-      .select(`id, created_at, status,
-        actual_cash, actual_transfers, total_expenses,
-        expected_cash, difference,
-        courier:profiles!settlements_courier_id_fkey(full_name)`)
-      .in('branch_id', branchIds)
-      .gte('created_at', `${from}T00:00:00`)
-      .lte('created_at', `${to}T23:59:59`)
-      .order('created_at', { ascending: false })
-    return (data ?? []) as unknown as Record<string, unknown>[]
+      .select(`
+        id, settlement_date, status,
+        expected_cash, actual_cash,
+        expected_transfers, actual_transfers,
+        total_expenses, difference, notes, created_at,
+        courier:profiles!settlements_courier_id_fkey (full_name, display_name),
+        branch:branches!settlements_branch_id_fkey (name)
+      `)
+      .gte('settlement_date', from)
+      .lte('settlement_date', to)
+      .order('settlement_date', { ascending: false })
+
+    if (branchId) {
+      query = query.eq('branch_id', branchId)
+    }
+
+    const { data, error } = await query
+    if (error) {
+      console.error('[Reports] Error fetching settlements:', error)
+      return []
+    }
+
+    const formatted = (data ?? []).map((s: any) => {
+      const expCash = s.expected_cash || 0
+      const actCash = s.actual_cash || 0
+      const diff = s.difference || 0
+
+      return {
+        id: s.id,
+        fecha_liquidacion: s.settlement_date,
+        motorizado: s.courier?.display_name || s.courier?.full_name || 'N/A',
+        sucursal: s.branch?.name || 'N/A',
+        estado: s.status === 'approved' ? 'Aprobada' : 'Pendiente Revisión',
+        efectivo_esperado: `C$ ${expCash.toFixed(2)}`,
+        efectivo_entregado: `C$ ${actCash.toFixed(2)}`,
+        transferencias: `C$ ${(s.actual_transfers || 0).toFixed(2)}`,
+        gastos_ruta: `C$ ${(s.total_expenses || 0).toFixed(2)}`,
+        diferencia: diff === 0 ? 'C$ 0.00 (Cuadre Exacto)' : diff > 0 ? `+C$ ${diff.toFixed(2)} (Sobrante)` : `-C$ ${Math.abs(diff).toFixed(2)} (Faltante)`,
+        observaciones_ajuste: s.notes || 'Sin observaciones',
+      }
+    })
+
+    return formatted as unknown as Record<string, unknown>[]
   }
 
   if (type === 'workdays') {
-    const { data } = await supabase
+    let query = supabase
       .from('workdays')
-      .select(`id, work_date, status, initial_km, final_km, initial_cash, notes,
-        courier:profiles!workdays_courier_id_fkey(full_name)`)
-      .in('branch_id', branchIds)
+      .select(`
+        id, work_date, status, initial_km, final_km, initial_cash, notes, start_time, end_time, courier_id,
+        courier:profiles!workdays_courier_id_fkey (full_name, display_name),
+        branch:branches!workdays_branch_id_fkey (name)
+      `)
       .gte('work_date', from)
       .lte('work_date', to)
       .order('work_date', { ascending: false })
 
-    const formatted = (data ?? []).map((w: any) => {
+    if (branchId) {
+      query = query.eq('branch_id', branchId)
+    }
+
+    const { data: rawWorkdays, error } = await query
+    if (error) {
+      console.error('[Reports] Error fetching workdays:', error)
+      return []
+    }
+
+    const workdaysList = rawWorkdays || []
+    const workdayIds = workdaysList.map((w) => w.id)
+    const courierIds = Array.from(new Set(workdaysList.map((w) => w.courier_id)))
+
+    const { data: batchTasks } = await supabase
+      .from('tasks')
+      .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+      .in('assigned_courier_id', courierIds)
+      .gte('scheduled_date', from)
+      .lte('scheduled_date', to)
+      .eq('status', 'completed')
+
+    const { data: batchMovements } = await supabase
+      .from('cash_movements')
+      .select('workday_id, amount, currency, direction, movement_type')
+      .in('workday_id', workdayIds)
+
+    const formatted = workdaysList.map((w: any) => {
+      const wTasks = (batchTasks || []).filter(
+        (t) => t.assigned_courier_id === w.courier_id && t.scheduled_date === w.work_date
+      )
+      const wMovements = (batchMovements || []).filter((m) => m.workday_id === w.id)
+      const summary = calculateWorkdayCashSummary(w.initial_cash || 0, wTasks, wMovements)
+
       let kmDisplay = 'No disponible'
       if (w.initial_km !== null && w.initial_km !== undefined) {
         kmDisplay = `${w.initial_km} km`
@@ -101,13 +207,18 @@ async function fetchReportData(
 
       return {
         id: w.id,
-        work_date: w.work_date,
-        motorizado: w.courier?.full_name || 'N/A',
-        status: w.status,
-        initial_km: kmDisplay,
-        final_km: w.final_km !== null && w.final_km !== undefined ? `${w.final_km} km` : 'En recorrido',
-        initial_cash: w.initial_cash || 0,
-        notes: w.notes || '',
+        fecha: w.work_date,
+        motorizado: w.courier?.display_name || w.courier?.full_name || 'N/A',
+        sucursal: w.branch?.name || 'N/A',
+        estado: (WORKDAY_STATUS_LABELS && WORKDAY_STATUS_LABELS[w.status as keyof typeof WORKDAY_STATUS_LABELS]) || w.status,
+        fondo_inicial: `C$ ${(w.initial_cash || 0).toFixed(2)}`,
+        cobros_ruta: `+C$ ${summary.collectionsNIO.toFixed(2)}`,
+        gastos_ruta: `-C$ ${summary.expensesNIO.toFixed(2)}`,
+        entregas_caja: `-C$ ${summary.alreadyReceivedNIO.toFixed(2)}`,
+        saldo_en_mano: `C$ ${summary.cashInHandNIO.toFixed(2)}`,
+        km_inicial: kmDisplay,
+        km_final: w.final_km !== null && w.final_km !== undefined ? `${w.final_km} km` : 'En recorrido',
+        observaciones: w.notes || 'Ninguna',
       }
     })
 
@@ -129,18 +240,18 @@ async function fetchReportData(
           actual_cash,
           branch_id,
           courier:profiles!settlements_courier_id_fkey (
-            full_name
+            full_name,
+            display_name
           ),
           branch:branches!settlements_branch_id_fkey (
             name
           )
         ),
         adjuster:profiles!settlement_adjustments_adjusted_by_fkey (
-          full_name
+          full_name,
+          display_name
         )
       `)
-      .gte('created_at', `${from}T00:00:00`)
-      .lte('created_at', `${to}T23:59:59`)
       .order('created_at', { ascending: false })
 
     if (error) {
@@ -148,28 +259,27 @@ async function fetchReportData(
       return []
     }
 
-    let filtered = data ?? []
-    if (branchIds.length > 0) {
-      filtered = filtered.filter((row: any) =>
-        branchIds.includes(row.settlement?.branch_id)
-      )
-    }
+    const filtered = (data ?? []).filter((row: any) => {
+      const rowDate = row.settlement?.settlement_date || row.created_at?.split('T')[0]
+      const dateMatch = (!from || rowDate >= from) && (!to || rowDate <= to)
+      const branchMatch = !branchId || row.settlement?.branch_id === branchId
+      return dateMatch && branchMatch
+    })
 
     const formatted = filtered.map((row: any) => {
       const amount = Number(row.adjustment_amount || 0)
       const isShortage = amount < 0
+
       return {
         id: row.id,
-        fecha: row.created_at ? new Date(row.created_at).toLocaleDateString('es-NI') : '—',
-        motorizado: row.settlement?.courier?.full_name || 'N/A',
+        fecha_liquidacion: row.settlement?.settlement_date || row.created_at?.split('T')[0],
+        motorizado: row.settlement?.courier?.display_name || row.settlement?.courier?.full_name || 'N/A',
         sucursal: row.settlement?.branch?.name || 'N/A',
         tipo_ajuste: isShortage ? 'FALTANTE' : 'SOBRANTE',
-        efectivo_esperado: `C$ ${Number(row.settlement?.expected_cash || 0).toFixed(2)}`,
-        efectivo_entregado: `C$ ${Number(row.settlement?.actual_cash || 0).toFixed(2)}`,
-        monto_ajuste: `${isShortage ? '-' : '+'}C$ ${Math.abs(amount).toFixed(2)}`,
+        monto_ajuste: `${amount > 0 ? '+' : ''}C$ ${amount.toFixed(2)}`,
         monto_numerico: amount,
         motivo_justificacion: row.reason || 'Sin motivo especificado',
-        autorizado_por: row.adjuster?.full_name || 'Admin',
+        autorizado_por: row.adjuster?.display_name || row.adjuster?.full_name || 'Admin',
       }
     })
 
@@ -211,18 +321,20 @@ function exportCSV(data: unknown[], filename: string) {
 
 export default function ReportsPage() {
   const { profile } = useAuth()
-  const branchIds = profile?.branch_ids ?? []
+  const defaultBranchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
 
+  const { data: branches = [] } = useBranches()
   const todayStr = new Date().toISOString().split('T')[0]
   const [reportType, setReportType] = useState<ReportType>('tasks')
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(defaultBranchId || '')
   const [from, setFrom] = useState(todayStr)
   const [to, setTo] = useState(todayStr)
   const [enabled, setEnabled] = useState(false)
 
   const { data = [], isLoading, refetch } = useQuery({
-    queryKey: ['report', reportType, from, to, branchIds],
-    queryFn: () => fetchReportData(reportType, from, to, branchIds),
-    enabled: enabled && branchIds.length > 0,
+    queryKey: ['report', reportType, from, to, selectedBranchId],
+    queryFn: () => fetchReportData(reportType, from, to, selectedBranchId || undefined),
+    enabled: enabled,
   })
 
   const handleGenerate = () => {
@@ -293,9 +405,9 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        {/* Rango de fechas */}
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="flex-1">
+        {/* Rango de fechas y sucursal */}
+        <div className="flex flex-col sm:flex-row flex-wrap gap-3">
+          <div className="flex-1 min-w-[140px]">
             <label className="block text-xs font-semibold text-foreground mb-1">
               <Calendar className="h-3.5 w-3.5 inline mr-1 text-foreground-muted" />
               Desde
@@ -307,7 +419,7 @@ export default function ReportsPage() {
               className="w-full px-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
             />
           </div>
-          <div className="flex-1">
+          <div className="flex-1 min-w-[140px]">
             <label className="block text-xs font-semibold text-foreground mb-1">
               <Calendar className="h-3.5 w-3.5 inline mr-1 text-foreground-muted" />
               Hasta
@@ -320,6 +432,24 @@ export default function ReportsPage() {
               className="w-full px-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
             />
           </div>
+          <div className="flex-1 min-w-[180px]">
+            <label className="block text-xs font-semibold text-foreground mb-1">
+              <Building2 className="h-3.5 w-3.5 inline mr-1 text-foreground-muted" />
+              Sucursal
+            </label>
+            <select
+              value={selectedBranchId}
+              onChange={(e) => { setSelectedBranchId(e.target.value); setEnabled(false) }}
+              className="w-full px-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
+            >
+              <option value="">Todas las sucursales</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </div>
           <div className="flex items-end">
             <button
               onClick={handleGenerate}
@@ -331,6 +461,7 @@ export default function ReportsPage() {
           </div>
         </div>
       </div>
+
 
       {/* Tarjetas KPI resumen para Reporte de Ajustes */}
       {enabled && adjustmentKpis && (
