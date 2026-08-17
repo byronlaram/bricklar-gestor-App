@@ -571,42 +571,132 @@ export async function createCashMovement(payload: CreateMovementPayload): Promis
   return data as unknown as CashMovement
 }
 
-export async function getDailyClosure(branchId: string, date: string): Promise<DailyClosureSummary> {
-  const settlements = await getSettlements({ branch_id: branchId, date })
+export async function getDailyClosure(
+  branchId: string | undefined,
+  date: string
+): Promise<DailyClosureSummary & { workdays_detail?: any[] }> {
+  // 1. Obtener todas las jornadas del día (incluso las que aún no tienen registro en settlements)
+  const { data: session } = await supabase.auth.getSession()
+  if (!session?.session?.user?.id) throw new Error('No hay sesión activa.')
 
-  const totalWorkdays = settlements.length
-  const totalCollectionsCash = settlements.reduce(
-    (acc, s) => acc + (s.cash_summary?.collectionsNIO ?? s.expected_cash),
+  let query = supabase
+    .from('workdays')
+    .select(`
+      *,
+      courier_profile:profiles!workdays_courier_id_fkey (
+        id, full_name, display_name, phone, avatar_url
+      ),
+      branch:branches!workdays_branch_id_fkey (
+        id, name, code
+      )
+    `)
+    .eq('work_date', date)
+
+  if (branchId) {
+    query = query.eq('branch_id', branchId)
+  }
+
+  const { data: rawWorkdays } = await query
+  const workdaysList = (rawWorkdays || []) as any[]
+
+  // 2. Carga en lote de tareas y movimientos de caja
+  const workdayIds = workdaysList.map((w) => w.id)
+  const courierIds = Array.from(new Set(workdaysList.map((w) => w.courier_id)))
+
+  const { data: batchTasks } = await supabase
+    .from('tasks')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .in('assigned_courier_id', courierIds)
+    .eq('scheduled_date', date)
+    .eq('status', 'completed')
+
+  const { data: batchMovements } = await supabase
+    .from('cash_movements')
+    .select('workday_id, amount, currency, direction, movement_type')
+    .in('workday_id', workdayIds)
+
+  // 3. Liquidaciones registradas para este día
+  let settlementsQuery = supabase
+    .from('settlements')
+    .select(SETTLEMENT_SELECT)
+    .eq('settlement_date', date)
+
+  if (branchId) {
+    settlementsQuery = settlementsQuery.eq('branch_id', branchId)
+  }
+
+  const { data: rawSettlements } = await settlementsQuery
+  const settlements = (rawSettlements || []) as Settlement[]
+
+  const settlementMap = new Map<string, Settlement>()
+  settlements.forEach((s) => settlementMap.set(s.workday_id, s))
+
+  const enrichedWorkdays = workdaysList.map((w) => {
+    const wTasks = (batchTasks || []).filter((t) => t.assigned_courier_id === w.courier_id)
+    const wMovements = (batchMovements || []).filter((m) => m.workday_id === w.id)
+    const summary = calculateWorkdayCashSummary(w.initial_cash || 0, wTasks, wMovements)
+    return {
+      ...w,
+      cash_summary: summary,
+    }
+  })
+
+  const totalWorkdays = enrichedWorkdays.length
+  const totalCollectionsCash = enrichedWorkdays.reduce(
+    (acc, w) => acc + (w.cash_summary?.collectionsNIO ?? 0),
     0
   )
-  const totalCollectionsTransfer = settlements.reduce(
-    (acc, s) => acc + (s.cash_summary?.collectionsUSD ?? s.actual_transfers),
+  const totalCollectionsTransfer = enrichedWorkdays.reduce(
+    (acc, w) => acc + (w.cash_summary?.collectionsUSD ?? 0),
     0
   )
-  const totalExpenses = settlements.reduce(
-    (acc, s) => acc + (s.cash_summary?.expensesNIO ?? s.total_expenses),
+  const totalExpenses = enrichedWorkdays.reduce(
+    (acc, w) => acc + (w.cash_summary?.expensesNIO ?? 0),
     0
   )
-  const totalAlreadyReceived = settlements.reduce(
-    (acc, s) => acc + (s.cash_summary?.alreadyReceivedNIO ?? 0),
+  const totalAlreadyReceived = enrichedWorkdays.reduce(
+    (acc, w) => acc + (w.cash_summary?.alreadyReceivedNIO ?? 0),
     0
   )
-  const netCashInHand = settlements.reduce(
-    (acc, s) => acc + (s.status === 'approved' ? s.actual_cash : (s.cash_summary?.cashInHandNIO ?? s.expected_cash)),
-    0
-  )
+
+  // Total físico en caja: Entregas parciales en ventanilla + Liquidaciones aprobadas
+  const netReceivedInCash = enrichedWorkdays.reduce((acc, w) => {
+    const s = settlementMap.get(w.id)
+    const priorReceived = w.cash_summary?.alreadyReceivedNIO ?? 0
+    const finalSettlementReceived = s && s.status === 'approved' ? s.actual_cash : 0
+    return acc + priorReceived + finalSettlementReceived
+  }, 0)
+
+  const workdaysDetail = enrichedWorkdays.map((w) => {
+    const s = settlementMap.get(w.id)
+    return {
+      workdayId: w.id,
+      courierName: w.courier_profile?.display_name || w.courier_profile?.full_name || 'Motorizado',
+      branchName: w.branch?.name || 'Sucursal',
+      status: w.status,
+      settlementStatus: s?.status || null,
+      initialCash: w.initial_cash || 0,
+      collections: w.cash_summary?.collectionsNIO || 0,
+      expenses: w.cash_summary?.expensesNIO || 0,
+      alreadyReceived: w.cash_summary?.alreadyReceivedNIO || 0,
+      pendingCash: w.cash_summary?.cashInHandNIO || 0,
+      deliveredCash: s?.actual_cash ?? null,
+    }
+  })
 
   return {
-    branch_id: branchId,
+    branch_id: branchId || '',
     date,
     total_workdays: totalWorkdays,
     total_collections_cash: totalCollectionsCash,
     total_collections_transfer: totalCollectionsTransfer,
     total_expenses: totalExpenses,
     total_already_received: totalAlreadyReceived,
-    net_cash_in_hand: netCashInHand,
+    net_cash_in_hand: netReceivedInCash,
+    workdays_detail: workdaysDetail,
   }
 }
+
 
 
 export interface PendingBalanceBreakdown {
