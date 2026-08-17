@@ -19,6 +19,7 @@ import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
 import { useCashMovements } from '@/modules/settlements/hooks/useSettlements'
 import { useCourierPendingBalances } from '@/modules/settlements/hooks/usePendingBalances'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
+import { calculateWorkdayCashSummary } from '@/modules/workdays/utils/workdayCalculations'
 import { AddMovementModal } from '@/modules/settlements/components/AddMovementModal'
 import {
   Button,
@@ -59,61 +60,34 @@ export default function CourierFundsPage() {
     [tasksData?.data]
   )
 
-  // Total cobrado en efectivo en tareas completadas
-  const cashCollections = useMemo(
+  // Cálculo centralizado y unificado de caja en vivo
+  const cashSummary = useMemo(
     () =>
-      completedTasks
-        .filter((t) => (t.expected_payment_method || 'cash') === 'cash' && t.requires_collection)
-        .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0),
-    [completedTasks]
+      calculateWorkdayCashSummary(
+        activeWorkday?.initial_cash || 0,
+        completedTasks,
+        movements
+      ),
+    [activeWorkday?.initial_cash, completedTasks, movements]
   )
 
-  // Pagos a proveedores / compras realizadas en tareas completadas
-  const taskPayments = useMemo(
-    () =>
-      completedTasks
-        .filter((t) => t.requires_payment && (t.expected_payment_amount || 0) > 0)
-        .reduce((acc, t) => acc + (t.expected_payment_amount || 0), 0),
-    [completedTasks]
-  )
-
-  // Entregas de efectivo / adelantos recibidos de administración
-  const totalCashAdvances = useMemo(
-    () =>
-      movements
-        .filter((m) => m.direction === 'income' && m.movement_type === 'cash_advance')
-        .reduce((acc, m) => acc + m.amount, 0),
-    [movements]
-  )
-
-  // Gastos manuales de ruta (combustible, compras varias)
-  const manualExpenses = useMemo(
-    () =>
-      movements
-        .filter((m) => m.direction === 'expense')
-        .reduce((acc, m) => acc + m.amount, 0),
-    [movements]
-  )
-
-  // Total gastos y pagos del turno
-  const totalExpenses = manualExpenses + taskPayments
-
-  // Fondo inicial de la jornada
+  const cashCollections = cashSummary.collectionsNIO
+  const totalExpenses = cashSummary.expensesNIO
   const initialCash = activeWorkday?.initial_cash || 0
+  const totalFundsReceived = initialCash
+  const alreadyReceivedByAdmin = cashSummary.alreadyReceivedNIO
 
-  // Fondo total recibido (Fondo inicial + Entregas adicionales de efectivo)
-  const totalFundsReceived = initialCash + totalCashAdvances
+  // Saldo exclusivo del turno actual en mano
+  const todayNetCash = Math.max(0, cashSummary.cashInHandNIO)
 
-  // Saldo exclusivo del turno actual
-  const todayNetCash = Math.max(0, totalFundsReceived + cashCollections - totalExpenses)
-
-  // Saldo pendiente acumulado de jornadas anteriores
-  const pendingCarryoverCash = pendingBalances?.totalPendingCash || 0
+  // Saldo pendiente acumulado de jornadas anteriores (excluyendo la jornada en curso)
+  const pendingCarryoverCash = isPastWorkday ? 0 : (pendingBalances?.totalPendingCash || 0)
   const hasPendingCarryover =
+    !isPastWorkday &&
     (pendingBalances?.hasPendingBalances ?? false) &&
     (pendingCarryoverCash > 0 || (pendingBalances?.breakdown?.length || 0) > 0)
 
-  // Total efectivo disponible en mano (Turno actual + Días anteriores no liquidados)
+  // Total efectivo disponible en mano
   const grandTotalCashInHand = todayNetCash + pendingCarryoverCash
 
   const handleOpenGastoModal = () => {
@@ -133,6 +107,7 @@ export default function CourierFundsPage() {
       completedTasks.filter((t) => t.requires_payment && (t.expected_payment_amount || 0) > 0),
     [completedTasks]
   )
+
 
   if (isLoadingWorkday || isLoadingMovements || isLoadingTasks || isLoadingPendingBalances) {
     return (
@@ -248,7 +223,7 @@ export default function CourierFundsPage() {
             <Wallet className="h-4 w-4 text-teal-300" />
             Dinero Disponible en Mano
           </span>
-          <span className="text-2xs bg-indigo-950/80 text-teal-200 px-3 py-1 rounded-full font-mono border border-indigo-700/60 font-bold">
+          <span className="text-xs font-bold font-mono bg-indigo-950/60 px-3 py-1 rounded-full border border-indigo-500/30 text-indigo-200">
             {targetWorkDate}
           </span>
         </div>
@@ -267,8 +242,8 @@ export default function CourierFundsPage() {
           )}
         </div>
 
-        {/* Desglose rápido 3 tarjetas integradas del turno */}
-        <div className="grid grid-cols-3 gap-2.5 pt-2 text-center text-xs">
+        {/* Desglose rápido tarjetas integradas del turno */}
+        <div className={`grid ${alreadyReceivedByAdmin > 0 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'} gap-2.5 pt-2 text-center text-xs`}>
           <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-xs border border-white/10">
             <span className="text-2xs block text-indigo-200 uppercase tracking-wider font-semibold">Fondos Recibidos</span>
             <span className="font-bold text-white text-sm font-tabular mt-0.5 block">
@@ -289,6 +264,15 @@ export default function CourierFundsPage() {
               -C$ {totalExpenses.toFixed(2)}
             </span>
           </div>
+
+          {alreadyReceivedByAdmin > 0 && (
+            <div className="bg-sky-500/20 p-3 rounded-2xl backdrop-blur-xs border border-sky-400/30">
+              <span className="text-2xs block text-sky-200 uppercase tracking-wider font-semibold">Entregado a Caja</span>
+              <span className="font-bold text-sky-200 text-sm font-tabular mt-0.5 block">
+                -C$ {alreadyReceivedByAdmin.toFixed(2)}
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

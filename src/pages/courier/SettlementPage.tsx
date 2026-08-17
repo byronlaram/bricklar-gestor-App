@@ -15,6 +15,7 @@ import {
   ChevronDown,
   ChevronUp,
   Package,
+  HandCoins,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
@@ -25,6 +26,7 @@ import {
 } from '@/modules/settlements/hooks/useSettlements'
 import { useCourierPendingBalances } from '@/modules/settlements/hooks/usePendingBalances'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
+import { calculateWorkdayCashSummary } from '@/modules/workdays/utils/workdayCalculations'
 import { SETTLEMENT_STATUS_LABELS } from '@/shared/types'
 import {
   Card,
@@ -70,15 +72,18 @@ export default function CourierSettlementPage() {
 
   const completedTasksCount = completedTasks.length
 
-  // Cálculo en vivo de cobros en efectivo y transferencias
-  const liveCashCollections = useMemo(
+  // Cálculo centralizado y unificado de caja
+  const cashSummary = useMemo(
     () =>
-      completedTasks
-        .filter((t) => (t.expected_payment_method || 'cash') === 'cash' && t.requires_collection)
-        .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0),
-    [completedTasks]
+      calculateWorkdayCashSummary(
+        activeWorkday?.initial_cash || 0,
+        completedTasks,
+        movements
+      ),
+    [activeWorkday?.initial_cash, completedTasks, movements]
   )
 
+  const liveCashCollections = cashSummary.collectionsNIO
   const liveTransferCollections = useMemo(
     () =>
       completedTasks
@@ -87,7 +92,6 @@ export default function CourierSettlementPage() {
     [completedTasks]
   )
 
-  // Pagos a proveedores / compras realizadas en tareas completadas
   const liveTaskPayments = useMemo(
     () =>
       completedTasks
@@ -96,29 +100,11 @@ export default function CourierSettlementPage() {
     [completedTasks]
   )
 
-  // Gastos manuales registrados en ruta (gasolina, etc.)
-  const liveManualExpenses = useMemo(
-    () =>
-      movements
-        .filter((m) => m.direction === 'expense')
-        .reduce((acc, m) => acc + m.amount, 0),
-    [movements]
-  )
-
-  // Entregas adicionales de efectivo / adelantos recibidos
-  const totalCashAdvances = useMemo(
-    () =>
-      movements
-        .filter((m) => m.direction === 'income' && m.movement_type === 'cash_advance')
-        .reduce((acc, m) => acc + m.amount, 0),
-    [movements]
-  )
-
+  const liveCombinedExpenses = cashSummary.expensesNIO
+  const liveManualExpenses = cashSummary.expensesNIO - liveTaskPayments
   const initialCash = activeWorkday?.initial_cash || 0
-  const totalFundsReceived = initialCash + totalCashAdvances
-
-  // Total combinado de gastos y pagos
-  const liveCombinedExpenses = liveManualExpenses + liveTaskPayments
+  const totalFundsReceived = initialCash
+  const alreadyReceivedByAdmin = cashSummary.alreadyReceivedNIO
 
   // Si la liquidación ya fue formalmente aprobada por el admin, tomamos el snapshot; de lo contrario, datos en vivo
   const isSettlementFinalized = settlement?.status === 'approved'
@@ -135,14 +121,15 @@ export default function CourierSettlementPage() {
     ? (settlement?.total_expenses ?? liveCombinedExpenses)
     : liveCombinedExpenses
 
-  // Saldo exclusivo del turno actual a entregar
+  // Saldo exclusivo del turno actual a entregar (restando dinero ya entregado a administración si hubo)
   const todayNetCashToDeliver = isSettlementFinalized
-    ? Math.max(0, (settlement?.actual_cash ?? expectedCash) - totalExpenses)
-    : Math.max(0, totalFundsReceived + expectedCash - totalExpenses)
+    ? Math.max(0, settlement?.actual_cash ?? expectedCash)
+    : Math.max(0, cashSummary.cashInHandNIO)
 
   // Saldo arrastrado acumulado de días anteriores no liquidados
-  const pendingCarryoverCash = pendingBalances?.totalPendingCash || 0
+  const pendingCarryoverCash = isPastWorkday ? 0 : (pendingBalances?.totalPendingCash || 0)
   const hasPendingCarryover =
+    !isPastWorkday &&
     (pendingBalances?.hasPendingBalances ?? false) &&
     (pendingCarryoverCash > 0 || (pendingBalances?.breakdown?.length || 0) > 0)
 
@@ -157,6 +144,7 @@ export default function CourierSettlementPage() {
       console.error('Error submitting settlement:', err)
     }
   }
+
 
   if (isLoadingWorkday || isLoadingSettlement || isLoadingMovements || isLoadingTasks || isLoadingPendingBalances) {
     return (
@@ -439,6 +427,18 @@ export default function CourierSettlementPage() {
               </span>
               <span className="font-bold text-rose-700 font-tabular text-sm">
                 - C$ {liveManualExpenses.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
+
+          {alreadyReceivedByAdmin > 0 && (
+            <div className="flex justify-between items-center p-3.5 bg-sky-50/70 rounded-2xl border border-sky-100">
+              <span className="text-sky-800 flex items-center gap-2 font-medium">
+                <HandCoins className="h-4 w-4 text-sky-600" />
+                Entregas Parciales ya Entregadas a Caja (-):
+              </span>
+              <span className="font-bold text-sky-800 font-tabular text-sm">
+                - C$ {alreadyReceivedByAdmin.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
             </div>
           )}
