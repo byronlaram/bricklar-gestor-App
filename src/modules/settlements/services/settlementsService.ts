@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/lib/supabaseClient'
+import { calculateWorkdayCashSummary } from '@/modules/workdays/utils/workdayCalculations'
 import type {
   Settlement,
   CashMovement,
@@ -77,57 +78,46 @@ export async function submitSettlement(workdayId: string, notes?: string): Promi
   const userId = session?.session?.user?.id
   if (!userId) throw new Error('No hay sesión activa.')
 
-  // Obtener la jornada para branch_id y work_date
+  // Obtener la jornada para branch_id, courier_id y work_date
   const { data: workday, error: workdayErr } = await supabase
     .from('workdays')
-    .select('branch_id, work_date, initial_cash')
+    .select('id, branch_id, courier_id, work_date, initial_cash')
     .eq('id', workdayId)
     .single()
 
   if (workdayErr || !workday) throw new Error('Jornada laboral no encontrada.')
 
+  const targetCourierId = workday.courier_id || userId
+
   // Calcular cobros y pagos de tareas completadas de esta jornada/motorizado
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('expected_collection_amount, expected_payment_method, requires_collection, requires_payment, expected_payment_amount')
-    .eq('assigned_courier_id', userId)
+    .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .eq('assigned_courier_id', targetCourierId)
     .eq('scheduled_date', workday.work_date)
     .eq('status', 'completed')
 
-  const totalExpectedCash = (tasks || [])
-    .filter((t) => t.requires_collection && (t.expected_payment_method || 'cash') === 'cash')
-    .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
+  // Obtener movimientos de caja de esta jornada
+  const { data: movements } = await supabase
+    .from('cash_movements')
+    .select('amount, currency, direction, movement_type')
+    .eq('workday_id', workdayId)
 
+  const cashSummary = calculateWorkdayCashSummary(
+    workday.initial_cash ?? 0,
+    tasks || [],
+    movements || []
+  )
+
+  const expectedCashNet = Math.max(0, cashSummary.cashInHandNIO)
+  const totalExpenses = cashSummary.expensesNIO
   const totalExpectedTransfers = (tasks || [])
     .filter((t) => t.requires_collection && t.expected_payment_method && t.expected_payment_method !== 'cash')
     .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
 
-  const totalTaskPayments = (tasks || [])
-    .filter((t) => t.requires_payment && (t.expected_payment_amount || 0) > 0)
-    .reduce((acc, t) => acc + (t.expected_payment_amount || 0), 0)
-
-  // Obtener movimientos de caja de esta jornada (gastos manuales e ingresos por adelantos de efectivo)
-  const { data: movements } = await supabase
-    .from('cash_movements')
-    .select('amount, direction, movement_type')
-    .eq('workday_id', workdayId)
-
-  const manualExpenses = (movements || [])
-    .filter((m) => m.direction === 'expense')
-    .reduce((acc, m) => acc + m.amount, 0)
-
-  const totalExpenses = manualExpenses + totalTaskPayments
-
-  const totalCashAdvances = (movements || [])
-    .filter((m) => m.direction === 'income' && m.movement_type === 'cash_advance')
-    .reduce((acc, m) => acc + m.amount, 0)
-
-  const initialCash = workday.initial_cash ?? 0
-  const expectedCashNet = Math.max(0, initialCash + totalCashAdvances + totalExpectedCash - totalExpenses)
-
   const insertData = {
     workday_id: workdayId,
-    courier_id: userId,
+    courier_id: targetCourierId,
     branch_id: workday.branch_id,
     settlement_date: workday.work_date,
     status: 'pending_review',
@@ -153,6 +143,7 @@ export async function submitSettlement(workdayId: string, notes?: string): Promi
 
   return data as unknown as Settlement
 }
+
 
 export async function approveSettlement(payload: ApproveSettlementPayload): Promise<Settlement> {
   const { data: session } = await supabase.auth.getSession()
@@ -450,57 +441,37 @@ export async function getCourierPendingBalances(
       unclosedWorkdaysCount++
     }
 
-    // Calcular montos de este día no aprobado
-    let dayPendingAmount = 0
-    let reason = ''
+    // Calcular tareas y movimientos en tiempo real para este día
+    const { data: dayTasks } = await supabase
+      .from('tasks')
+      .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+      .eq('assigned_courier_id', courierId)
+      .eq('scheduled_date', wd.work_date)
+      .eq('status', 'completed')
+
+    const { data: dayMovements } = await supabase
+      .from('cash_movements')
+      .select('amount, currency, direction, movement_type')
+      .eq('workday_id', wd.id)
+
+    // Usar la función centralizada de cálculo en tiempo real
+    const cashSummary = calculateWorkdayCashSummary(
+      wd.initial_cash || 0,
+      dayTasks || [],
+      dayMovements || []
+    )
+
+    const dayPendingAmount = Math.max(0, cashSummary.cashInHandNIO)
+
     let statusType: PendingBalanceBreakdown['status'] = 'unclosed_workday'
+    let reason = 'Jornada no cerrada ni liquidada al finalizar el día'
 
     if (settlement && settlement.status === 'pending_review') {
-      dayPendingAmount = settlement.actual_cash || settlement.expected_cash || 0
       statusType = 'pending_settlement'
       reason = 'Liquidación enviada pero aún pendiente de aprobación en caja'
-    } else {
-      // Calcular desde tareas y movimientos
-      const { data: dayTasks } = await supabase
-        .from('tasks')
-        .select('expected_collection_amount, expected_payment_method, requires_collection, requires_payment, expected_payment_amount')
-        .eq('assigned_courier_id', courierId)
-        .eq('scheduled_date', wd.work_date)
-        .eq('status', 'completed')
-
-      const cashCollections = (dayTasks || [])
-        .filter((t) => t.requires_collection && (t.expected_payment_method || 'cash') === 'cash')
-        .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
-
-      const dayTaskPayments = (dayTasks || [])
-        .filter((t) => t.requires_payment && (t.expected_payment_amount || 0) > 0)
-        .reduce((acc, t) => acc + (t.expected_payment_amount || 0), 0)
-
-      const { data: dayMovements } = await supabase
-        .from('cash_movements')
-        .select('amount, direction, movement_type')
-        .eq('workday_id', wd.id)
-
-      const manualExpenses = (dayMovements || [])
-        .filter((m) => m.direction === 'expense')
-        .reduce((acc, m) => acc + m.amount, 0)
-
-      const expenses = manualExpenses + dayTaskPayments
-
-      const advances = (dayMovements || [])
-        .filter((m) => m.direction === 'income' && m.movement_type === 'cash_advance')
-        .reduce((acc, m) => acc + m.amount, 0)
-
-      const initial = wd.initial_cash || 0
-      dayPendingAmount = Math.max(0, initial + advances + cashCollections - expenses)
-
-      if (wd.status === 'open') {
-        statusType = 'unclosed_workday'
-        reason = 'Jornada no cerrada ni liquidada al finalizar el día'
-      } else {
-        statusType = 'unapproved_settlement'
-        reason = 'Cierre ejecutado sin liquidación entregada a caja'
-      }
+    } else if (wd.status !== 'open') {
+      statusType = 'unapproved_settlement'
+      reason = 'Cierre ejecutado sin liquidación entregada a caja'
     }
 
     if (dayPendingAmount > 0 || wd.status === 'open') {
