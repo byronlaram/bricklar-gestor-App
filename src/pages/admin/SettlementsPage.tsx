@@ -7,13 +7,17 @@ import {
   DollarSign,
   ListFilter,
   AlertTriangle,
+  PhoneOff,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useSettlements } from '@/modules/settlements/hooks/useSettlements'
 import { useAllCouriersPendingBalances } from '@/modules/settlements/hooks/usePendingBalances'
+import { getWorkdayById } from '@/modules/workdays/services/workdaysService'
+import type { Workday } from '@/modules/workdays/types/workdays.types'
 import type { SettlementFilters, Settlement } from '@/modules/settlements/types/settlements.types'
 import { SETTLEMENT_STATUS_LABELS } from '@/shared/types'
 import { ApproveSettlementModal } from '@/modules/settlements/components/ApproveSettlementModal'
+import { AdminForceSettlementModal } from '@/modules/settlements/components/AdminForceSettlementModal'
 import {
   Card,
   MetricCard,
@@ -33,9 +37,23 @@ export default function AdminSettlementsPage() {
   })
 
   const [targetSettlement, setTargetSettlement] = useState<Settlement | null>(null)
+  const [forceSettlementWorkday, setForceSettlementWorkday] = useState<Workday | null>(null)
+  const [loadingWorkdayId, setLoadingWorkdayId] = useState<string | null>(null)
 
   const { data: settlements = [], isLoading, isError, error } = useSettlements(filters)
   const { data: allPendingBalances = [] } = useAllCouriersPendingBalances(filters.branch_id || undefined)
+
+  const handleOpenForceSettlement = async (workdayId: string) => {
+    try {
+      setLoadingWorkdayId(workdayId)
+      const wd = await getWorkdayById(workdayId)
+      if (wd) setForceSettlementWorkday(wd)
+    } catch (err) {
+      console.error('Error opening force settlement:', err)
+    } finally {
+      setLoadingWorkdayId(null)
+    }
+  }
 
   // Métricas
   const pendingCount = settlements.filter((s) => s.status === 'pending_review').length
@@ -69,21 +87,43 @@ export default function AdminSettlementsPage() {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {allPendingBalances.map((item) => (
-              <div key={item.courierId} className="bg-white border border-amber-200/90 rounded-2xl p-3.5 shadow-2xs space-y-1.5">
+              <div key={item.courierId} className="bg-white border border-amber-200/90 rounded-2xl p-3.5 shadow-2xs space-y-2">
                 <div className="flex justify-between items-center">
                   <span className="font-bold text-slate-900 text-xs">👤 {item.courierName}</span>
                   <span className="font-mono font-black text-rose-600 text-xs">
                     C$ {item.totalPendingCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                 </div>
-                <p className="text-[11px] text-slate-500 font-medium">
-                  {item.breakdown.length} jornada(s) adeudada(s): {item.breakdown.map((b) => b.workDate).join(', ')}
-                </p>
+
+                <div className="space-y-1.5 pt-1 border-t border-slate-100">
+                  {item.breakdown.map((b) => (
+                    <div key={b.workDate} className="flex justify-between items-center text-[11px] gap-2">
+                      <div className="truncate">
+                        <span className="font-mono font-semibold text-slate-800">{b.workDate}:</span>{' '}
+                        <span className="text-rose-600 font-bold font-mono">C$ {b.amount.toFixed(2)}</span>
+                      </div>
+                      {b.workdayId && (
+                        <Button
+                          onClick={() => handleOpenForceSettlement(b.workdayId!)}
+                          variant="outline"
+                          size="sm"
+                          isLoading={loadingWorkdayId === b.workdayId}
+                          leftIcon={<PhoneOff className="h-3 w-3 text-amber-600" />}
+                          className="border-amber-300 text-amber-900 bg-amber-50 hover:bg-amber-100 text-3xs font-bold py-0.5 px-2 shrink-0 h-6"
+                          title="Liquidar por contingencia"
+                        >
+                          Liquidar
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             ))}
           </div>
         </div>
       )}
+
 
       {/* Métricas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -263,6 +303,14 @@ export default function AdminSettlementsPage() {
         isOpen={!!targetSettlement}
         onClose={() => setTargetSettlement(null)}
       />
+
+      {/* Modal Liquidación Administrativa por Contingencia */}
+      <AdminForceSettlementModal
+        workday={forceSettlementWorkday}
+        isOpen={!!forceSettlementWorkday}
+        onClose={() => setForceSettlementWorkday(null)}
+      />
     </div>
   )
 }
+

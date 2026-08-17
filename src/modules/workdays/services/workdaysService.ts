@@ -19,7 +19,40 @@ const WORKDAY_SELECT = `
   )
 `
 
+export async function getWorkdayById(id: string): Promise<Workday | null> {
+  const { data, error } = await supabase
+    .from('workdays')
+    .select(WORKDAY_SELECT)
+    .eq('id', id)
+    .single()
+
+  if (error || !data) return null
+
+  const wd = data as unknown as Workday
+
+  // Obtener tareas y movimientos
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('expected_collection_amount, expected_collection_currency, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .eq('assigned_courier_id', wd.courier_id)
+    .eq('scheduled_date', wd.work_date)
+    .eq('status', 'completed')
+
+  const { data: movements } = await supabase
+    .from('cash_movements')
+    .select('amount, currency, direction, movement_type')
+    .eq('workday_id', wd.id)
+
+  const summary = calculateWorkdayCashSummary(wd.initial_cash || 0, tasks || [], movements || [])
+
+  return {
+    ...wd,
+    cash_summary: summary,
+  }
+}
+
 export async function getActiveWorkday(userId: string): Promise<Workday | null> {
+
   const { data, error } = await supabase
     .from('workdays')
     .select(WORKDAY_SELECT)

@@ -76,6 +76,17 @@ export interface ApproveSettlementPayload {
   adjustment_notes?: string
 }
 
+export interface AdminForceSettlementPayload {
+  workday_id: string
+  actual_cash: number
+  actual_transfers?: number
+  contingency_reason: string
+  contingency_notes?: string
+  adjustment_reason_type?: string
+  adjustment_notes?: string
+}
+
+
 export interface SettlementAdjustmentRecord {
   id: string
   settlement_id: string

@@ -5,6 +5,7 @@ import type {
   CashMovement,
   CreateMovementPayload,
   ApproveSettlementPayload,
+  AdminForceSettlementPayload,
   SettlementFilters,
   DailyClosureSummary,
 } from '../types/settlements.types'
@@ -225,7 +226,137 @@ export async function approveSettlement(payload: ApproveSettlementPayload): Prom
   return data as unknown as Settlement
 }
 
+export async function adminForceSettlement(payload: AdminForceSettlementPayload): Promise<Settlement> {
+  const { data: session } = await supabase.auth.getSession()
+  const adminId = session?.session?.user?.id
+  if (!adminId) throw new Error('No hay sesión activa.')
+
+  // 1. Obtener la jornada
+  const { data: workday, error: wdErr } = await supabase
+    .from('workdays')
+    .select('id, branch_id, courier_id, work_date, initial_cash, notes')
+    .eq('id', payload.workday_id)
+    .single()
+
+  if (wdErr || !workday) throw new Error('Jornada no encontrada.')
+
+  // 2. Obtener tareas y movimientos en tiempo real
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .eq('assigned_courier_id', workday.courier_id)
+    .eq('scheduled_date', workday.work_date)
+    .eq('status', 'completed')
+
+  const { data: movements } = await supabase
+    .from('cash_movements')
+    .select('amount, currency, direction, movement_type')
+    .eq('workday_id', workday.id)
+
+  const cashSummary = calculateWorkdayCashSummary(
+    workday.initial_cash ?? 0,
+    tasks || [],
+    movements || []
+  )
+
+  const expectedCashNet = Math.max(0, cashSummary.cashInHandNIO)
+  const totalExpenses = cashSummary.expensesNIO
+  const totalExpectedTransfers = (tasks || [])
+    .filter((t) => t.requires_collection && t.expected_payment_method && t.expected_payment_method !== 'cash')
+    .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
+
+  const difference = payload.actual_cash - expectedCashNet
+
+  const contingencyLabelMap: Record<string, string> = {
+    telefono_danado_apagado: 'Celular de motorizado dañado o sin batería',
+    sin_senal_datos: 'Sin cobertura de datos móviles',
+    extravio_robo: 'Extravío o robo de equipo celular',
+    entrega_directa_oficina: 'Entrega física directa de valores en oficina',
+    otro: 'Contingencia operativa',
+  }
+
+  const reasonLabel = contingencyLabelMap[payload.contingency_reason] || payload.contingency_reason
+  const adminAuditNote = `[Liquidación Administrativa por Contingencia: ${reasonLabel}]${payload.contingency_notes ? ` - ${payload.contingency_notes}` : ''}`
+
+  // 3. Upsert settlement en estado 'approved'
+  const settlementData = {
+    workday_id: workday.id,
+    courier_id: workday.courier_id,
+    branch_id: workday.branch_id,
+    settlement_date: workday.work_date,
+    status: 'approved',
+    expected_cash: expectedCashNet,
+    actual_cash: payload.actual_cash,
+    expected_transfers: totalExpectedTransfers,
+    actual_transfers: payload.actual_transfers ?? totalExpectedTransfers,
+    total_expenses: totalExpenses,
+    difference,
+    notes: adminAuditNote,
+    reviewed_by: adminId,
+    reviewed_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+
+  const { data: settlement, error: stlErr } = await supabase
+    .from('settlements')
+    .upsert(settlementData, { onConflict: 'workday_id' })
+    .select(SETTLEMENT_SELECT)
+    .single()
+
+  if (stlErr) {
+    console.error('[Settlements] adminForceSettlement error:', stlErr)
+    throw new Error(stlErr.message)
+  }
+
+  // 4. Si hay diferencia, registrar el ajuste en settlement_adjustments
+  if (Math.abs(difference) > 0.001) {
+    const reasonPrefixMap: Record<string, string> = {
+      faltante_descuento_nomina: 'Faltante — A deducir en nómina',
+      faltante_reponer_manana: 'Faltante — A reponer por motorizado',
+      sobrante_propina: 'Sobrante — Propina / Redondeo a favor',
+      redondeo_cambio: 'Diferencia por redondeo / vuelto',
+      otro: 'Ajuste operativo',
+    }
+
+    const typeTitle = payload.adjustment_reason_type
+      ? reasonPrefixMap[payload.adjustment_reason_type] || 'Ajuste de Liquidación'
+      : difference > 0
+        ? 'Sobrante en Liquidación'
+        : 'Faltante en Liquidación'
+
+    const fullReason = payload.adjustment_notes
+      ? `[${typeTitle}] ${payload.adjustment_notes} (${adminAuditNote})`
+      : `[${typeTitle}] ${adminAuditNote}`
+
+    await supabase
+      .from('settlement_adjustments')
+      .delete()
+      .eq('settlement_id', (settlement as any).id)
+
+    await supabase.from('settlement_adjustments').insert({
+      settlement_id: (settlement as any).id,
+      adjusted_by: adminId,
+      adjustment_amount: difference,
+      reason: fullReason,
+    })
+  }
+
+  // 5. Cerrar la jornada en workdays
+  const existingNotes = workday.notes ? `${workday.notes} | ` : ''
+  await supabase
+    .from('workdays')
+    .update({
+      status: 'closed',
+      notes: `${existingNotes}${adminAuditNote}`,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', workday.id)
+
+  return settlement as unknown as Settlement
+}
+
 export async function getSettlementAdjustments(params: {
+
   branchIds?: string[]
   from?: string
   to?: string

@@ -8,6 +8,7 @@ import {
   Play,
   ListFilter,
   AlertCircle,
+  PhoneOff,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useWorkdays } from '@/modules/workdays/hooks/useWorkday'
@@ -15,6 +16,7 @@ import type { WorkdayFilters, Workday } from '@/modules/workdays/types/workdays.
 import { WORKDAY_STATUS_LABELS } from '@/shared/types'
 import { ReceiveCashModal } from '@/modules/settlements/components/ReceiveCashModal'
 import { DeliverCashModal } from '@/modules/settlements/components/DeliverCashModal'
+import { AdminForceSettlementModal } from '@/modules/settlements/components/AdminForceSettlementModal'
 import {
   Card,
   MetricCard,
@@ -35,7 +37,9 @@ export default function AdminWorkdaysPage() {
   })
 
   const [receiveCashWorkday, setReceiveCashWorkday] = useState<Workday | null>(null)
+  const [forceSettlementWorkday, setForceSettlementWorkday] = useState<Workday | null>(null)
   const [isGlobalDeliverCashOpen, setIsGlobalDeliverCashOpen] = useState(false)
+
 
   const { data: workdays = [], isLoading, isError, error } = useWorkdays(filters)
 
@@ -269,15 +273,29 @@ export default function AdminWorkdaysPage() {
                       </td>
 
                       <td className="py-3 px-4 text-right">
-                        <Button
-                          onClick={() => setReceiveCashWorkday(w)}
-                          variant="primary"
-                          size="sm"
-                          leftIcon={<HandCoins className="h-3.5 w-3.5" />}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent text-2xs font-bold"
-                        >
-                          Recibir Efectivo
-                        </Button>
+                        <div className="flex items-center justify-end gap-2">
+                          <Button
+                            onClick={() => setReceiveCashWorkday(w)}
+                            variant="primary"
+                            size="sm"
+                            leftIcon={<HandCoins className="h-3.5 w-3.5" />}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent text-2xs font-bold"
+                          >
+                            Recibir Efectivo
+                          </Button>
+                          {(w.status === 'open' || w.status === 'pending_settlement') && (
+                            <Button
+                              onClick={() => setForceSettlementWorkday(w)}
+                              variant="outline"
+                              size="sm"
+                              leftIcon={<PhoneOff className="h-3.5 w-3.5 text-amber-600" />}
+                              className="border-amber-300 text-amber-900 bg-amber-50/70 hover:bg-amber-100/90 text-2xs font-bold shadow-2xs"
+                              title="Liquidar jornada directamente en caso de que el motorizado tenga el celular apagado o dañado"
+                            >
+                              Liquidar (Contingencia)
+                            </Button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )
@@ -303,6 +321,14 @@ export default function AdminWorkdaysPage() {
         isOpen={!!receiveCashWorkday}
         onClose={() => setReceiveCashWorkday(null)}
       />
+
+      {/* Modal para Liquidación Administrativa por Contingencia */}
+      <AdminForceSettlementModal
+        workday={forceSettlementWorkday}
+        isOpen={!!forceSettlementWorkday}
+        onClose={() => setForceSettlementWorkday(null)}
+      />
     </div>
   )
 }
+
