@@ -5,6 +5,7 @@ import type {
   PaymentMethod,
   Currency,
 } from '@/shared/types'
+import type { WorkdayCashSummary } from '@/modules/workdays/utils/workdayCalculations'
 
 export interface Settlement {
   id: string
@@ -36,6 +37,7 @@ export interface Settlement {
     name: string
     code: string
   } | null
+  cash_summary?: WorkdayCashSummary
 }
 
 export interface CashMovement {
@@ -99,6 +101,8 @@ export interface SettlementAdjustmentRecord {
     settlement_date: string
     expected_cash: number
     actual_cash: number
+    branch_id: string
+    courier_id: string
     courier?: {
       id: string
       full_name: string
@@ -118,8 +122,8 @@ export interface SettlementAdjustmentRecord {
 export interface SettlementFilters {
   branch_id?: string
   courier_id?: string
-  date?: string
-  status?: SettlementStatus | ''
+  date?: string // YYYY-MM-DD
+  status?: SettlementStatus
 }
 
 export interface DailyClosureSummary {
@@ -129,6 +133,6 @@ export interface DailyClosureSummary {
   total_collections_cash: number
   total_collections_transfer: number
   total_expenses: number
+  total_already_received: number
   net_cash_in_hand: number
 }
-

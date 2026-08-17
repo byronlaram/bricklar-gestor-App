@@ -86,27 +86,48 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
 
         <form onSubmit={handleSubmit}>
           <ModalBody className="space-y-4">
-            {/* Resumen de Arqueo */}
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2 text-xs">
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Efectivo Cobrado Esperado:</span>
-                <span className="font-bold text-slate-900">C$ {(settlement.expected_cash ?? 0).toFixed(2)}</span>
-              </div>
-
-              <div className="flex justify-between items-center">
-                <span className="text-slate-500 font-medium">Gastos de Ruta Registrados:</span>
-                <span className="font-semibold text-amber-600">
-                  - C$ {(settlement.total_expenses ?? 0).toFixed(2)}
+            {/* Resumen de Arqueo Completo */}
+            <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs">
+              <div className="flex justify-between items-center text-slate-700">
+                <span className="font-medium">💼 Fondo Inicial / Adelantos (+):</span>
+                <span className="font-bold text-slate-900 font-mono">
+                  C$ {(settlement.cash_summary?.initialCashNIO ?? 0).toFixed(2)}
                 </span>
               </div>
 
-              <div className="flex justify-between items-center pt-2 border-t border-slate-200 font-bold">
-                <span className="text-slate-900">Efectivo Neto a Recibir en Caja:</span>
-                <span className="text-emerald-600">
-                  C$ {((settlement.expected_cash ?? 0) - (settlement.total_expenses ?? 0)).toFixed(2)}
+              <div className="flex justify-between items-center text-slate-700">
+                <span className="font-medium">💵 Cobros en Efectivo de Tareas (+):</span>
+                <span className="font-bold text-emerald-700 font-mono">
+                  + C$ {(settlement.cash_summary?.collectionsNIO ?? settlement.expected_cash).toFixed(2)}
+                </span>
+              </div>
+
+              {(settlement.cash_summary?.expensesNIO ?? settlement.total_expenses ?? 0) > 0 && (
+                <div className="flex justify-between items-center text-rose-700">
+                  <span className="font-medium">📦 Gastos / Pagos de Ruta Realizados (-):</span>
+                  <span className="font-semibold font-mono">
+                    - C$ {(settlement.cash_summary?.expensesNIO ?? settlement.total_expenses ?? 0).toFixed(2)}
+                  </span>
+                </div>
+              )}
+
+              {(settlement.cash_summary?.alreadyReceivedNIO ?? 0) > 0 && (
+                <div className="flex justify-between items-center text-sky-800">
+                  <span className="font-medium">🏢 Entregas Parciales Previas a Caja (-):</span>
+                  <span className="font-semibold font-mono">
+                    - C$ {(settlement.cash_summary?.alreadyReceivedNIO ?? 0).toFixed(2)}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center pt-2.5 border-t border-slate-200 font-extrabold text-sm">
+                <span className="text-slate-900">Saldo Neto a Recibir en Caja (=):</span>
+                <span className="text-emerald-700 font-mono">
+                  C$ {(settlement.expected_cash ?? 0).toFixed(2)}
                 </span>
               </div>
             </div>
+
 
             <Input
               label="Efectivo Entregado Físicamente (C$)"

@@ -3,9 +3,8 @@ import {
   Calendar,
   Calculator,
   CheckCircle2,
-  Clock,
   DollarSign,
-  ListFilter,
+  Receipt,
   AlertTriangle,
   PhoneOff,
 } from 'lucide-react'
@@ -55,10 +54,25 @@ export default function AdminSettlementsPage() {
     }
   }
 
-  // Métricas
+  // Métricas Contables Integrales
   const pendingCount = settlements.filter((s) => s.status === 'pending_review').length
-  const approvedCount = settlements.filter((s) => s.status === 'approved' || s.status === 'closed').length
-  const totalCollected = settlements.reduce((acc, s) => acc + (s.actual_cash ?? 0), 0)
+  
+  const totalCollections = settlements.reduce(
+    (acc, s) => acc + (s.cash_summary?.collectionsNIO ?? s.expected_cash),
+    0
+  )
+  const totalExpenses = settlements.reduce(
+    (acc, s) => acc + (s.cash_summary?.expensesNIO ?? s.total_expenses),
+    0
+  )
+  const totalAlreadyReceived = settlements.reduce(
+    (acc, s) => acc + (s.cash_summary?.alreadyReceivedNIO ?? 0),
+    0
+  )
+  const totalNetExpected = settlements.reduce(
+    (acc, s) => acc + (s.expected_cash ?? 0),
+    0
+  )
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -124,41 +138,41 @@ export default function AdminSettlementsPage() {
         </div>
       )}
 
-
-      {/* Métricas */}
+      {/* Métricas Contables */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <MetricCard
-          title="Total Liquidaciones"
-          value={settlements.length}
-          subtitle="Registradas para la fecha"
-          icon={<ListFilter className="h-4 w-4 text-accent" />}
-          accentColor="accent"
-        />
-
-        <MetricCard
-          title="Pendientes Revisión"
-          value={pendingCount}
-          subtitle="Requieren auditoría en caja"
-          icon={<Clock className="h-4 w-4 text-amber-600" />}
-          accentColor="warning"
-        />
-
-        <MetricCard
-          title="Aprobadas"
-          value={approvedCount}
-          subtitle="Cuadre verificado exitosamente"
-          icon={<CheckCircle2 className="h-4 w-4 text-emerald-600" />}
+          title="Cobros Totales Ruta"
+          value={`C$ ${totalCollections.toFixed(2)}`}
+          subtitle="Cobrado por motorizados"
+          icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
           accentColor="success"
         />
 
         <MetricCard
-          title="Recaudación Total"
-          value={`C$ ${totalCollected.toFixed(2)}`}
-          subtitle="Ingresado a caja sucursal"
-          icon={<DollarSign className="h-4 w-4 text-purple-600" />}
+          title="Gastos y Pagos Ruta"
+          value={`-C$ ${totalExpenses.toFixed(2)}`}
+          subtitle="Combustible y compras"
+          icon={<Receipt className="h-4 w-4 text-rose-600" />}
+          accentColor="destructive"
+        />
+
+        <MetricCard
+          title="Entregas Previas a Caja"
+          value={`-C$ ${totalAlreadyReceived.toFixed(2)}`}
+          subtitle="Efectivo ya en administración"
+          icon={<CheckCircle2 className="h-4 w-4 text-sky-600" />}
+          accentColor="accent"
+        />
+
+        <MetricCard
+          title="Neto Esperado en Caja"
+          value={`C$ ${totalNetExpected.toFixed(2)}`}
+          subtitle={`${pendingCount} pendiente(s) de revisión`}
+          icon={<Calculator className="h-4 w-4 text-purple-600" />}
           accentColor="primary"
         />
       </div>
+
 
       {/* Filtro de Fecha */}
       <Card className="p-4 bg-white border-slate-200 shadow-2xs flex items-center gap-3">
@@ -177,7 +191,7 @@ export default function AdminSettlementsPage() {
       <Card className="p-0 overflow-hidden bg-white border-slate-200 shadow-xs">
         {isLoading ? (
           <div className="p-4">
-            <TableSkeleton columns={7} rows={5} />
+            <TableSkeleton columns={8} rows={5} />
           </div>
         ) : isError ? (
           <div className="py-12 text-center text-xs text-rose-600 font-semibold bg-rose-50 border-t border-b border-rose-200">
@@ -195,9 +209,11 @@ export default function AdminSettlementsPage() {
               <thead>
                 <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-2xs">
                   <th className="py-3.5 px-4">Motorizado</th>
-                  <th className="py-3.5 px-3">Efectivo Esperado</th>
-                  <th className="py-3.5 px-3">Efectivo Entregado</th>
-                  <th className="py-3.5 px-3">Gastos Ruta</th>
+                  <th className="py-3.5 px-3">Cobros (+)</th>
+                  <th className="py-3.5 px-3">Gastos / Pagos (-)</th>
+                  <th className="py-3.5 px-3">Entregado Previo (-)</th>
+                  <th className="py-3.5 px-3">Neto Esperado (=)</th>
+                  <th className="py-3.5 px-3">Entregado Físico</th>
                   <th className="py-3.5 px-3">Diferencia</th>
                   <th className="py-3.5 px-3">Estado</th>
                   <th className="py-3.5 px-4 text-right">Acción</th>
@@ -205,9 +221,12 @@ export default function AdminSettlementsPage() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {settlements.map((s) => {
-                  const expCash = s.expected_cash ?? 0
+                  const summary = s.cash_summary
+                  const collections = summary?.collectionsNIO ?? s.expected_cash
+                  const expenses = summary?.expensesNIO ?? s.total_expenses
+                  const alreadyReceived = summary?.alreadyReceivedNIO ?? 0
+                  const expNetCash = s.expected_cash ?? 0
                   const actCash = s.actual_cash ?? 0
-                  const expExpenses = s.total_expenses ?? 0
                   const diff = s.difference ?? 0
 
                   return (
@@ -219,16 +238,24 @@ export default function AdminSettlementsPage() {
                         <div className="text-2xs text-slate-400 font-mono">{s.settlement_date}</div>
                       </td>
 
-                      <td className="py-3 px-3 font-semibold text-slate-900">
-                        C$ {expCash.toFixed(2)}
+                      <td className="py-3 px-3 font-semibold text-emerald-700 font-mono">
+                        +C$ {collections.toFixed(2)}
                       </td>
 
-                      <td className="py-3 px-3 font-bold text-emerald-600">
+                      <td className="py-3 px-3 font-semibold text-rose-600 font-mono">
+                        {expenses > 0 ? `-C$ ${expenses.toFixed(2)}` : 'C$ 0.00'}
+                      </td>
+
+                      <td className="py-3 px-3 font-semibold text-sky-700 font-mono">
+                        {alreadyReceived > 0 ? `-C$ ${alreadyReceived.toFixed(2)}` : 'C$ 0.00'}
+                      </td>
+
+                      <td className="py-3 px-3 font-bold text-slate-900 font-mono bg-slate-50/60">
+                        C$ {expNetCash.toFixed(2)}
+                      </td>
+
+                      <td className="py-3 px-3 font-bold text-emerald-700 font-mono">
                         C$ {actCash.toFixed(2)}
-                      </td>
-
-                      <td className="py-3 px-3 font-semibold text-amber-600">
-                        C$ {expExpenses.toFixed(2)}
                       </td>
 
                       <td className="py-3 px-3">

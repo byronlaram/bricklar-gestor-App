@@ -41,7 +41,49 @@ export async function getSettlements(filters: SettlementFilters = {}): Promise<S
     throw new Error(error.message)
   }
 
-  return (data ?? []) as unknown as Settlement[]
+  const list = (data ?? []) as unknown as Settlement[]
+  if (list.length === 0) return []
+
+  const workdayIds = Array.from(new Set(list.map((s) => s.workday_id).filter(Boolean)))
+  const courierIds = Array.from(new Set(list.map((s) => s.courier_id).filter(Boolean)))
+  const workDates = Array.from(new Set(list.map((s) => s.settlement_date).filter(Boolean)))
+
+  // 1. Obtener jornadas para fondo inicial
+  const { data: workdays } = await supabase
+    .from('workdays')
+    .select('id, initial_cash')
+    .in('id', workdayIds)
+
+  const workdayMap = new Map<string, number>()
+  ;(workdays || []).forEach((w) => workdayMap.set(w.id, w.initial_cash || 0))
+
+  // 2. Carga en lote de tareas completadas
+  const { data: batchTasks } = await supabase
+    .from('tasks')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .in('assigned_courier_id', courierIds)
+    .in('scheduled_date', workDates)
+    .eq('status', 'completed')
+
+  // 3. Carga en lote de movimientos de caja
+  const { data: batchMovements } = await supabase
+    .from('cash_movements')
+    .select('workday_id, amount, currency, direction, movement_type')
+    .in('workday_id', workdayIds)
+
+  return list.map((s) => {
+    const initialCash = workdayMap.get(s.workday_id) || 0
+    const sTasks = (batchTasks || []).filter(
+      (t) => t.assigned_courier_id === s.courier_id && t.scheduled_date === s.settlement_date
+    )
+    const sMovements = (batchMovements || []).filter((m) => m.workday_id === s.workday_id)
+    const summary = calculateWorkdayCashSummary(initialCash, sTasks, sMovements)
+
+    return {
+      ...s,
+      cash_summary: summary,
+    }
+  })
 }
 
 export async function getSettlementById(id: string): Promise<Settlement> {
@@ -56,7 +98,33 @@ export async function getSettlementById(id: string): Promise<Settlement> {
     throw new Error(error.message)
   }
 
-  return data as unknown as Settlement
+  const s = data as unknown as Settlement
+
+  // Obtener jornada, tareas y movimientos
+  const { data: workday } = await supabase
+    .from('workdays')
+    .select('initial_cash')
+    .eq('id', s.workday_id)
+    .single()
+
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .eq('assigned_courier_id', s.courier_id)
+    .eq('scheduled_date', s.settlement_date)
+    .eq('status', 'completed')
+
+  const { data: movements } = await supabase
+    .from('cash_movements')
+    .select('workday_id, amount, currency, direction, movement_type')
+    .eq('workday_id', s.workday_id)
+
+  const summary = calculateWorkdayCashSummary(workday?.initial_cash || 0, tasks || [], movements || [])
+
+  return {
+    ...s,
+    cash_summary: summary,
+  }
 }
 
 export async function getSettlementByWorkday(workdayId: string): Promise<Settlement | null> {
@@ -71,8 +139,35 @@ export async function getSettlementByWorkday(workdayId: string): Promise<Settlem
     throw new Error(error.message)
   }
 
-  return (data as unknown as Settlement) ?? null
+  if (!data) return null
+  const s = data as unknown as Settlement
+
+  const { data: workday } = await supabase
+    .from('workdays')
+    .select('initial_cash')
+    .eq('id', s.workday_id)
+    .single()
+
+  const { data: tasks } = await supabase
+    .from('tasks')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .eq('assigned_courier_id', s.courier_id)
+    .eq('scheduled_date', s.settlement_date)
+    .eq('status', 'completed')
+
+  const { data: movements } = await supabase
+    .from('cash_movements')
+    .select('workday_id, amount, currency, direction, movement_type')
+    .eq('workday_id', s.workday_id)
+
+  const summary = calculateWorkdayCashSummary(workday?.initial_cash || 0, tasks || [], movements || [])
+
+  return {
+    ...s,
+    cash_summary: summary,
+  }
 }
+
 
 export async function submitSettlement(workdayId: string, notes?: string): Promise<Settlement> {
   const { data: session } = await supabase.auth.getSession()
@@ -480,10 +575,26 @@ export async function getDailyClosure(branchId: string, date: string): Promise<D
   const settlements = await getSettlements({ branch_id: branchId, date })
 
   const totalWorkdays = settlements.length
-  const totalCollectionsCash = settlements.reduce((acc, s) => acc + s.actual_cash, 0)
-  const totalCollectionsTransfer = settlements.reduce((acc, s) => acc + s.actual_transfers, 0)
-  const totalExpenses = settlements.reduce((acc, s) => acc + s.total_expenses, 0)
-  const netCashInHand = totalCollectionsCash - totalExpenses
+  const totalCollectionsCash = settlements.reduce(
+    (acc, s) => acc + (s.cash_summary?.collectionsNIO ?? s.expected_cash),
+    0
+  )
+  const totalCollectionsTransfer = settlements.reduce(
+    (acc, s) => acc + (s.cash_summary?.collectionsUSD ?? s.actual_transfers),
+    0
+  )
+  const totalExpenses = settlements.reduce(
+    (acc, s) => acc + (s.cash_summary?.expensesNIO ?? s.total_expenses),
+    0
+  )
+  const totalAlreadyReceived = settlements.reduce(
+    (acc, s) => acc + (s.cash_summary?.alreadyReceivedNIO ?? 0),
+    0
+  )
+  const netCashInHand = settlements.reduce(
+    (acc, s) => acc + (s.status === 'approved' ? s.actual_cash : (s.cash_summary?.cashInHandNIO ?? s.expected_cash)),
+    0
+  )
 
   return {
     branch_id: branchId,
@@ -492,9 +603,11 @@ export async function getDailyClosure(branchId: string, date: string): Promise<D
     total_collections_cash: totalCollectionsCash,
     total_collections_transfer: totalCollectionsTransfer,
     total_expenses: totalExpenses,
+    total_already_received: totalAlreadyReceived,
     net_cash_in_hand: netCashInHand,
   }
 }
+
 
 export interface PendingBalanceBreakdown {
   workdayId?: string
