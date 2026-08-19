@@ -52,7 +52,6 @@ export async function getWorkdayById(id: string): Promise<Workday | null> {
 }
 
 export async function getActiveWorkday(userId: string): Promise<Workday | null> {
-
   const { data, error } = await supabase
     .from('workdays')
     .select(WORKDAY_SELECT)
@@ -67,7 +66,27 @@ export async function getActiveWorkday(userId: string): Promise<Workday | null> 
     throw new Error(error.message)
   }
 
-  return (data as unknown as Workday) ?? null
+  if (!data) return null
+
+  const wd = data as unknown as Workday
+
+  // Si la jornada tiene una liquidación aprobada, ya no debe considerarse un turno abierto/activo
+  const { data: settlement } = await supabase
+    .from('settlements')
+    .select('id, status')
+    .eq('workday_id', wd.id)
+    .maybeSingle()
+
+  if (settlement && settlement.status === 'approved') {
+    // Autocierre defensivo de la jornada en segundo plano si quedó desfasada
+    await supabase
+      .from('workdays')
+      .update({ status: 'closed', updated_at: new Date().toISOString() })
+      .eq('id', wd.id)
+    return null
+  }
+
+  return wd
 }
 
 export async function startWorkday(payload: StartWorkdayPayload): Promise<Workday> {

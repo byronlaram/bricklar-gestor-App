@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 
 import { useAuth } from '@/modules/auth/useAuth'
-import { useDailyClosure } from '@/modules/settlements/hooks/useSettlements'
+import { useDailyClosure, useSettlementMutations } from '@/modules/settlements/hooks/useSettlements'
 import { useBranches } from '@/modules/branches/hooks/useBranches'
 import {
   Card,
@@ -23,6 +23,7 @@ import {
   Skeleton,
   ConfirmDialog,
   EmptyState,
+  useToast,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
 import { WORKDAY_STATUS_LABELS } from '@/shared/types'
@@ -31,21 +32,34 @@ export default function AdminDailyClosurePage() {
   const { profile } = useAuth()
   const defaultBranchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
   const todayStr = getLocalDateString()
+  const toast = useToast()
 
   const [date, setDate] = useState(todayStr)
   const [selectedBranchId, setSelectedBranchId] = useState<string>(defaultBranchId || '')
-  const [isClosed, setIsClosed] = useState(false)
   const [isConfirmOpen, setIsConfirmOpen] = useState(false)
 
   const { data: branches = [] } = useBranches()
   const { data: closure, isLoading } = useDailyClosure(selectedBranchId || undefined, date)
-
-  const handleConfirmClosure = () => {
-    setIsClosed(true)
-    setIsConfirmOpen(false)
-  }
+  const { confirmDailyClosure, isConfirmingDailyClosure } = useSettlementMutations()
 
   const workdaysDetail = closure?.workdays_detail || []
+  const isAllClosed = workdaysDetail.length > 0 && workdaysDetail.every((w) => w.status === 'closed')
+
+  const handleConfirmClosure = async () => {
+    try {
+      await confirmDailyClosure({
+        branchId: selectedBranchId || undefined,
+        date,
+      })
+      setIsConfirmOpen(false)
+      toast.success(
+        'Cierre Diario Confirmado',
+        `Se han cerrado formalmente todas las jornadas para la fecha ${date}.`
+      )
+    } catch (err) {
+      toast.error('Error en Cierre Diario', (err as Error).message)
+    }
+  }
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -60,13 +74,14 @@ export default function AdminDailyClosurePage() {
 
         <Button
           onClick={() => setIsConfirmOpen(true)}
-          disabled={isClosed || (closure?.total_workdays || 0) === 0}
+          disabled={isAllClosed || (closure?.total_workdays || 0) === 0}
+          isLoading={isConfirmingDailyClosure}
           variant="primary"
           size="md"
-          leftIcon={isClosed ? <CheckCircle2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
+          leftIcon={isAllClosed ? <CheckCircle2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
           className="shrink-0 font-semibold shadow-md bg-emerald-600 hover:bg-emerald-700 text-white"
         >
-          {isClosed ? 'Cierre Confirmado' : 'Confirmar Cierre Diario'}
+          {isAllClosed ? 'Cierre Confirmado' : 'Confirmar Cierre Diario'}
         </Button>
       </div>
 
@@ -79,7 +94,6 @@ export default function AdminDailyClosurePage() {
             value={date}
             onChange={(e) => {
               setDate(e.target.value)
-              setIsClosed(false)
             }}
             className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
           />
@@ -170,7 +184,7 @@ export default function AdminDailyClosurePage() {
               </p>
             </div>
 
-            {isClosed && (
+            {isAllClosed && (
               <div className="p-4 bg-emerald-500/15 rounded-2xl text-xs font-semibold text-emerald-300 flex items-center gap-2.5 border border-emerald-500/30">
                 <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0" />
                 <span>Cierre diario de caja formalmente verificado y guardado en auditoría.</span>

@@ -9,7 +9,6 @@ import { cn } from '@/shared/utils/cn'
 import {
   Home,
   ClipboardList,
-  MapPin,
   Banknote,
   Calculator,
   Bus,
@@ -22,7 +21,6 @@ import {
 const NAV_ITEMS = [
   { to: '/motorizado', label: 'Inicio', icon: Home, exact: true },
   { to: '/motorizado/tareas', label: 'Mis Tareas', icon: ClipboardList },
-  { to: '/motorizado/ruta', label: 'Mi Ruta', icon: MapPin },
   { to: '/motorizado/fondos', label: 'Fondos', icon: Banknote },
   { to: '/motorizado/liquidacion', label: 'Liquidación', icon: Calculator },
   { to: '/motorizado/buses', label: 'Buses', icon: Bus },

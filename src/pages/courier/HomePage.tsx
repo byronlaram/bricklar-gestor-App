@@ -532,11 +532,11 @@ export default function CourierHomePage() {
       ) : (
         <div className="flex items-center gap-2">
           <button
-            onClick={() => navigate('/motorizado/ruta')}
+            onClick={() => navigate('/motorizado/tareas')}
             className="flex-1 min-h-[52px] rounded-full bg-[#004594] text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-md hover:bg-[#083570] transition cursor-pointer"
           >
             <Navigation size={18} />
-            <span>Ver Mi Ruta del Día</span>
+            <span>Ver Mis Tareas / Ruta de Hoy</span>
           </button>
 
           <button

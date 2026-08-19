@@ -126,6 +126,7 @@ export default function AdminWorkdaysPage() {
             <option value="">Todos los estados</option>
             <option value="open">Abierta</option>
             <option value="pending_settlement">Pendiente Liquidación</option>
+            <option value="closed">Cerrada</option>
           </select>
         </div>
       </Card>

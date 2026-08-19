@@ -248,13 +248,14 @@ export async function approveSettlement(payload: ApproveSettlementPayload): Prom
 
   const { data: current, error: getErr } = await supabase
     .from('settlements')
-    .select('expected_cash')
+    .select('expected_cash, workday_id, courier_id')
     .eq('id', payload.settlement_id)
     .single()
 
   if (getErr) throw new Error(getErr.message)
 
-  const expectedCash = (current as { expected_cash: number }).expected_cash
+  const expectedCash = (current as { expected_cash: number; workday_id?: string; courier_id?: string }).expected_cash
+  const workdayId = (current as { expected_cash: number; workday_id?: string; courier_id?: string }).workday_id
   const difference = payload.actual_cash - expectedCash
 
   const { data, error } = await supabase
@@ -276,6 +277,22 @@ export async function approveSettlement(payload: ApproveSettlementPayload): Prom
   if (error) {
     console.error('[Settlements] approveSettlement error:', error)
     throw new Error(error.message)
+  }
+
+  // 1. Cerrar la jornada en workdays
+  if (workdayId) {
+    const { error: wdErr } = await supabase
+      .from('workdays')
+      .update({
+        status: 'closed',
+        closed_by: adminId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', workdayId)
+
+    if (wdErr) {
+      console.warn('[Settlements] Warning: could not close workday on settlement approval:', wdErr.message)
+    }
   }
 
   // Si existe una diferencia contable, registrar formalmente el ajuste en settlement_adjustments
@@ -694,6 +711,57 @@ export async function getDailyClosure(
     total_already_received: totalAlreadyReceived,
     net_cash_in_hand: netReceivedInCash,
     workdays_detail: workdaysDetail,
+  }
+}
+
+export async function confirmDailyClosure(params: {
+  branchId?: string
+  date: string
+  notes?: string
+}): Promise<void> {
+  const { data: session } = await supabase.auth.getSession()
+  const adminId = session?.session?.user?.id
+  if (!adminId) throw new Error('No hay sesión activa.')
+
+  // 1. Cerrar formalmente todas las jornadas del día
+  let query = supabase
+    .from('workdays')
+    .update({
+      status: 'closed',
+      closed_by: adminId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('work_date', params.date)
+    .in('status', ['open', 'pending_settlement', 'reviewed'])
+
+  if (params.branchId) {
+    query = query.eq('branch_id', params.branchId)
+  }
+
+  const { error } = await query
+  if (error) {
+    console.error('[Settlements] confirmDailyClosure error:', error)
+    throw new Error(error.message)
+  }
+
+  // 2. Registrar en auditoría
+  try {
+    await supabase.rpc('log_audit_event', {
+      p_action: 'daily_closure_confirmed',
+      p_entity_type: 'daily_closure',
+      p_entity_id: params.date,
+      p_entity_code: params.date,
+      p_branch_id: params.branchId || undefined,
+      p_changes: {
+        admin_id: adminId,
+        date: params.date,
+        branch_id: params.branchId || null,
+        notes: params.notes || null,
+        timestamp: new Date().toISOString(),
+      },
+    })
+  } catch (auditErr) {
+    console.warn('[Settlements] Daily closure audit log warning:', auditErr)
   }
 }
 

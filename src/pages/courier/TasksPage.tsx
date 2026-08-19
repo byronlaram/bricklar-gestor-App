@@ -1,22 +1,47 @@
-import { useState, useMemo, useRef, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ArrowLeft,
+  DndContext,
+  closestCenter,
+  useSensor,
+  useSensors,
+  PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+  useSortable,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import {
   Search,
-  SlidersHorizontal,
   Plus,
-  Flag,
-  Check,
-  MoreVertical,
-  CheckSquare,
-  Calendar,
-  RotateCcw,
+  Navigation,
+  Phone,
+  MessageSquare,
+  CheckCircle2,
+  ChevronRight,
+  ChevronUp,
+  ChevronDown,
+  GripVertical,
+  MapPin,
+  Bike,
+  User,
+  DollarSign,
+  Receipt,
+  Clock,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
 import type { TaskWithCourier } from '@/modules/tasks/types/task.types'
+import { TaskTypeBadge } from '@/modules/tasks/components/TaskTypeBadge'
+import { TaskStatusBadge } from '@/modules/tasks/components/TaskStatusBadge'
 import { CompleteTaskModal } from '@/modules/courier/components/CompleteTaskModal'
 import { NewCourierGestionModal } from '@/modules/courier/components/NewCourierGestionModal'
 import {
@@ -25,518 +50,618 @@ import {
   Skeleton,
   EmptyState,
   useToast,
+  Card,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
 import { cn } from '@/shared/utils/cn'
+
+// ─── Componente de Tarjeta de Tarea Ordenable (Drag & Drop + Calle) ─────────
+
+interface TaskCardItemProps {
+  task: TaskWithCourier
+  index: number
+  isFirst: boolean
+  isLast: boolean
+  onMoveUp: () => void
+  onMoveDown: () => void
+  onNavigate: (task: TaskWithCourier) => void
+  onOpenMap: (task: TaskWithCourier) => void
+  onOpenWhatsApp: (phone?: string | null) => void
+  onStartRoute: (task: TaskWithCourier) => void
+  onStartManagement: (task: TaskWithCourier) => void
+  onComplete: (task: TaskWithCourier) => void
+  isChangingStatus: boolean
+}
+
+function TaskCardItem({
+  task,
+  index,
+  isFirst,
+  isLast,
+  onMoveUp,
+  onMoveDown,
+  onNavigate,
+  onOpenMap,
+  onOpenWhatsApp,
+  onStartRoute,
+  onStartManagement,
+  onComplete,
+  isChangingStatus,
+}: TaskCardItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : 1,
+    opacity: isDragging ? 0.75 : 1,
+  }
+
+  const cardStyles = [
+    'bg-[#FAF8FE] border-purple-100/80',
+    'bg-[#F5F8FE] border-blue-100/80',
+    'bg-[#F3F9F6] border-emerald-100/80',
+    'bg-[#FCFAF4] border-amber-100/80',
+    'bg-[#FCF5F7] border-rose-100/80',
+  ]
+  const cardStyle = cardStyles[index % cardStyles.length]
+
+  return (
+    <div ref={setNodeRef} style={style} className="touch-action-none">
+      <div
+        className={`${cardStyle} rounded-3xl p-4 sm:p-5 space-y-3.5 shadow-2xs hover:shadow-xs transition-all border ${
+          isDragging ? 'ring-2 ring-indigo-600 shadow-xl scale-[1.02] bg-indigo-50/60' : ''
+        }`}
+      >
+        {/* Header: Asa de Arrastre + Parada # + Botones Subir/Bajar + Tipo + Estado */}
+        <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5">
+          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+            {/* Control Asa Táctil (Drag Handle) */}
+            <button
+              type="button"
+              {...attributes}
+              {...listeners}
+              className="p-1 rounded-xl text-slate-400 hover:text-indigo-700 hover:bg-indigo-50 active:bg-indigo-100 cursor-grab active:cursor-grabbing touch-none shrink-0"
+              title="Arrastrar para ordenar parada"
+              aria-label="Arrastrar para ordenar"
+            >
+              <GripVertical className="h-5 w-5" />
+            </button>
+
+            {/* Número de Parada Ordinal */}
+            <span className="flex h-7 px-2 items-center justify-center rounded-full bg-indigo-900 text-white font-extrabold text-xs shadow-xs shrink-0 font-mono">
+              Parada #{index + 1}
+            </span>
+
+            {/* Botones accesibles para Subir / Bajar de posición */}
+            <div className="flex items-center gap-0.5 bg-white/90 p-0.5 rounded-xl border border-slate-200 shrink-0">
+              <button
+                type="button"
+                disabled={isFirst}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onMoveUp()
+                }}
+                className="p-1 text-slate-600 hover:text-indigo-700 disabled:opacity-25 transition cursor-pointer"
+                title="Subir parada"
+                aria-label="Subir una posición"
+              >
+                <ChevronUp className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={isLast}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onMoveDown()
+                }}
+                className="p-1 text-slate-600 hover:text-indigo-700 disabled:opacity-25 transition cursor-pointer"
+                title="Bajar parada"
+                aria-label="Bajar una posición"
+              >
+                <ChevronDown className="h-3.5 w-3.5" />
+              </button>
+            </div>
+
+            <TaskTypeBadge type={task.task_type} />
+          </div>
+
+          <div className="shrink-0">
+            <TaskStatusBadge status={task.status} />
+          </div>
+        </div>
+
+        {/* Título, Contacto/Institución y Dirección */}
+        <div
+          onClick={() => onNavigate(task)}
+          className="space-y-1.5 cursor-pointer group"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <h3 className="text-base font-extrabold text-[#0A2540] group-hover:text-[#004594] transition-colors leading-snug">
+              {task.title}
+            </h3>
+            <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-[#004594] transition-colors shrink-0 mt-0.5" />
+          </div>
+
+          {(task.contact_name || task.institution_name || task.provider_name) && (
+            <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+              <span>{task.contact_name || task.institution_name || task.provider_name}</span>
+            </p>
+          )}
+
+          {task.address && (
+            <div className="p-2.5 rounded-2xl bg-white/90 border border-slate-200/80 text-xs font-medium text-slate-700 flex items-start gap-2 shadow-2xs">
+              <MapPin className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+              <span className="leading-snug">{task.address}</span>
+            </div>
+          )}
+        </div>
+
+        {/* 💵 CONTENEDORES DE MONTOS VISIBLES (Cobro a recibir / Pago a proveedor) */}
+        {(task.requires_collection || task.requires_payment || task.scheduled_start_time) && (
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Cobro en Verde */}
+              {task.requires_collection && (
+                <div className="inline-flex items-center gap-1.5 bg-emerald-100 text-emerald-950 border border-emerald-300 font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-2xs">
+                  <DollarSign className="h-4 w-4 text-emerald-700" />
+                  <span>Cobrar: </span>
+                  <span className="font-mono text-emerald-800 text-sm">
+                    C$ {(task.expected_collection_amount || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              )}
+
+              {/* Pago en Rojo/Rosa */}
+              {task.requires_payment && (
+                <div className="inline-flex items-center gap-1.5 bg-rose-100 text-rose-950 border border-rose-300 font-extrabold text-xs px-3 py-1.5 rounded-xl shadow-2xs">
+                  <Receipt className="h-4 w-4 text-rose-700" />
+                  <span>Pagar: </span>
+                  <span className="font-mono text-rose-800 text-sm">
+                    -C$ {(task.expected_payment_amount || 0).toLocaleString('es-NI', { minimumFractionDigits: 2 })}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {task.scheduled_start_time && (
+              <span className="inline-flex items-center gap-1 bg-white border border-slate-200 text-2xs font-extrabold text-slate-700 px-2.5 py-1 rounded-xl font-mono shadow-2xs">
+                <Clock className="h-3 w-3 text-slate-500" /> {task.scheduled_start_time}
+              </span>
+            )}
+          </div>
+        )}
+
+        {/* 🛠️ HERRAMIENTAS DE CALLE (GPS / WhatsApp / Llamar) + BOTÓN DE ACCIÓN DE ESTADO */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-200/60">
+          <div className="flex items-center gap-1.5">
+            {/* Botón Mapa GPS */}
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenMap(task)
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-indigo-900 bg-white border border-indigo-200 rounded-xl hover:bg-indigo-50 transition cursor-pointer shadow-2xs"
+              title="Abrir en Google Maps / Waze"
+            >
+              <Navigation className="h-3.5 w-3.5 text-indigo-600" />
+              <span>Mapa GPS</span>
+            </button>
+
+            {/* Botón WhatsApp */}
+            {task.phone && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onOpenWhatsApp(task.phone)
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 border border-emerald-200/80 rounded-xl hover:bg-emerald-100 transition cursor-pointer shadow-2xs"
+                title="Abrir chat de WhatsApp"
+              >
+                <MessageSquare className="h-3.5 w-3.5" />
+                <span>WhatsApp</span>
+              </button>
+            )}
+
+            {/* Botón Llamar */}
+            {task.phone && (
+              <a
+                href={`tel:${task.phone}`}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center justify-center p-2 text-xs font-bold text-slate-700 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition cursor-pointer shadow-2xs"
+                title="Llamar por teléfono"
+              >
+                <Phone className="h-3.5 w-3.5 text-slate-600" />
+              </a>
+            )}
+          </div>
+
+          {/* Botones de Estado Secuenciales */}
+          <div className="flex items-center gap-1.5">
+            {task.status === 'assigned' && (
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onStartRoute(task)
+                }}
+                isLoading={isChangingStatus}
+                leftIcon={<Bike className="h-3.5 w-3.5" />}
+                className="text-xs font-extrabold rounded-xl bg-[#004594] hover:bg-[#083570] text-white shadow-xs"
+              >
+                Iniciar Ruta
+              </Button>
+            )}
+
+            {task.status === 'en_route' && (
+              <Button
+                size="sm"
+                variant="warning"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onStartManagement(task)
+                }}
+                isLoading={isChangingStatus}
+                leftIcon={<MapPin className="h-3.5 w-3.5" />}
+                className="text-xs font-extrabold rounded-xl bg-purple-600 hover:bg-purple-700 text-white shadow-xs"
+              >
+                Llegué al Lugar
+              </Button>
+            )}
+
+            {task.status === 'in_progress' && (
+              <Button
+                size="sm"
+                variant="confirm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onComplete(task)
+                }}
+                leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />}
+                className="text-xs font-extrabold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+              >
+                Finalizar y Cobrar
+              </Button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Pantalla Principal Unificada de Mis Tareas / Mi Ruta ──────────────────
 
 export default function CourierTasksPage() {
   const navigate = useNavigate()
   const { profile } = useAuth()
   const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
+  const todayStr = getLocalDateString()
   const toast = useToast()
 
   const { data: activeWorkday } = useActiveWorkday(profile?.id)
   const [isNewGestionOpen, setIsNewGestionOpen] = useState(false)
-
-  // Generar dinámicamente días pasados (-14 días) y futuros (+7 días)
-  const today = new Date()
-  const todayIso = getLocalDateString(today)
-  const [selectedDateIso, setSelectedDateIso] = useState<string>(todayIso)
-
-  const weekDays = useMemo(() => {
-    // Rango de -14 a +7 días
-    const days = []
-    for (let i = -14; i <= 7; i++) {
-      const d = new Date(today)
-      d.setDate(today.getDate() + i)
-      const isoDate = getLocalDateString(d)
-      let dayName = d.toLocaleDateString('es-NI', { weekday: 'short' })
-      if (i === 0) dayName = 'Hoy'
-      else if (i === -1) dayName = 'Ayer'
-
-      const dayNum = d.getDate()
-      const monthName = d.toLocaleDateString('es-NI', { month: 'short' })
-      const fullDateStr = d.toLocaleDateString('es-NI', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-      days.push({
-        isoDate,
-        dayName: dayName.charAt(0).toUpperCase() + dayName.slice(1).replace('.', ''),
-        dateLabel: `${dayNum} ${monthName.replace('.', '')}`,
-        fullDateStr,
-        isToday: i === 0,
-        isPast: i < 0,
-      })
-    }
-
-    // Si la fecha seleccionada está fuera del rango de -14 a +7, agregarla dinámicamente
-    if (selectedDateIso && !days.some((d) => d.isoDate === selectedDateIso)) {
-      const customD = new Date(`${selectedDateIso}T12:00:00`)
-      if (!isNaN(customD.getTime())) {
-        const dayName = customD.toLocaleDateString('es-NI', { weekday: 'short' })
-        const dayNum = customD.getDate()
-        const monthName = customD.toLocaleDateString('es-NI', { month: 'short' })
-        const fullDateStr = customD.toLocaleDateString('es-NI', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
-        days.unshift({
-          isoDate: selectedDateIso,
-          dayName: dayName.charAt(0).toUpperCase() + dayName.slice(1).replace('.', ''),
-          dateLabel: `${dayNum} ${monthName.replace('.', '')}`,
-          fullDateStr,
-          isToday: selectedDateIso === todayIso,
-          isPast: selectedDateIso < todayIso,
-        })
-      }
-    }
-
-    return days
-  }, [selectedDateIso, todayIso])
-  const [isSearchOpen, setIsSearchOpen] = useState(false)
+  const [completeTargetTask, setCompleteTargetTask] = useState<TaskWithCourier | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
-  const [completeTargetTask, setCompleteTargetTask] = useState<TaskWithCourier | null>(null)
-
-  const daysCarouselRef = useRef<HTMLDivElement>(null)
-  const activeDayRef = useRef<HTMLButtonElement>(null)
-
-  // Auto-scroll para centrar el día activo en la barra de fecha
-  useEffect(() => {
-    if (activeDayRef.current && daysCarouselRef.current) {
-      activeDayRef.current.scrollIntoView({
-        behavior: 'smooth',
-        inline: 'center',
-        block: 'nearest',
-      })
-    }
-  }, [selectedDateIso])
 
   const { data: tasksData, isLoading } = useTasks({
     courier_id: profile?.id,
-    date: selectedDateIso,
+    date: todayStr,
     search: searchTerm || undefined,
     page_size: 100,
   })
 
-  const { changeStatus, isChangingStatus } = useTaskMutations()
+  const { changeStatus, isChangingStatus, reorderTasks } = useTaskMutations()
   const allTasks = tasksData?.data || []
 
-  // Conteo de tareas para los tabs de estado
-  const completedCount = allTasks.filter((t) => t.status === 'completed').length
-  const pendingCount = allTasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled').length
+  // Sensores calibrados para móvil y escritorio
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: {
+        delay: 150,
+        tolerance: 5,
+      },
+    }),
+    useSensor(KeyboardSensor)
+  )
 
-  const tasks = useMemo(() => {
-    if (statusFilter === 'completed') {
-      return allTasks.filter((t) => t.status === 'completed')
-    }
-    if (statusFilter === 'pending') {
-      return allTasks.filter((t) => t.status !== 'completed' && t.status !== 'cancelled')
-    }
-    return allTasks
-  }, [allTasks, statusFilter])
+  // Filtrar tareas activas (pendientes del día) vs completadas
+  const approvedTasks = useMemo(
+    () => allTasks.filter((t) => !t.approval_status || t.approval_status === 'approved'),
+    [allTasks]
+  )
 
-  const selectedDayObj = weekDays.find((d) => d.isoDate === selectedDateIso) || weekDays[0]
+  const activeTasks = useMemo(
+    () => approvedTasks.filter((t) => ['assigned', 'en_route', 'in_progress', 'not_completed'].includes(t.status)),
+    [approvedTasks]
+  )
 
-  const handleStartRoute = async (task: TaskWithCourier, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const completedTasks = useMemo(
+    () => approvedTasks.filter((t) => t.status === 'completed'),
+    [approvedTasks]
+  )
+
+  const handleStartRoute = async (task: TaskWithCourier) => {
     try {
       await changeStatus({ task_id: task.id, new_status: 'en_route', notes: 'Inició ruta' })
-    } catch (err) {
-      console.error(err)
+      toast.success('Ruta iniciada', `Parada ${task.code} en camino.`)
+    } catch (err: unknown) {
+      toast.error('Error al iniciar ruta', (err as Error)?.message || 'No se pudo iniciar la ruta.')
     }
   }
 
-  const handleStartManagement = async (task: TaskWithCourier, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleStartManagement = async (task: TaskWithCourier) => {
     try {
       await changeStatus({ task_id: task.id, new_status: 'in_progress', notes: 'Llegó al lugar de gestión' })
-    } catch (err) {
-      console.error(err)
+      toast.success('Llegaste al lugar', `Tarea ${task.code} ahora en gestión.`)
+    } catch (err: unknown) {
+      toast.error('Error al actualizar estado', (err as Error)?.message || 'No se pudo actualizar el estado.')
     }
   }
 
-  const handleOpenCompleteModal = (task: TaskWithCourier, e: React.MouseEvent) => {
-    e.stopPropagation()
-    setCompleteTargetTask(task)
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = activeTasks.findIndex((t) => t.id === active.id)
+    const newIndex = activeTasks.findIndex((t) => t.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const newItems = arrayMove(activeTasks, oldIndex, newIndex)
+    const payload = newItems.map((task, idx) => ({
+      id: task.id,
+      route_order: idx + 1,
+    }))
+
+    try {
+      await reorderTasks(payload)
+      toast.info('Ruta actualizada', 'El nuevo orden de paradas ha sido guardado.')
+    } catch (err: unknown) {
+      toast.error('Error al reordenar', (err as Error)?.message || 'No se pudo guardar la posición.')
+    }
   }
+
+  const handleMoveItem = async (currentIndex: number, targetIndex: number) => {
+    if (targetIndex < 0 || targetIndex >= activeTasks.length) return
+    const newItems = arrayMove(activeTasks, currentIndex, targetIndex)
+    const payload = newItems.map((task, idx) => ({
+      id: task.id,
+      route_order: idx + 1,
+    }))
+
+    try {
+      await reorderTasks(payload)
+      toast.info('Ruta actualizada', 'El nuevo orden de paradas ha sido guardado.')
+    } catch (err: unknown) {
+      toast.error('Error al reordenar', (err as Error)?.message || 'No se pudo guardar la posición.')
+    }
+  }
+
+  const openNavigation = (task: TaskWithCourier) => {
+    if (task.maps_url) {
+      window.open(task.maps_url, '_blank')
+    } else if (task.latitude && task.longitude) {
+      window.open(`https://www.google.com/maps/search/?api=1&query=${task.latitude},${task.longitude}`, '_blank')
+    } else if (task.address) {
+      window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(task.address)}`, '_blank')
+    } else {
+      toast.warning('Sin ubicación', 'Esta tarea no contiene dirección ni coordenadas registradas.')
+    }
+  }
+
+  const openWhatsApp = (phone?: string | null) => {
+    if (!phone) return
+    const cleanPhone = phone.replace(/\D/g, '')
+    window.open(`https://wa.me/${cleanPhone.startsWith('505') ? cleanPhone : '505' + cleanPhone}`, '_blank')
+  }
+
+  const todayFormatted = new Date().toLocaleDateString('es-NI', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+  })
 
   return (
     <div className="space-y-4 animate-fade-in pb-24 max-w-2xl mx-auto">
-      {/* 1. Top Header con Flecha, Título e Iconos de Búsqueda/Filtro */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={() => navigate('/motorizado')}
-            className="w-10 h-10 rounded-2xl bg-slate-100 hover:bg-slate-200 border border-slate-200/80 shadow-2xs flex items-center justify-center text-slate-700 transition cursor-pointer"
-            aria-label="Volver"
-          >
-            <ArrowLeft size={18} className="text-[#004594]" />
-          </button>
-          <h1 className="text-lg font-bold text-[#0A2540] tracking-tight">Mis Tareas</h1>
+      {/* 1. Header Ejecutivo Banpro */}
+      <div className="bg-[#FAF8FE] border border-purple-100/70 rounded-3xl p-5 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#0A2540] flex items-center gap-2">
+            <Navigation className="h-5 w-5 text-indigo-700" />
+            Mis Tareas & Ruta de Hoy
+          </h1>
+          <p className="text-xs text-indigo-900/80 font-medium capitalize mt-0.5">
+            📅 {todayFormatted}
+          </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              if (activeWorkday && activeWorkday.status === 'open') {
-                setIsNewGestionOpen(true)
-              } else {
-                toast.error('Jornada requerida', 'Inicia tu jornada para registrar una gestión.')
-              }
-            }}
-            className="h-10 px-3.5 rounded-full bg-[#004594] text-white text-xs font-bold flex items-center gap-1.5 shadow-xs hover:bg-[#083570] transition cursor-pointer"
-          >
-            <Plus size={16} strokeWidth={2.5} />
-            <span>+ Nueva Gestión</span>
-          </button>
-
-          <button
-            onClick={() => setIsSearchOpen((prev) => !prev)}
-            className="w-10 h-10 rounded-2xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-center text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-            aria-label="Buscar tareas"
-          >
-            <Search size={18} />
-          </button>
-
-          <button
-            onClick={() => {
-              setStatusFilter((prev) =>
-                prev === 'all' ? 'pending' : prev === 'pending' ? 'completed' : 'all'
-              )
-            }}
-            className={cn(
-              'w-10 h-10 rounded-2xl border shadow-2xs flex items-center justify-center transition cursor-pointer',
-              statusFilter !== 'all'
-                ? 'bg-[#004594] border-[#004594] text-white'
-                : 'bg-white border-slate-200/80 text-slate-600 hover:bg-slate-50'
-            )}
-            aria-label="Filtrar tareas"
-            title="Alternar filtro de tareas"
-          >
-            <SlidersHorizontal size={18} />
-          </button>
-        </div>
-      </div>
-
-      {/* Campo de búsqueda desplegable */}
-      {isSearchOpen && (
-        <div className="animate-slide-up">
-          <Input
-            placeholder="Buscar por cliente, título o dirección..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            leftIcon={<Search className="h-4 w-4 text-slate-400" />}
-          />
-        </div>
-      )}
-
-      {/* 2. Selector de Días Horizontal y Selector de Calendario */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-700 capitalize flex items-center gap-1.5">
-              📅 {selectedDayObj.fullDateStr}
-            </span>
-            {selectedDateIso !== todayIso && (
-              <button
-                onClick={() => setSelectedDateIso(todayIso)}
-                className="inline-flex items-center gap-1 text-[11px] font-extrabold text-[#004594] bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full hover:bg-blue-100 transition cursor-pointer"
-                title="Volver al día actual"
-              >
-                <RotateCcw size={11} />
-                <span>Ir a Hoy</span>
-              </button>
-            )}
-          </div>
-
-          {/* Botón Selector de Fecha con Calendario Completo */}
-          <div className="relative inline-flex items-center">
-            <button
-              type="button"
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-white border border-slate-200/90 text-xs font-bold text-slate-700 shadow-2xs hover:bg-slate-50 transition cursor-pointer"
-              title="Seleccionar otra fecha del calendario"
-            >
-              <Calendar size={14} className="text-[#004594]" />
-              <span className="hidden sm:inline">Elegir fecha</span>
-            </button>
-            <input
-              type="date"
-              value={selectedDateIso}
-              onChange={(e) => {
-                if (e.target.value) {
-                  setSelectedDateIso(e.target.value)
-                }
-              }}
-              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-              aria-label="Seleccionar fecha específica"
-            />
-          </div>
-        </div>
-
-        {/* Carrusel de Días Horizontal */}
-        <div
-          ref={daysCarouselRef}
-          className="flex items-center gap-2 overflow-x-auto pb-1.5 pt-0.5 no-scrollbar scroll-smooth"
+        <button
+          onClick={() => {
+            if (activeWorkday && activeWorkday.status === 'open') {
+              setIsNewGestionOpen(true)
+            } else {
+              toast.error('Jornada requerida', 'Inicia tu jornada laboral para registrar una gestión.')
+            }
+          }}
+          className="h-10 px-4 rounded-2xl bg-[#004594] hover:bg-[#083570] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer self-start sm:self-auto shrink-0"
         >
-          {weekDays.map((day) => {
-            const isSelected = selectedDateIso === day.isoDate
-            return (
-              <button
-                key={day.isoDate}
-                ref={isSelected ? activeDayRef : null}
-                onClick={() => setSelectedDateIso(day.isoDate)}
-                className={cn(
-                  'flex flex-col items-center justify-center min-w-[72px] py-2 px-2.5 rounded-2xl transition-all shrink-0 cursor-pointer',
-                  isSelected
-                    ? 'bg-[#004594] text-white font-extrabold shadow-sm scale-105 ring-2 ring-[#004594]/30'
-                    : day.isToday
-                    ? 'bg-blue-50/80 text-blue-900 border border-blue-200 font-bold hover:bg-blue-100'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200/80 font-semibold'
-                )}
-              >
-                <span className="text-2xs uppercase tracking-tight opacity-90">{day.dayName}</span>
-                <span className="text-xs font-mono font-bold leading-tight mt-0.5">{day.dateLabel}</span>
-              </button>
-            )
-          })}
-        </div>
+          <Plus size={16} strokeWidth={2.5} />
+          <span>+ Nueva Gestión</span>
+        </button>
       </div>
 
-      {/* 3. Píldoras de Filtro Rápido de Estado */}
-      <div className="flex items-center justify-between gap-2 pt-1">
+      {/* 2. Barra de Búsqueda */}
+      <div className="relative">
+        <Input
+          placeholder="Buscar por cliente, título o dirección..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          leftIcon={<Search className="h-4 w-4 text-slate-400" />}
+          className="bg-white"
+        />
+      </div>
+
+      {/* 3. Píldoras de Filtro Rápido */}
+      <div className="flex items-center justify-between gap-2 pt-0.5">
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => setStatusFilter('all')}
             className={cn(
-              'px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer',
+              'px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer',
               statusFilter === 'all'
                 ? 'bg-[#004594] text-white shadow-2xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             )}
           >
-            Todas ({allTasks.length})
+            Todas ({approvedTasks.length})
           </button>
           <button
             onClick={() => setStatusFilter('pending')}
             className={cn(
-              'px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer',
+              'px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer',
               statusFilter === 'pending'
                 ? 'bg-amber-600 text-white shadow-2xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             )}
           >
-            Pendientes ({pendingCount})
+            Pendientes ({activeTasks.length})
           </button>
           <button
             onClick={() => setStatusFilter('completed')}
             className={cn(
-              'px-3 py-1 rounded-full text-xs font-bold transition cursor-pointer',
+              'px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer',
               statusFilter === 'completed'
                 ? 'bg-emerald-600 text-white shadow-2xs'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
             )}
           >
-            Completadas ({completedCount})
+            Completadas ({completedTasks.length})
           </button>
         </div>
 
-        <span className="text-2xs font-semibold text-slate-500 capitalize hidden sm:inline">
-          {selectedDayObj.dayName}
+        <span className="text-2xs font-bold text-slate-500 font-mono hidden sm:inline">
+          {activeTasks.length} en ruta
         </span>
       </div>
 
-      {/* 4. Lista de Tarjetas de Tarea Pastel */}
+      {/* 4. Lista Principal de Tareas */}
       {isLoading ? (
         <div className="space-y-3">
-          <Skeleton className="h-24 rounded-3xl" />
-          <Skeleton className="h-24 rounded-3xl" />
-          <Skeleton className="h-24 rounded-3xl" />
+          <Skeleton className="h-32 rounded-3xl" />
+          <Skeleton className="h-32 rounded-3xl" />
+          <Skeleton className="h-32 rounded-3xl" />
         </div>
-      ) : tasks.length === 0 ? (
+      ) : approvedTasks.length === 0 ? (
         <EmptyState
-          title={statusFilter === 'completed' ? 'Sin tareas completadas' : 'Sin entregas para este día'}
-          description={
-            statusFilter === 'completed'
-              ? 'Aún no has completado gestiones para la fecha seleccionada.'
-              : 'No hay tareas programadas para la fecha seleccionada.'
-          }
-          icon={<CheckSquare className="h-8 w-8 text-slate-400" />}
+          title="No tienes tareas asignadas hoy"
+          description="Pide a administración que te asigne tareas para ver tu hoja de ruta del día."
+          icon={<Bike className="h-8 w-8 text-slate-400" />}
         />
       ) : (
-        <div className="space-y-3">
-          {tasks.map((task, idx) => {
-            const isCompleted = task.status === 'completed'
-
-            const cardStyles = [
-              'bg-[#FAF8FE] border-purple-100/70',
-              'bg-[#F5F8FE] border-blue-100/70',
-              'bg-[#F3F9F6] border-emerald-100/70',
-              'bg-[#FCFAF4] border-amber-100/70',
-              'bg-[#FCF5F7] border-rose-100/70',
-            ]
-            const cardStyle = isCompleted
-              ? 'bg-emerald-50/60 border-emerald-200/80'
-              : cardStyles[idx % cardStyles.length]
-
-            return (
-              <div
-                key={task.id}
-                onClick={() => navigate(`/motorizado/tareas/${task.id}`)}
-                className={`${cardStyle} rounded-3xl p-4 space-y-3 shadow-2xs hover:shadow-xs transition cursor-pointer border`}
-              >
-                {/* Fila 1: Checkbox + Título + Cliente / Ubicación + Menú */}
-                <div className="flex items-start justify-between gap-2.5">
-                  <div className="flex items-start gap-3 min-w-0 flex-1">
-                    {/* Selector / Checkbox circular */}
-                    <div
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (task.status === 'in_progress') {
-                          handleOpenCompleteModal(task, e)
-                        }
-                      }}
-                      className={cn(
-                        'w-7 h-7 rounded-full flex items-center justify-center shrink-0 mt-0.5 transition-all',
-                        isCompleted
-                          ? 'bg-emerald-500 border-2 border-emerald-500 text-white shadow-xs'
-                          : 'border-2 border-slate-400/60 bg-white'
-                      )}
-                    >
-                      {isCompleted && <Check size={16} strokeWidth={3.5} />}
+        <div className="space-y-5">
+          {/* TAREAS ACTIVAS (CON CAPACIDAD DE ORDENAR PARADAS) */}
+          {(statusFilter === 'all' || statusFilter === 'pending') && (
+            <div className="space-y-3">
+              {activeTasks.length === 0 ? (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-5 text-center text-xs text-emerald-900 font-bold shadow-xs">
+                  🎉 ¡Felicidades! Has completado todas las paradas activas de tu ruta de hoy.
+                </div>
+              ) : (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={activeTasks.map((t) => t.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <div className="space-y-3.5">
+                      {activeTasks.map((task, idx) => (
+                        <TaskCardItem
+                          key={task.id}
+                          task={task}
+                          index={idx}
+                          isFirst={idx === 0}
+                          isLast={idx === activeTasks.length - 1}
+                          onMoveUp={() => handleMoveItem(idx, idx - 1)}
+                          onMoveDown={() => handleMoveItem(idx, idx + 1)}
+                          onNavigate={(t) => navigate(`/motorizado/tareas/${t.id}`)}
+                          onOpenMap={openNavigation}
+                          onOpenWhatsApp={openWhatsApp}
+                          onStartRoute={handleStartRoute}
+                          onStartManagement={handleStartManagement}
+                          onComplete={(t) => setCompleteTargetTask(t)}
+                          isChangingStatus={isChangingStatus}
+                        />
+                      ))}
                     </div>
+                  </SortableContext>
+                </DndContext>
+              )}
+            </div>
+          )}
 
-                    {/* Detalles Principales de la Gestión */}
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3
-                          className={cn(
-                            'text-sm font-extrabold leading-snug tracking-tight',
-                            isCompleted ? 'text-slate-500 line-through' : 'text-[#0A2540]'
-                          )}
-                        >
+          {/* HISTORIAL DE TAREAS COMPLETADAS HOY */}
+          {(statusFilter === 'all' || statusFilter === 'completed') && completedTasks.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider px-1">
+                Completadas Hoy ({completedTasks.length})
+              </h2>
+
+              <div className="space-y-2.5">
+                {completedTasks.map((task) => (
+                  <Card
+                    key={task.id}
+                    isHoverable
+                    onClick={() => navigate(`/motorizado/tareas/${task.id}`)}
+                    className="p-4 bg-white border border-emerald-100 rounded-2xl flex items-center justify-between text-xs cursor-pointer hover:bg-emerald-50/50 transition-all shadow-2xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-xl shrink-0">
+                        <CheckCircle2 className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="font-bold text-slate-800 line-through">
                           {task.title}
-                        </h3>
-
-                        {/* Badge de Estado Claro */}
-                        {isCompleted && (
-                          <span className="inline-flex items-center gap-1 bg-emerald-100 text-emerald-800 text-[10px] font-black px-2 py-0.5 rounded-md border border-emerald-300">
-                            ✓ COMPLETADA
-                          </span>
-                        )}
-                        {task.status === 'in_progress' && (
-                          <span className="inline-flex items-center gap-1 bg-purple-100 text-purple-800 text-[10px] font-black px-2 py-0.5 rounded-md border border-purple-200">
-                            EN GESTIÓN
-                          </span>
-                        )}
-                        {task.status === 'en_route' && (
-                          <span className="inline-flex items-center gap-1 bg-sky-100 text-sky-800 text-[10px] font-black px-2 py-0.5 rounded-md border border-sky-200">
-                            EN RUTA
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-600 font-medium mt-1">
-                        {(task.contact_name || task.institution_name || task.provider_name) && (
-                          <span className="font-bold text-slate-800 flex items-center gap-1">
-                            👤 {task.contact_name || task.institution_name || task.provider_name}
-                          </span>
-                        )}
-                        {task.address && (
-                          <span className="text-slate-500 flex items-center gap-1">
-                            📍 <span className="truncate max-w-[200px]">{task.address}</span>
-                          </span>
-                        )}
+                        </p>
+                        <div className="flex items-center gap-2 text-2xs text-slate-400 font-mono mt-0.5">
+                          <span>{task.code}</span>
+                          {task.requires_collection && (
+                            <span className="text-emerald-700 font-bold font-sans">
+                              (Cobrado: C${task.expected_collection_amount})
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Prioridad y Opciones */}
-                  <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
-                    <Flag
-                      size={16}
-                      className={
-                        task.priority === 'high' || task.priority === 'urgent'
-                          ? 'text-rose-500 fill-current'
-                          : 'text-slate-400'
-                      }
-                    />
-                    <MoreVertical size={16} className="text-slate-400 hover:text-slate-700" />
-                  </div>
-                </div>
-
-                {/* Fila 2: Hora, Contenedores de Monto (Ingreso/Egreso) y Botón de Estado */}
-                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/60">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* Hora Programada */}
-                    {task.scheduled_start_time && (
-                      <span className="inline-flex items-center gap-1 bg-white/90 border border-slate-200/80 text-[11px] font-extrabold text-slate-700 px-2.5 py-1 rounded-xl font-mono shadow-2xs">
-                        ⏰ {task.scheduled_start_time}
-                      </span>
-                    )}
-
-                    {/* Contenedor de INGRESO (Cobro a recibir -> Verde) */}
-                    {task.requires_collection && (
-                      <span className="inline-flex items-center gap-1 bg-emerald-100/90 text-emerald-900 border border-emerald-300/80 text-xs font-extrabold px-2.5 py-1 rounded-xl shadow-2xs">
-                        💰 Cobrar: C${task.expected_collection_amount || 0}
-                      </span>
-                    )}
-
-                    {/* Contenedor de EGRESO (Pago a realizar -> Rojo/Rosa) */}
-                    {task.requires_payment && (
-                      <span className="inline-flex items-center gap-1 bg-rose-100/90 text-rose-900 border border-rose-300/80 text-xs font-extrabold px-2.5 py-1 rounded-xl shadow-2xs">
-                        💸 Pagar: C${task.expected_payment_amount || 0}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Acciones de Estado Rápidas */}
-                  <div className="flex items-center gap-2">
-                    {isCompleted && (
-                      <span className="text-2xs font-extrabold text-emerald-700 bg-emerald-100/70 border border-emerald-300/80 px-2.5 py-1 rounded-xl">
-                        ✓ Gestión finalizada
-                      </span>
-                    )}
-
-                    {task.status === 'assigned' && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={(e) => handleStartRoute(task, e)}
-                        isLoading={isChangingStatus}
-                        className="text-2xs font-extrabold py-1 px-3 h-8 bg-[#004594] rounded-xl"
-                      >
-                        Iniciar Ruta
-                      </Button>
-                    )}
-
-                    {task.status === 'en_route' && (
-                      <Button
-                        size="sm"
-                        variant="primary"
-                        onClick={(e) => handleStartManagement(task, e)}
-                        isLoading={isChangingStatus}
-                        className="bg-purple-600 hover:bg-purple-700 text-white text-2xs font-extrabold py-1 px-3 h-8 rounded-xl"
-                      >
-                        Llegué al Lugar
-                      </Button>
-                    )}
-
-                    {task.status === 'in_progress' && (
-                      <Button
-                        size="sm"
-                        variant="confirm"
-                        onClick={(e) => handleOpenCompleteModal(task, e)}
-                        className="text-2xs font-extrabold py-1 px-3 h-8 rounded-xl"
-                      >
-                        Finalizar
-                      </Button>
-                    )}
-                  </div>
-                </div>
+                    <ChevronRight className="h-4 w-4 text-slate-400" />
+                  </Card>
+                ))}
               </div>
-            )
-          })}
+            </div>
+          )}
         </div>
       )}
 
-      {/* Modal de Finalizar Tarea */}
+      {/* Modal de Finalizar y Cobrar Tarea */}
       <CompleteTaskModal
         task={completeTargetTask}
         isOpen={!!completeTargetTask}

@@ -9,6 +9,7 @@ import {
   getCashMovements,
   createCashMovement,
   getDailyClosure,
+  confirmDailyClosure,
 } from '../services/settlementsService'
 import type {
   SettlementFilters,
@@ -63,10 +64,11 @@ export function useSettlementMutations() {
   const submitMutation = useMutation({
     mutationFn: ({ workdayId, notes }: { workdayId: string; notes?: string }) =>
       submitSettlement(workdayId, notes),
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settlements'] })
-      queryClient.invalidateQueries({ queryKey: ['workday-settlement', data.workday_id] })
+      queryClient.invalidateQueries({ queryKey: ['workday-settlement'] })
       queryClient.invalidateQueries({ queryKey: ['workdays'] })
+      queryClient.invalidateQueries({ queryKey: ['active-workday'] })
       queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
       queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
     },
@@ -77,6 +79,8 @@ export function useSettlementMutations() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['settlements'] })
       queryClient.invalidateQueries({ queryKey: ['settlement', data.id] })
+      queryClient.invalidateQueries({ queryKey: ['workday-settlement'] })
+      queryClient.invalidateQueries({ queryKey: ['active-workday'] })
       queryClient.invalidateQueries({ queryKey: ['workdays'] })
       queryClient.invalidateQueries({ queryKey: ['daily-closure'] })
       queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
@@ -88,6 +92,22 @@ export function useSettlementMutations() {
     mutationFn: (payload: AdminForceSettlementPayload) => adminForceSettlement(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settlements'] })
+      queryClient.invalidateQueries({ queryKey: ['workday-settlement'] })
+      queryClient.invalidateQueries({ queryKey: ['active-workday'] })
+      queryClient.invalidateQueries({ queryKey: ['workdays'] })
+      queryClient.invalidateQueries({ queryKey: ['daily-closure'] })
+      queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+      queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+    },
+  })
+
+  const confirmDailyClosureMutation = useMutation({
+    mutationFn: (params: { branchId?: string; date: string; notes?: string }) =>
+      confirmDailyClosure(params),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settlements'] })
+      queryClient.invalidateQueries({ queryKey: ['workday-settlement'] })
+      queryClient.invalidateQueries({ queryKey: ['active-workday'] })
       queryClient.invalidateQueries({ queryKey: ['workdays'] })
       queryClient.invalidateQueries({ queryKey: ['daily-closure'] })
       queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
@@ -116,6 +136,10 @@ export function useSettlementMutations() {
     forceSettlement: forceSettlementMutation.mutateAsync,
     isForcingSettlement: forceSettlementMutation.isPending,
     forceSettlementError: forceSettlementMutation.error,
+
+    confirmDailyClosure: confirmDailyClosureMutation.mutateAsync,
+    isConfirmingDailyClosure: confirmDailyClosureMutation.isPending,
+    confirmDailyClosureError: confirmDailyClosureMutation.error,
 
     addMovement: addMovementMutation.mutateAsync,
     isAddingMovement: addMovementMutation.isPending,

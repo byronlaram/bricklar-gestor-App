@@ -31,7 +31,6 @@ const CourierLayout = lazy(() => import('@/layouts/CourierLayout'))
 const CourierHomePage = lazy(() => import('@/pages/courier/HomePage'))
 const CourierTasksPage = lazy(() => import('@/pages/courier/TasksPage'))
 const CourierTaskDetailPage = lazy(() => import('@/pages/courier/TaskDetailPage'))
-const CourierRoutePage = lazy(() => import('@/pages/courier/RoutePage'))
 const CourierFundsPage = lazy(() => import('@/pages/courier/FundsPage'))
 const CourierSettlementPage = lazy(() => import('@/pages/courier/SettlementPage'))
 const CourierBusesPage = lazy(() => import('@/pages/courier/BusesPage'))
@@ -137,7 +136,7 @@ export function AppRouter() {
             <Route index element={<CourierHomePage />} />
             <Route path="tareas" element={<CourierTasksPage />} />
             <Route path="tareas/:id" element={<CourierTaskDetailPage />} />
-            <Route path="ruta" element={<CourierRoutePage />} />
+            <Route path="ruta" element={<Navigate to="/motorizado/tareas" replace />} />
             <Route path="fondos" element={<CourierFundsPage />} />
             <Route path="liquidacion" element={<CourierSettlementPage />} />
             <Route path="buses" element={<CourierBusesPage />} />
