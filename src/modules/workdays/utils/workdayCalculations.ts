@@ -1,6 +1,8 @@
 export interface WorkdayCashSummary {
   initialCashNIO: number
   initialCashUSD: number
+  advancesNIO: number
+  advancesUSD: number
   collectionsNIO: number
   collectionsUSD: number
   expensesNIO: number
@@ -19,7 +21,7 @@ export interface WorkdayCashSummary {
  * Función helper centralizada para el cálculo único del estado financiero de una jornada.
  *
  * FÓRMULA:
- * Efectivo en Mano = Fondo Inicial + Cobros Realizados - Gastos Registrados - Dinero Ya Recibido por Administración
+ * Efectivo en Mano = Fondo Inicial + Entregas/Adelantos de Admin + Cobros Realizados - Gastos Registrados - Dinero Ya Recibido por Administración
  */
 export function calculateWorkdayCashSummary(
   initialCash: number = 0,
@@ -39,6 +41,8 @@ export function calculateWorkdayCashSummary(
     movement_type: string
   }> = []
 ): WorkdayCashSummary {
+  let advancesNIO = 0
+  let advancesUSD = 0
   let collectionsNIO = 0
   let collectionsUSD = 0
   let expensesNIO = 0
@@ -67,7 +71,7 @@ export function calculateWorkdayCashSummary(
     }
   })
 
-  // 2. Movimientos de caja (gastos e ingresos por recepciones de administración)
+  // 2. Movimientos de caja (gastos e ingresos por recepciones/adelantos de administración)
   movements.forEach((m) => {
     const amt = m.amount || 0
     const curr = m.currency || 'NIO'
@@ -76,7 +80,10 @@ export function calculateWorkdayCashSummary(
       if (curr === 'USD') expensesUSD += amt
       else expensesNIO += amt
     } else if (m.direction === 'income') {
-      if (['cash_return', 'deposit', 'adjustment', 'settlement_payment'].includes(m.movement_type)) {
+      if (['cash_advance', 'advance', 'initial_cash'].includes(m.movement_type)) {
+        if (curr === 'USD') advancesUSD += amt
+        else advancesNIO += amt
+      } else if (['cash_return', 'deposit', 'adjustment', 'settlement_payment'].includes(m.movement_type)) {
         if (curr === 'USD') alreadyReceivedUSD += amt
         else alreadyReceivedNIO += amt
       }
@@ -86,12 +93,14 @@ export function calculateWorkdayCashSummary(
   const initialCashNIO = initialCash || 0
   const initialCashUSD = 0
 
-  const cashInHandNIO = initialCashNIO + collectionsNIO - expensesNIO - alreadyReceivedNIO
-  const cashInHandUSD = initialCashUSD + collectionsUSD - expensesUSD - alreadyReceivedUSD
+  const cashInHandNIO = initialCashNIO + advancesNIO + collectionsNIO - expensesNIO - alreadyReceivedNIO
+  const cashInHandUSD = initialCashUSD + advancesUSD + collectionsUSD - expensesUSD - alreadyReceivedUSD
 
   return {
     initialCashNIO,
     initialCashUSD,
+    advancesNIO,
+    advancesUSD,
     collectionsNIO,
     collectionsUSD,
     expensesNIO,
