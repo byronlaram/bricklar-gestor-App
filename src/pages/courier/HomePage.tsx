@@ -139,54 +139,54 @@ export default function CourierHomePage() {
   }, [timeFilter])
 
   return (
-    <div className="space-y-5 animate-fade-in pb-24 max-w-2xl mx-auto">
+    <div className="space-y-3.5 animate-fade-in pb-20 max-w-2xl mx-auto">
       {/* 1. Buscador Superior */}
       <div className="relative flex items-center gap-2">
         <div className="relative flex-1">
-          <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="text"
             placeholder="Buscar tareas, clientes o direcciones..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full h-11 pl-11 pr-4 bg-slate-100/90 text-slate-800 text-xs font-medium rounded-2xl border-0 focus:outline-none focus:ring-2 focus:ring-[#004594]/30 placeholder:text-slate-400 transition-all"
+            className="w-full h-10 pl-10 pr-3.5 bg-slate-100/90 text-slate-800 text-xs font-medium rounded-2xl border-0 focus:outline-none focus:ring-2 focus:ring-[#004594]/30 placeholder:text-slate-400 transition-all"
           />
         </div>
         <button
           onClick={() => navigate('/motorizado/tareas')}
-          className="w-11 h-11 rounded-2xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-center text-slate-700 hover:bg-slate-50 transition cursor-pointer shrink-0"
+          className="w-10 h-10 rounded-2xl bg-white border border-slate-200/80 shadow-2xs flex items-center justify-center text-slate-700 hover:bg-slate-50 transition cursor-pointer shrink-0"
           aria-label="Ir a Mis Tareas"
           title="Ver en Vista Completa"
         >
-          <SlidersHorizontal size={18} className="text-slate-600" />
+          <SlidersHorizontal size={16} className="text-slate-600" />
         </button>
       </div>
 
       {/* ⚠️ ALERTA DE SALDO / CIERRES PENDIENTES DE DÍAS ANTERIORES */}
       {pendingBalances?.hasPendingBalances && (
-        <div className="bg-gradient-to-r from-amber-500 to-rose-600 text-white p-4.5 rounded-3xl shadow-sm space-y-2.5 animate-fade-in">
-          <div className="flex items-start gap-3">
-            <div className="p-2 bg-white/20 rounded-2xl shrink-0 mt-0.5">
-              <AlertTriangle className="h-5 w-5 text-white" />
+        <div className="bg-gradient-to-r from-amber-500 to-rose-600 text-white p-3.5 rounded-2xl shadow-sm space-y-2 animate-fade-in">
+          <div className="flex items-start gap-2.5">
+            <div className="p-1.5 bg-white/20 rounded-xl shrink-0 mt-0.5">
+              <AlertTriangle className="h-4 w-4 text-white" />
             </div>
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
-                <h4 className="text-xs font-black uppercase tracking-wider text-amber-100">
+                <h4 className="text-[11px] font-black uppercase tracking-wider text-amber-100">
                   Saldo Pendiente Acumulado
                 </h4>
-                <span className="text-xs font-black bg-white/20 px-2.5 py-0.5 rounded-full font-tabular">
+                <span className="text-[11px] font-black bg-white/20 px-2 py-0.5 rounded-full font-tabular">
                   + C$ {pendingBalances.totalPendingCash.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </span>
               </div>
-              <p className="text-xs text-white/95 mt-1 leading-snug">
+              <p className="text-[11px] text-white/95 mt-0.5 leading-snug">
                 Tienes {pendingBalances.breakdown.length} jornada(s) anterior(es) con saldo o liquidación pendiente por entregar en caja.
               </p>
               <button
                 onClick={() => navigate('/motorizado/liquidacion')}
-                className="mt-2.5 inline-flex items-center gap-1.5 bg-white text-[#0A2540] text-xs font-bold px-3 py-1.5 rounded-xl shadow-2xs hover:bg-slate-100 transition cursor-pointer"
+                className="mt-2 inline-flex items-center gap-1 bg-white text-[#0A2540] text-[11px] font-bold px-2.5 py-1 rounded-lg shadow-2xs hover:bg-slate-100 transition cursor-pointer"
               >
-                <span>Ver Liquidación y Detalle</span>
-                <ArrowRight size={13} />
+                <span>Ver Liquidación</span>
+                <ArrowRight size={12} />
               </button>
             </div>
           </div>
@@ -194,9 +194,9 @@ export default function CourierHomePage() {
       )}
 
       {/* 2. Resumen de Estados (Filtros Circulares Interactivos) */}
-      <div className="bg-white rounded-3xl p-5 border border-slate-100 shadow-2xs space-y-4">
+      <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs space-y-2.5">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-extrabold text-[#0A2540]">
+          <h2 className="text-xs font-bold text-[#0A2540]">
             Resumen ({sectionTitle})
           </h2>
           {statusFilter !== 'all' && (
@@ -205,33 +205,33 @@ export default function CourierHomePage() {
                 setStatusFilter('all')
                 setTimeFilter('today')
               }}
-              className="text-2xs font-bold text-rose-600 hover:underline cursor-pointer bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100"
+              className="text-[10px] font-bold text-rose-600 hover:underline cursor-pointer bg-rose-50 px-2 py-0.5 rounded-full border border-rose-100"
             >
-              Quitar filtro (Mostrar todas)
+              Quitar filtro
             </button>
           )}
         </div>
 
-        <div className="grid grid-cols-4 gap-2 text-center">
+        <div className="grid grid-cols-4 gap-1.5 text-center">
           {/* Pendientes — Círculo Azul */}
           <div
-            className="flex flex-col items-center gap-1.5 cursor-pointer group"
+            className="flex flex-col items-center gap-1 cursor-pointer group"
             onClick={() => setStatusFilter((prev) => (prev === 'pending' ? 'all' : 'pending'))}
           >
             <div
-              className={`w-12 h-12 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-xs transition-all ${
+              className={`w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-xs transition-all ${
                 statusFilter === 'pending'
-                  ? 'ring-4 ring-blue-500/40 scale-110'
+                  ? 'ring-3 ring-blue-500/40 scale-105'
                   : 'group-hover:scale-105'
               }`}
             >
-              <Calendar size={20} />
+              <Calendar size={17} />
             </div>
-            <span className="text-base font-extrabold text-[#0A2540] font-mono leading-none mt-1">
+            <span className="text-sm font-extrabold text-[#0A2540] font-mono leading-none mt-0.5">
               {pendingCount}
             </span>
             <span
-              className={`text-[10px] font-semibold ${
+              className={`text-[9px] font-semibold ${
                 statusFilter === 'pending' ? 'text-blue-700 font-extrabold' : 'text-slate-500'
               }`}
             >
@@ -241,23 +241,23 @@ export default function CourierHomePage() {
 
           {/* En progreso — Círculo Naranja */}
           <div
-            className="flex flex-col items-center gap-1.5 cursor-pointer group"
+            className="flex flex-col items-center gap-1 cursor-pointer group"
             onClick={() => setStatusFilter((prev) => (prev === 'en_route' ? 'all' : 'en_route'))}
           >
             <div
-              className={`w-12 h-12 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs transition-all ${
+              className={`w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs transition-all ${
                 statusFilter === 'en_route'
-                  ? 'ring-4 ring-amber-500/40 scale-110'
+                  ? 'ring-3 ring-amber-500/40 scale-105'
                   : 'group-hover:scale-105'
               }`}
             >
-              <Play size={20} className="fill-current ml-0.5" />
+              <Play size={17} className="fill-current ml-0.5" />
             </div>
-            <span className="text-base font-extrabold text-[#0A2540] font-mono leading-none mt-1">
+            <span className="text-sm font-extrabold text-[#0A2540] font-mono leading-none mt-0.5">
               {enRouteCount}
             </span>
             <span
-              className={`text-[10px] font-semibold ${
+              className={`text-[9px] font-semibold ${
                 statusFilter === 'en_route' ? 'text-amber-700 font-extrabold' : 'text-slate-500'
               }`}
             >
@@ -267,23 +267,23 @@ export default function CourierHomePage() {
 
           {/* Completadas — Círculo Verde */}
           <div
-            className="flex flex-col items-center gap-1.5 cursor-pointer group"
+            className="flex flex-col items-center gap-1 cursor-pointer group"
             onClick={() => setStatusFilter((prev) => (prev === 'completed' ? 'all' : 'completed'))}
           >
             <div
-              className={`w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs transition-all ${
+              className={`w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs transition-all ${
                 statusFilter === 'completed'
-                  ? 'ring-4 ring-emerald-500/40 scale-110'
+                  ? 'ring-3 ring-emerald-500/40 scale-105'
                   : 'group-hover:scale-105'
               }`}
             >
-              <Check size={20} strokeWidth={2.8} />
+              <Check size={17} strokeWidth={2.8} />
             </div>
-            <span className="text-base font-extrabold text-[#0A2540] font-mono leading-none mt-1">
+            <span className="text-sm font-extrabold text-[#0A2540] font-mono leading-none mt-0.5">
               {completedCount}
             </span>
             <span
-              className={`text-[10px] font-semibold ${
+              className={`text-[9px] font-semibold ${
                 statusFilter === 'completed' ? 'text-emerald-700 font-extrabold' : 'text-slate-500'
               }`}
             >
@@ -293,26 +293,26 @@ export default function CourierHomePage() {
 
           {/* Retrasadas — Círculo Rojo */}
           <div
-            className="flex flex-col items-center gap-1.5 cursor-pointer group"
+            className="flex flex-col items-center gap-1 cursor-pointer group"
             onClick={() => {
               setTimeFilter('delayed')
               setStatusFilter('all')
             }}
           >
             <div
-              className={`w-12 h-12 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-xs transition-all ${
+              className={`w-10 h-10 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-xs transition-all ${
                 timeFilter === 'delayed'
-                  ? 'ring-4 ring-rose-500/40 scale-110'
+                  ? 'ring-3 ring-rose-500/40 scale-105'
                   : 'group-hover:scale-105'
               }`}
             >
-              <Flag size={20} />
+              <Flag size={17} />
             </div>
-            <span className="text-base font-extrabold text-[#0A2540] font-mono leading-none mt-1">
+            <span className="text-sm font-extrabold text-[#0A2540] font-mono leading-none mt-0.5">
               {delayedTasks.length}
             </span>
             <span
-              className={`text-[10px] font-semibold ${
+              className={`text-[9px] font-semibold ${
                 timeFilter === 'delayed' ? 'text-rose-700 font-extrabold' : 'text-slate-500'
               }`}
             >
@@ -326,121 +326,113 @@ export default function CourierHomePage() {
       {!activeWorkday ? (
         <button
           onClick={() => setIsStartModalOpen(true)}
-          className="w-full min-h-[52px] rounded-full bg-[#004594] text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-md hover:bg-[#083570] active:scale-[0.99] transition cursor-pointer"
+          className="w-full h-11 rounded-2xl bg-[#004594] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-[#083570] active:scale-[0.99] transition cursor-pointer"
         >
-          <Plus size={20} strokeWidth={2.5} />
+          <Plus size={18} strokeWidth={2.5} />
           <span>Iniciar Jornada de Hoy</span>
         </button>
       ) : (
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/motorizado/tareas')}
-            className="flex-1 min-h-[52px] rounded-full bg-[#004594] text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-md hover:bg-[#083570] active:scale-[0.99] transition cursor-pointer"
+            className="flex-1 h-11 rounded-2xl bg-[#004594] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-[#083570] active:scale-[0.99] transition cursor-pointer"
           >
-            <Navigation size={18} />
-            <span>Ver Mis Tareas / Ruta de Hoy</span>
+            <Navigation size={16} />
+            <span>Ver Mis Tareas / Ruta</span>
           </button>
 
           <button
             onClick={() => setIsEndOpen(true)}
-            className="h-[52px] px-4 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-rose-100 transition cursor-pointer shrink-0"
+            className="h-11 px-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-rose-100 transition cursor-pointer shrink-0"
           >
-            <StopCircle size={16} />
+            <StopCircle size={15} />
             <span>Cierre</span>
           </button>
         </div>
       )}
 
       {/* 3. Accesos Rápidos a Módulos (Mis Tareas, Fondos, Liquidación, Buses) */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-[#0A2540]">Accesos Rápidos</h2>
-          <span className="text-2xs text-slate-500 font-medium">Módulos de trabajo</span>
+      <div className="space-y-2">
+        <div className="flex items-center justify-between px-0.5">
+          <h2 className="text-xs font-bold text-[#0A2540]">Accesos Rápidos</h2>
+          <span className="text-[10px] text-slate-500 font-medium">Módulos de trabajo</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2">
           {/* Card 1: Mis Tareas */}
           <div
             onClick={() => navigate('/motorizado/tareas')}
-            className="rounded-3xl p-4 flex flex-col justify-between space-y-3 transition cursor-pointer border bg-[#F5F8FE] border-blue-200/80 hover:border-[#004594] hover:shadow-xs group"
+            className="rounded-2xl p-2.5 flex items-center gap-2 border bg-[#F5F8FE] border-blue-200/80 hover:border-[#004594] transition cursor-pointer group shadow-2xs"
           >
-            <div className="flex items-center justify-between">
-              <div className="w-9 h-9 rounded-2xl bg-[#004594]/10 text-[#004594] flex items-center justify-center group-hover:scale-105 transition-transform">
-                <ClipboardList size={18} />
-              </div>
-              <ChevronRight size={16} className="text-slate-400 group-hover:text-[#004594] group-hover:translate-x-0.5 transition-all" />
+            <div className="w-8 h-8 rounded-xl bg-[#004594]/10 text-[#004594] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <ClipboardList size={16} />
             </div>
-            <div>
-              <span className="text-sm font-extrabold text-[#0A2540] block">
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-bold text-[#0A2540] block truncate leading-tight">
                 Mis Tareas
               </span>
-              <span className="text-2xs font-semibold text-blue-700/80 mt-0.5 block">
-                {todayTasks.length} {todayTasks.length === 1 ? 'asignada' : 'asignadas'} hoy
+              <span className="text-[10px] font-semibold text-blue-700/80 block truncate mt-0.5">
+                {todayTasks.length} {todayTasks.length === 1 ? 'tarea' : 'tareas'} hoy
               </span>
             </div>
+            <ChevronRight size={13} className="text-slate-400 group-hover:text-[#004594] shrink-0" />
           </div>
 
           {/* Card 2: Fondos */}
           <div
             onClick={() => navigate('/motorizado/fondos')}
-            className="rounded-3xl p-4 flex flex-col justify-between space-y-3 transition cursor-pointer border bg-[#F3F9F6] border-emerald-200/80 hover:border-emerald-500 hover:shadow-xs group"
+            className="rounded-2xl p-2.5 flex items-center gap-2 border bg-[#F3F9F6] border-emerald-200/80 hover:border-emerald-500 transition cursor-pointer group shadow-2xs"
           >
-            <div className="flex items-center justify-between">
-              <div className="w-9 h-9 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Banknote size={18} />
-              </div>
-              <ChevronRight size={16} className="text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
+            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Banknote size={16} />
             </div>
-            <div>
-              <span className="text-sm font-extrabold text-[#0A2540] block">
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-bold text-[#0A2540] block truncate leading-tight">
                 Fondos & Caja
               </span>
-              <span className="text-2xs font-semibold text-emerald-700/80 mt-0.5 block">
+              <span className="text-[10px] font-semibold text-emerald-700/80 block truncate mt-0.5">
                 Viáticos y gastos
               </span>
             </div>
+            <ChevronRight size={13} className="text-slate-400 group-hover:text-emerald-600 shrink-0" />
           </div>
 
           {/* Card 3: Liquidación */}
           <div
             onClick={() => navigate('/motorizado/liquidacion')}
-            className="rounded-3xl p-4 flex flex-col justify-between space-y-3 transition cursor-pointer border bg-[#FAF8FE] border-purple-200/80 hover:border-purple-500 hover:shadow-xs group"
+            className="rounded-2xl p-2.5 flex items-center gap-2 border bg-[#FAF8FE] border-purple-200/80 hover:border-purple-500 transition cursor-pointer group shadow-2xs"
           >
-            <div className="flex items-center justify-between">
-              <div className="w-9 h-9 rounded-2xl bg-purple-500/10 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Calculator size={18} />
-              </div>
-              <ChevronRight size={16} className="text-slate-400 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all" />
+            <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Calculator size={16} />
             </div>
-            <div>
-              <span className="text-sm font-extrabold text-[#0A2540] block">
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-bold text-[#0A2540] block truncate leading-tight">
                 Liquidación
               </span>
-              <span className="text-2xs font-semibold text-purple-700/80 mt-0.5 block">
+              <span className="text-[10px] font-semibold text-purple-700/80 block truncate mt-0.5">
                 Arqueo y balance
               </span>
             </div>
+            <ChevronRight size={13} className="text-slate-400 group-hover:text-purple-600 shrink-0" />
           </div>
 
           {/* Card 4: Directorio Buses */}
           <div
             onClick={() => navigate('/motorizado/buses')}
-            className="rounded-3xl p-4 flex flex-col justify-between space-y-3 transition cursor-pointer border bg-[#FCFAF4] border-amber-200/80 hover:border-amber-500 hover:shadow-xs group"
+            className="rounded-2xl p-2.5 flex items-center gap-2 border bg-[#FCFAF4] border-amber-200/80 hover:border-amber-500 transition cursor-pointer group shadow-2xs"
           >
-            <div className="flex items-center justify-between">
-              <div className="w-9 h-9 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <Bus size={18} />
-              </div>
-              <ChevronRight size={16} className="text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all" />
+            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Bus size={16} />
             </div>
-            <div>
-              <span className="text-sm font-extrabold text-[#0A2540] block">
-                Directorio Buses
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-bold text-[#0A2540] block truncate leading-tight">
+                Buses
               </span>
-              <span className="text-2xs font-semibold text-amber-700/80 mt-0.5 block">
+              <span className="text-[10px] font-semibold text-amber-700/80 block truncate mt-0.5">
                 Terminales y rutas
               </span>
             </div>
+            <ChevronRight size={13} className="text-slate-400 group-hover:text-amber-600 shrink-0" />
           </div>
         </div>
       </div>
