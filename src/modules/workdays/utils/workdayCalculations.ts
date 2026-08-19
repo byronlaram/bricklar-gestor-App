@@ -54,19 +54,40 @@ export function calculateWorkdayCashSummary(
   tasks.forEach((t) => {
     const isCompleted = !t.status || t.status === 'completed'
     if (isCompleted) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+
       // Cobros a favor de la empresa
-      if (t.requires_collection && t.expected_collection_amount) {
-        const amt = t.expected_collection_amount
-        const curr = t.expected_collection_currency || 'NIO'
-        if (curr === 'USD') collectionsUSD += amt
-        else collectionsNIO += amt
+      if (t.requires_collection) {
+        if (pb && typeof pb.cash_amount === 'number') {
+          // Si hubo desglose explícito, solo el efectivo entra a la billetera
+          const curr = t.expected_collection_currency || 'NIO'
+          if (curr === 'USD') collectionsUSD += pb.cash_amount
+          else collectionsNIO += pb.cash_amount
+        } else if (t.expected_collection_amount) {
+          const amt = t.expected_collection_amount
+          const curr = t.expected_collection_currency || 'NIO'
+          if (curr === 'USD') collectionsUSD += amt
+          else collectionsNIO += amt
+        }
       }
+
       // Pagos a proveedores / compras realizadas en ruta
-      if (t.requires_payment && t.expected_payment_amount) {
-        const amt = t.expected_payment_amount
-        const curr = t.expected_payment_currency || 'NIO'
-        if (curr === 'USD') expensesUSD += amt
-        else expensesNIO += amt
+      if (t.requires_payment) {
+        if (pb && typeof pb.actual_paid_amount === 'number') {
+          // Si se pagó en efectivo (o no se especificó método distinto), descuenta de la billetera
+          const isCash = !pb.paid_method || pb.paid_method === 'cash'
+          if (isCash) {
+            const curr = t.expected_payment_currency || 'NIO'
+            if (curr === 'USD') expensesUSD += pb.actual_paid_amount
+            else expensesNIO += pb.actual_paid_amount
+          }
+        } else if (t.expected_payment_amount) {
+          const amt = t.expected_payment_amount
+          const curr = t.expected_payment_currency || 'NIO'
+          if (curr === 'USD') expensesUSD += amt
+          else expensesNIO += amt
+        }
       }
     }
   })

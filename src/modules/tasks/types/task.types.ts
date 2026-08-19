@@ -186,6 +186,22 @@ export interface AssignCourierPayload {
   reason?: string
 }
 
+// ─── Desglose de Pago / Liquidación de Tarea ────────────────────────────────
+export interface TaskPaymentBreakdown {
+  // Para cobros:
+  cash_amount?: number
+  transfer_amount?: number
+  transfer_bank?: string
+  transfer_reference?: string
+  cheque_amount?: number
+  cheque_bank?: string
+  cheque_number?: string
+  // Para compras / gastos:
+  actual_paid_amount?: number
+  invoice_number?: string
+  paid_method?: PaymentMethod | 'cheque'
+}
+
 // ─── Payload para cambiar estado ──────────────────────────────────────────────
 
 export interface ChangeStatusPayload {
@@ -193,6 +209,8 @@ export interface ChangeStatusPayload {
   new_status: TaskStatus
   notes?: string
   cancellation_reason?: string
+  payment_breakdown?: TaskPaymentBreakdown
+  metadata?: Record<string, unknown>
 }
 
 // ─── Resultado paginado ───────────────────────────────────────────────────────

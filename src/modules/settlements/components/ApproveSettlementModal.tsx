@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
-import { CheckCircle2, AlertTriangle, Calculator, Info } from 'lucide-react'
+import { useState, useEffect, useMemo } from 'react'
+import { CheckCircle2, AlertTriangle, Calculator, Info, FileCheck, CreditCard, Receipt } from 'lucide-react'
 import type { Settlement } from '../types/settlements.types'
 import { useSettlementMutations } from '../hooks/useSettlements'
+import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import {
   Modal,
   ModalContent,
@@ -28,6 +29,85 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
   const [notes, setNotes] = useState<string>('')
 
   const { approveSettlement, isApproving, approveError } = useSettlementMutations()
+
+  const { data: tasksData } = useTasks({
+    courier_id: settlement?.courier_id,
+    date: settlement?.settlement_date,
+    page_size: 100,
+  })
+
+  const completedTasks = useMemo(
+    () => (tasksData?.data || []).filter((t) => t.status === 'completed'),
+    [tasksData?.data]
+  )
+
+  const chequesList = useMemo(() => {
+    const list: Array<{ taskId: string; taskCode: string; client: string; amount: number; bank: string; chequeNumber: string }> = []
+    completedTasks.forEach((t) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      if (pb?.cheque_amount && pb.cheque_amount > 0) {
+        list.push({
+          taskId: t.id,
+          taskCode: t.code,
+          client: t.contact_name || t.title,
+          amount: pb.cheque_amount,
+          bank: pb.cheque_bank || 'Banco emisor',
+          chequeNumber: pb.cheque_number || 'S/N',
+        })
+      }
+    })
+    return list
+  }, [completedTasks])
+
+  const transfersList = useMemo(() => {
+    const list: Array<{ taskId: string; taskCode: string; client: string; amount: number; bank: string; reference: string }> = []
+    completedTasks.forEach((t) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      if (pb?.transfer_amount && pb.transfer_amount > 0) {
+        list.push({
+          taskId: t.id,
+          taskCode: t.code,
+          client: t.contact_name || t.title,
+          amount: pb.transfer_amount,
+          bank: pb.transfer_bank || 'Banpro / Lafise',
+          reference: pb.transfer_reference || '',
+        })
+      } else if (t.requires_collection && (t.expected_payment_method === 'bank_transfer' || t.expected_payment_method === 'mobile_wallet') && (!pb || !pb.cash_amount)) {
+        list.push({
+          taskId: t.id,
+          taskCode: t.code,
+          client: t.contact_name || t.title,
+          amount: t.expected_collection_amount || 0,
+          bank: 'Transferencia Bancaria',
+          reference: '',
+        })
+      }
+    })
+    return list
+  }, [completedTasks])
+
+  const invoicesList = useMemo(() => {
+    const list: Array<{ taskId: string; taskCode: string; title: string; amount: number; invoiceNumber?: string }> = []
+    completedTasks.forEach((t) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      if (t.requires_payment) {
+        const amt = pb?.actual_paid_amount ?? t.expected_payment_amount ?? 0
+        if (amt > 0) {
+          list.push({
+            taskId: t.id,
+            taskCode: t.code,
+            title: t.title,
+            amount: amt,
+            invoiceNumber: pb?.invoice_number,
+          })
+        }
+      }
+    })
+    return list
+  }, [completedTasks])
 
   useEffect(() => {
     if (settlement) {
@@ -69,7 +149,7 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <ModalContent size="md">
+      <ModalContent size="lg">
         <ModalHeader onClose={onClose}>
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200">
@@ -78,14 +158,14 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
             <div>
               <ModalTitle>Arqueo y Cierre de Liquidación</ModalTitle>
               <ModalDescription>
-                Motorizado: {settlement.courier_profile?.display_name || settlement.courier_profile?.full_name}
+                Motorizado: {settlement.courier_profile?.display_name || settlement.courier_profile?.full_name} ({settlement.settlement_date})
               </ModalDescription>
             </div>
           </div>
         </ModalHeader>
 
         <form onSubmit={handleSubmit}>
-          <ModalBody className="space-y-4">
+          <ModalBody className="space-y-4 max-h-[75vh] overflow-y-auto">
             {/* Resumen de Arqueo Completo */}
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs">
               <div className="flex justify-between items-center text-slate-700">
@@ -121,13 +201,103 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
               )}
 
               <div className="flex justify-between items-center pt-2.5 border-t border-slate-200 font-extrabold text-sm">
-                <span className="text-slate-900">Saldo Neto a Recibir en Caja (=):</span>
+                <span className="text-slate-900">Saldo Neto de Efectivo a Recibir en Ventanilla (=):</span>
                 <span className="text-emerald-700 font-mono">
                   C$ {(settlement.expected_cash ?? 0).toFixed(2)}
                 </span>
               </div>
             </div>
 
+            {/* 📑 SECCIÓN AUDITORÍA DE CHEQUES, TRANSFERENCIAS Y FACTURAS */}
+            {(chequesList.length > 0 || transfersList.length > 0 || invoicesList.length > 0) && (
+              <div className="p-3.5 bg-purple-50/50 border border-purple-200 rounded-2xl space-y-3 text-xs">
+                <span className="font-extrabold text-purple-950 flex items-center gap-1.5 uppercase tracking-wider text-2xs">
+                  <FileCheck className="h-4 w-4 text-purple-700" />
+                  Comprobantes y Documentos Físicos a Recibir / Auditar
+                </span>
+
+                {/* Cheques */}
+                {chequesList.length > 0 && (
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-700 flex items-center gap-1 text-2xs uppercase">
+                        <FileCheck className="h-3 w-3 text-purple-600" />
+                        Cheques Físicos ({chequesList.length}):
+                      </span>
+                      <span className="font-mono font-bold text-purple-800 text-2xs">
+                        Total: C$ {chequesList.reduce((acc, c) => acc + c.amount, 0).toFixed(2)}
+                      </span>
+                    </div>
+                    {chequesList.map((ck, idx) => (
+                      <div key={idx} className="flex justify-between items-center p-2 bg-white rounded-xl border border-purple-100">
+                        <div>
+                          <span className="font-mono font-bold text-slate-900 block">
+                            No. CK: {ck.chequeNumber} — {ck.bank}
+                          </span>
+                          <span className="text-2xs text-slate-500">{ck.taskCode} ({ck.client})</span>
+                        </div>
+                        <span className="font-mono font-bold text-purple-900">
+                          C$ {ck.amount.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Transferencias */}
+                {transfersList.length > 0 && (
+                  <div className="space-y-1.5 pt-1.5 border-t border-purple-100">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-700 flex items-center gap-1 text-2xs uppercase">
+                        <CreditCard className="h-3 w-3 text-sky-600" />
+                        Transferencias Registradas ({transfersList.length}):
+                      </span>
+                      <span className="font-mono font-bold text-sky-800 text-2xs">
+                        Total: C$ {transfersList.reduce((acc, t) => acc + t.amount, 0).toFixed(2)}
+                      </span>
+                    </div>
+                    {transfersList.map((tr, idx) => (
+                      <div key={idx} className="flex justify-between items-center p-2 bg-white rounded-xl border border-sky-100">
+                        <div>
+                          <span className="font-medium text-slate-900 block">
+                            {tr.bank} {tr.reference ? `(Ref: ${tr.reference})` : ''}
+                          </span>
+                          <span className="text-2xs text-slate-500">{tr.taskCode} ({tr.client})</span>
+                        </div>
+                        <span className="font-mono font-bold text-sky-900">
+                          C$ {tr.amount.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Facturas */}
+                {invoicesList.length > 0 && (
+                  <div className="space-y-1.5 pt-1.5 border-t border-purple-100">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-slate-700 flex items-center gap-1 text-2xs uppercase">
+                        <Receipt className="h-3 w-3 text-amber-600" />
+                        Facturas / Recibos de Compras ({invoicesList.length}):
+                      </span>
+                    </div>
+                    {invoicesList.map((inv, idx) => (
+                      <div key={idx} className="flex justify-between items-center p-2 bg-white rounded-xl border border-amber-100">
+                        <div>
+                          <span className="font-mono font-bold text-slate-900 block">
+                            {inv.invoiceNumber ? `Factura/Ticket: ${inv.invoiceNumber}` : 'Sin No. de factura'}
+                          </span>
+                          <span className="text-2xs text-slate-500">{inv.taskCode} — {inv.title}</span>
+                        </div>
+                        <span className="font-mono font-bold text-amber-900">
+                          C$ {inv.amount.toFixed(2)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             <Input
               label="Efectivo Entregado Físicamente (C$)"
@@ -268,4 +438,3 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
     </Modal>
   )
 }
-

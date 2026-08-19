@@ -418,20 +418,21 @@ export async function assignTask(payload: AssignCourierPayload): Promise<Task> {
 // ─── changeTaskStatus ─────────────────────────────────────────────────────────
 
 export async function changeTaskStatus(payload: ChangeStatusPayload): Promise<Task> {
-  const { task_id, new_status, notes, cancellation_reason } = payload
+  const { task_id, new_status, notes, cancellation_reason, payment_breakdown, metadata } = payload
   const { data: session } = await supabase.auth.getSession()
   const userId = session?.session?.user?.id
   if (!userId) throw new Error('No hay sesión activa.')
 
-  // Obtener estado actual
+  // Obtener estado actual y metadata existente
   const { data: taskData, error: taskError } = await supabase
     .from('tasks')
-    .select('status')
+    .select('status, metadata')
     .eq('id', task_id)
     .single()
 
   if (taskError) throw new Error(taskError.message)
   const currentStatus = (taskData as { status: TaskStatus }).status
+  const existingMetadata = (taskData as { metadata?: Record<string, unknown> })?.metadata || {}
 
   // Validar transición
   const allowed = ALLOWED_TRANSITIONS[currentStatus] ?? []
@@ -441,11 +442,19 @@ export async function changeTaskStatus(payload: ChangeStatusPayload): Promise<Ta
     )
   }
 
-  // Preparar actualización
+  // Preparar actualización con metadata combinada
+  const mergedMetadata = {
+    ...existingMetadata,
+    ...(metadata || {}),
+    ...(payment_breakdown ? { payment_breakdown } : {}),
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const updatePayload: Database['public']['Tables']['tasks']['Update'] = {
     status: new_status,
     updated_by: userId,
     updated_at: new Date().toISOString(),
+    metadata: mergedMetadata as any,
   }
 
   if (new_status === 'completed') {

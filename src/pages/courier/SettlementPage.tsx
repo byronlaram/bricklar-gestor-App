@@ -16,6 +16,7 @@ import {
   ChevronUp,
   Package,
   HandCoins,
+  FileCheck,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
@@ -71,6 +72,75 @@ export default function CourierSettlementPage() {
   )
 
   const completedTasksCount = completedTasks.length
+
+  // Documentos físicos y desgloses
+  const chequesList = useMemo(() => {
+    const list: Array<{ taskId: string; taskCode: string; client: string; amount: number; bank: string; chequeNumber: string }> = []
+    completedTasks.forEach((t) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      if (pb?.cheque_amount && pb.cheque_amount > 0) {
+        list.push({
+          taskId: t.id,
+          taskCode: t.code,
+          client: t.contact_name || t.title,
+          amount: pb.cheque_amount,
+          bank: pb.cheque_bank || 'Banco emisor',
+          chequeNumber: pb.cheque_number || 'S/N',
+        })
+      }
+    })
+    return list
+  }, [completedTasks])
+
+  const transfersList = useMemo(() => {
+    const list: Array<{ taskId: string; taskCode: string; client: string; amount: number; bank: string; reference: string }> = []
+    completedTasks.forEach((t) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      if (pb?.transfer_amount && pb.transfer_amount > 0) {
+        list.push({
+          taskId: t.id,
+          taskCode: t.code,
+          client: t.contact_name || t.title,
+          amount: pb.transfer_amount,
+          bank: pb.transfer_bank || 'Banpro / Lafise',
+          reference: pb.transfer_reference || '',
+        })
+      } else if (t.requires_collection && (t.expected_payment_method === 'bank_transfer' || t.expected_payment_method === 'mobile_wallet') && (!pb || !pb.cash_amount)) {
+        list.push({
+          taskId: t.id,
+          taskCode: t.code,
+          client: t.contact_name || t.title,
+          amount: t.expected_collection_amount || 0,
+          bank: 'Transferencia Bancaria',
+          reference: '',
+        })
+      }
+    })
+    return list
+  }, [completedTasks])
+
+  const invoicesList = useMemo(() => {
+    const list: Array<{ taskId: string; taskCode: string; title: string; amount: number; invoiceNumber?: string }> = []
+    completedTasks.forEach((t) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      if (t.requires_payment) {
+        const amt = pb?.actual_paid_amount ?? t.expected_payment_amount ?? 0
+        if (amt > 0) {
+          list.push({
+            taskId: t.id,
+            taskCode: t.code,
+            title: t.title,
+            amount: amt,
+            invoiceNumber: pb?.invoice_number,
+          })
+        }
+      }
+    })
+    return list
+  }, [completedTasks])
 
   // Cálculo centralizado y unificado de caja
   const cashSummary = useMemo(
@@ -476,6 +546,115 @@ export default function CourierSettlementPage() {
             </span>
           </div>
         </div>
+      </div>
+
+      {/* 📑 SECCIÓN DE DOCUMENTOS FÍSICOS A ENTREGAR (CHEQUES, TRANSFERENCIAS, FACTURAS) */}
+      <div className="p-5 bg-white border border-slate-200/80 rounded-3xl shadow-2xs space-y-4">
+        <h3 className="text-xs uppercase tracking-wider border-b border-slate-100 pb-2.5 flex items-center gap-1.5 text-slate-800 font-extrabold">
+          <FileCheck className="h-4 w-4 text-purple-600" />
+          Documentos y Comprobantes a Entregar en Ventanilla
+        </h3>
+
+        {/* 1. Lista de Cheques */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <FileCheck className="h-3.5 w-3.5 text-purple-600" />
+              Cheques Físicos (CK)
+            </span>
+            <span className="text-2xs font-bold font-mono text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+              {chequesList.length} cheque(s) — Total: C$ {chequesList.reduce((acc, c) => acc + c.amount, 0).toFixed(2)}
+            </span>
+          </div>
+
+          {chequesList.length === 0 ? (
+            <p className="text-2xs text-slate-400 italic bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              No recibiste cheques en este turno.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {chequesList.map((ck, idx) => (
+                <div key={idx} className="flex justify-between items-center p-2.5 bg-purple-50/60 rounded-xl border border-purple-100 text-xs">
+                  <div>
+                    <span className="font-bold text-slate-900 block font-mono">
+                      CK: {ck.chequeNumber} — {ck.bank}
+                    </span>
+                    <span className="text-2xs text-slate-500">{ck.taskCode} ({ck.client})</span>
+                  </div>
+                  <span className="font-black font-mono text-purple-900">
+                    C$ {ck.amount.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 2. Lista de Transferencias */}
+        <div className="space-y-2 pt-2 border-t border-slate-100">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5 text-sky-600" />
+              Comprobantes de Transferencia Bancaria
+            </span>
+            <span className="text-2xs font-bold font-mono text-sky-700 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
+              {transfersList.length} registro(s) — Total: C$ {transfersList.reduce((acc, t) => acc + t.amount, 0).toFixed(2)}
+            </span>
+          </div>
+
+          {transfersList.length === 0 ? (
+            <p className="text-2xs text-slate-400 italic bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+              No hubo cobros por transferencia en este turno.
+            </p>
+          ) : (
+            <div className="space-y-1.5">
+              {transfersList.map((tr, idx) => (
+                <div key={idx} className="flex justify-between items-center p-2.5 bg-sky-50/60 rounded-xl border border-sky-100 text-xs">
+                  <div>
+                    <span className="font-bold text-slate-900 block">
+                      {tr.bank} {tr.reference ? `(Ref: ${tr.reference})` : ''}
+                    </span>
+                    <span className="text-2xs text-slate-500">{tr.taskCode} ({tr.client})</span>
+                  </div>
+                  <span className="font-black font-mono text-sky-900">
+                    C$ {tr.amount.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* 3. Facturas y Recibos de Compras */}
+        {invoicesList.length > 0 && (
+          <div className="space-y-2 pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                <Receipt className="h-3.5 w-3.5 text-amber-600" />
+                Facturas / Recibos de Compras Entregados
+              </span>
+              <span className="text-2xs font-bold font-mono text-amber-800 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full">
+                {invoicesList.length} factura(s)
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              {invoicesList.map((inv, idx) => (
+                <div key={idx} className="flex justify-between items-center p-2.5 bg-amber-50/60 rounded-xl border border-amber-100 text-xs">
+                  <div>
+                    <span className="font-bold text-slate-900 block font-mono">
+                      {inv.invoiceNumber ? `Doc: ${inv.invoiceNumber}` : 'Sin comprobante escrito'}
+                    </span>
+                    <span className="text-2xs text-slate-500">{inv.taskCode} — {inv.title}</span>
+                  </div>
+                  <span className="font-black font-mono text-amber-900">
+                    C$ {inv.amount.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Formulario / Acción de Enviar a Liquidación */}
