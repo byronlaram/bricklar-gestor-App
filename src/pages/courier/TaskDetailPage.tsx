@@ -14,26 +14,35 @@ import {
 } from 'lucide-react'
 import { useTask } from '@/modules/tasks/hooks/useTask'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
+import { useAuth } from '@/modules/auth/useAuth'
+import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
 import { TaskStatusBadge } from '@/modules/tasks/components/TaskStatusBadge'
 import { TaskPriorityBadge } from '@/modules/tasks/components/TaskPriorityBadge'
 import { TaskTypeBadge } from '@/modules/tasks/components/TaskTypeBadge'
 import { CompleteTaskModal } from '@/modules/courier/components/CompleteTaskModal'
+import { StartWorkdayModal } from '@/modules/courier/components/StartWorkdayModal'
 import {
   Card,
   CardTitle,
   Button,
   Badge,
   Skeleton,
+  useToast,
 } from '@/shared/components/ui'
 
 export default function CourierTaskDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const { profile } = useAuth()
+  const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
+  const toast = useToast()
 
+  const { data: activeWorkday } = useActiveWorkday(profile?.id)
   const { task, isLoading, isError } = useTask(id)
   const { changeStatus, isChangingStatus } = useTaskMutations()
 
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false)
+  const [isStartWorkdayOpen, setIsStartWorkdayOpen] = useState(false)
 
   if (isLoading) {
     return (
@@ -61,20 +70,41 @@ export default function CourierTaskDetailPage() {
     )
   }
 
+  const requireActiveWorkday = (actionLabel: string = 'realizar esta acción'): boolean => {
+    if (!activeWorkday || activeWorkday.status !== 'open') {
+      toast.warning(
+        'Jornada requerida',
+        `Debes abrir tu jornada de hoy con el kilometraje inicial antes de ${actionLabel}.`
+      )
+      setIsStartWorkdayOpen(true)
+      return false
+    }
+    return true
+  }
+
   const handleStartRoute = async () => {
+    if (!requireActiveWorkday('poner esta tarea en ruta')) return
     try {
       await changeStatus({ task_id: task.id, new_status: 'en_route', notes: 'Inició ruta' })
-    } catch (err) {
-      console.error(err)
+      toast.success('Ruta iniciada', `Parada ${task.code} en camino.`)
+    } catch (err: unknown) {
+      toast.error('Error al iniciar ruta', (err as Error)?.message || 'No se pudo iniciar la ruta.')
     }
   }
 
   const handleStartManagement = async () => {
+    if (!requireActiveWorkday('gestionar esta entrega')) return
     try {
       await changeStatus({ task_id: task.id, new_status: 'in_progress', notes: 'Llegó a gestión' })
-    } catch (err) {
-      console.error(err)
+      toast.success('Llegaste al lugar', `Tarea ${task.code} ahora en gestión.`)
+    } catch (err: unknown) {
+      toast.error('Error al actualizar estado', (err as Error)?.message || 'No se pudo actualizar el estado.')
     }
+  }
+
+  const handleOpenCompleteModal = () => {
+    if (!requireActiveWorkday('finalizar o cobrar esta tarea')) return
+    setIsCompleteModalOpen(true)
   }
 
   return (
@@ -247,7 +277,7 @@ export default function CourierTaskDetailPage() {
             <Button
               size="lg"
               variant="confirm"
-              onClick={() => setIsCompleteModalOpen(true)}
+              onClick={handleOpenCompleteModal}
               leftIcon={<CheckCircle2 className="h-4 w-4" />}
               className="w-full justify-center text-sm font-bold shadow-xs py-3"
             >
@@ -272,6 +302,13 @@ export default function CourierTaskDetailPage() {
         task={task}
         isOpen={isCompleteModalOpen}
         onClose={() => setIsCompleteModalOpen(false)}
+      />
+
+      {/* Modal de Inicio de Jornada */}
+      <StartWorkdayModal
+        branchId={branchId}
+        isOpen={isStartWorkdayOpen}
+        onClose={() => setIsStartWorkdayOpen(false)}
       />
     </div>
   )

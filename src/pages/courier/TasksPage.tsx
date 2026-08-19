@@ -44,6 +44,7 @@ import { TaskTypeBadge } from '@/modules/tasks/components/TaskTypeBadge'
 import { TaskStatusBadge } from '@/modules/tasks/components/TaskStatusBadge'
 import { CompleteTaskModal } from '@/modules/courier/components/CompleteTaskModal'
 import { NewCourierGestionModal } from '@/modules/courier/components/NewCourierGestionModal'
+import { StartWorkdayModal } from '@/modules/courier/components/StartWorkdayModal'
 import {
   Button,
   Input,
@@ -351,6 +352,7 @@ export default function CourierTasksPage() {
   const toast = useToast()
 
   const { data: activeWorkday } = useActiveWorkday(profile?.id)
+  const [isStartWorkdayOpen, setIsStartWorkdayOpen] = useState(false)
   const [isNewGestionOpen, setIsNewGestionOpen] = useState(false)
   const [completeTargetTask, setCompleteTargetTask] = useState<TaskWithCourier | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -398,7 +400,20 @@ export default function CourierTasksPage() {
     [approvedTasks]
   )
 
+  const requireActiveWorkday = (actionLabel: string = 'realizar esta acción'): boolean => {
+    if (!activeWorkday || activeWorkday.status !== 'open') {
+      toast.warning(
+        'Jornada requerida',
+        `Debes abrir tu jornada de hoy con el kilometraje inicial antes de ${actionLabel}.`
+      )
+      setIsStartWorkdayOpen(true)
+      return false
+    }
+    return true
+  }
+
   const handleStartRoute = async (task: TaskWithCourier) => {
+    if (!requireActiveWorkday('poner una tarea en ruta')) return
     try {
       await changeStatus({ task_id: task.id, new_status: 'en_route', notes: 'Inició ruta' })
       toast.success('Ruta iniciada', `Parada ${task.code} en camino.`)
@@ -408,12 +423,18 @@ export default function CourierTasksPage() {
   }
 
   const handleStartManagement = async (task: TaskWithCourier) => {
+    if (!requireActiveWorkday('gestionar entregas')) return
     try {
       await changeStatus({ task_id: task.id, new_status: 'in_progress', notes: 'Llegó al lugar de gestión' })
       toast.success('Llegaste al lugar', `Tarea ${task.code} ahora en gestión.`)
     } catch (err: unknown) {
       toast.error('Error al actualizar estado', (err as Error)?.message || 'No se pudo actualizar el estado.')
     }
+  }
+
+  const handleOpenCompleteModal = (task: TaskWithCourier) => {
+    if (!requireActiveWorkday('finalizar o cobrar tareas')) return
+    setCompleteTargetTask(task)
   }
 
   const handleDragEnd = async (event: DragEndEvent) => {
@@ -494,10 +515,8 @@ export default function CourierTasksPage() {
 
         <button
           onClick={() => {
-            if (activeWorkday && activeWorkday.status === 'open') {
+            if (requireActiveWorkday('registrar una nueva gestión')) {
               setIsNewGestionOpen(true)
-            } else {
-              toast.error('Jornada requerida', 'Inicia tu jornada laboral para registrar una gestión.')
             }
           }}
           className="h-10 px-4 rounded-2xl bg-[#004594] hover:bg-[#083570] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-xs transition cursor-pointer self-start sm:self-auto shrink-0"
@@ -506,6 +525,32 @@ export default function CourierTasksPage() {
           <span>+ Nueva Gestión</span>
         </button>
       </div>
+
+      {/* Alerta de Jornada no iniciada */}
+      {(!activeWorkday || activeWorkday.status !== 'open') && (
+        <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white p-4 rounded-3xl shadow-sm flex items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-white/20 rounded-2xl shrink-0">
+              <Bike className="h-5 w-5 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xs font-black uppercase tracking-wider text-amber-100">
+                Jornada no iniciada
+              </h3>
+              <p className="text-xs text-white/95 leading-tight mt-0.5">
+                Debes abrir tu jornada para iniciar rutas, gestionar paradas y cobrar entregas.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsStartWorkdayOpen(true)}
+            className="px-3.5 py-2 rounded-xl bg-white text-[#0A2540] text-xs font-extrabold shadow-xs hover:bg-slate-100 transition cursor-pointer shrink-0"
+          >
+            Iniciar Jornada
+          </button>
+        </div>
+      )}
 
       {/* 2. Barra de Búsqueda */}
       <div className="relative">
@@ -608,7 +653,7 @@ export default function CourierTasksPage() {
                           onOpenWhatsApp={openWhatsApp}
                           onStartRoute={handleStartRoute}
                           onStartManagement={handleStartManagement}
-                          onComplete={(t) => setCompleteTargetTask(t)}
+                          onComplete={handleOpenCompleteModal}
                           isChangingStatus={isChangingStatus}
                         />
                       ))}
@@ -674,6 +719,13 @@ export default function CourierTasksPage() {
         onClose={() => setIsNewGestionOpen(false)}
         branchId={branchId}
         workdayId={activeWorkday?.id}
+      />
+
+      {/* Modal de Inicio de Jornada */}
+      <StartWorkdayModal
+        branchId={branchId}
+        isOpen={isStartWorkdayOpen}
+        onClose={() => setIsStartWorkdayOpen(false)}
       />
     </div>
   )
