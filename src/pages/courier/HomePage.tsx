@@ -352,87 +352,95 @@ export default function CourierHomePage() {
       )}
 
       {/* 3. Accesos Rápidos a Módulos (Mis Tareas, Fondos, Liquidación, Buses) */}
-      <div className="space-y-2">
+      <div className="space-y-2.5">
         <div className="flex items-center justify-between px-0.5">
           <h2 className="text-xs font-bold text-[#0A2540]">Accesos Rápidos</h2>
           <span className="text-[10px] text-slate-500 font-medium">Módulos de trabajo</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2.5">
           {/* Card 1: Mis Tareas */}
           <div
             onClick={() => navigate('/motorizado/tareas')}
-            className="rounded-2xl p-2.5 flex items-center gap-2 border bg-[#F5F8FE] border-blue-200/80 hover:border-[#004594] transition cursor-pointer group shadow-2xs"
+            className="rounded-2xl p-3 flex flex-col justify-between min-h-[82px] sm:min-h-[88px] border bg-[#F5F8FE] border-blue-200/80 hover:border-[#004594] transition cursor-pointer group shadow-2xs"
           >
-            <div className="w-8 h-8 rounded-xl bg-[#004594]/10 text-[#004594] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <ClipboardList size={16} />
+            <div className="flex items-center justify-between">
+              <div className="w-8 h-8 rounded-xl bg-[#004594]/10 text-[#004594] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <ClipboardList size={16} />
+              </div>
+              <ChevronRight size={14} className="text-slate-400 group-hover:text-[#004594] group-hover:translate-x-0.5 transition-all shrink-0" />
             </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-xs font-bold text-[#0A2540] block truncate leading-tight">
+            <div className="mt-2">
+              <span className="text-xs font-extrabold text-[#0A2540] block leading-tight">
                 Mis Tareas
               </span>
-              <span className="text-[10px] font-semibold text-blue-700/80 block truncate mt-0.5">
+              <span className="text-[10px] font-semibold text-blue-700/90 block mt-0.5 leading-tight">
                 {todayTasks.length} {todayTasks.length === 1 ? 'tarea' : 'tareas'} hoy
               </span>
             </div>
-            <ChevronRight size={13} className="text-slate-400 group-hover:text-[#004594] shrink-0" />
           </div>
 
           {/* Card 2: Fondos */}
           <div
             onClick={() => navigate('/motorizado/fondos')}
-            className="rounded-2xl p-2.5 flex items-center gap-2 border bg-[#F3F9F6] border-emerald-200/80 hover:border-emerald-500 transition cursor-pointer group shadow-2xs"
+            className="rounded-2xl p-3 flex flex-col justify-between min-h-[82px] sm:min-h-[88px] border bg-[#F3F9F6] border-emerald-200/80 hover:border-emerald-500 transition cursor-pointer group shadow-2xs"
           >
-            <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Banknote size={16} />
+            <div className="flex items-center justify-between">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Banknote size={16} />
+              </div>
+              <ChevronRight size={14} className="text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all shrink-0" />
             </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-xs font-bold text-[#0A2540] block truncate leading-tight">
+            <div className="mt-2">
+              <span className="text-xs font-extrabold text-[#0A2540] block leading-tight">
                 Fondos & Caja
               </span>
-              <span className="text-[10px] font-semibold text-emerald-700/80 block truncate mt-0.5">
+              <span className="text-[10px] font-semibold text-emerald-700/90 block mt-0.5 leading-tight">
                 Viáticos y gastos
               </span>
             </div>
-            <ChevronRight size={13} className="text-slate-400 group-hover:text-emerald-600 shrink-0" />
           </div>
 
           {/* Card 3: Liquidación */}
           <div
             onClick={() => navigate('/motorizado/liquidacion')}
-            className="rounded-2xl p-2.5 flex items-center gap-2 border bg-[#FAF8FE] border-purple-200/80 hover:border-purple-500 transition cursor-pointer group shadow-2xs"
+            className="rounded-2xl p-3 flex flex-col justify-between min-h-[82px] sm:min-h-[88px] border bg-[#FAF8FE] border-purple-200/80 hover:border-purple-500 transition cursor-pointer group shadow-2xs"
           >
-            <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Calculator size={16} />
+            <div className="flex items-center justify-between">
+              <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Calculator size={16} />
+              </div>
+              <ChevronRight size={14} className="text-slate-400 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all shrink-0" />
             </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-xs font-bold text-[#0A2540] block truncate leading-tight">
+            <div className="mt-2">
+              <span className="text-xs font-extrabold text-[#0A2540] block leading-tight">
                 Liquidación
               </span>
-              <span className="text-[10px] font-semibold text-purple-700/80 block truncate mt-0.5">
+              <span className="text-[10px] font-semibold text-purple-700/90 block mt-0.5 leading-tight">
                 Arqueo y balance
               </span>
             </div>
-            <ChevronRight size={13} className="text-slate-400 group-hover:text-purple-600 shrink-0" />
           </div>
 
           {/* Card 4: Directorio Buses */}
           <div
             onClick={() => navigate('/motorizado/buses')}
-            className="rounded-2xl p-2.5 flex items-center gap-2 border bg-[#FCFAF4] border-amber-200/80 hover:border-amber-500 transition cursor-pointer group shadow-2xs"
+            className="rounded-2xl p-3 flex flex-col justify-between min-h-[82px] sm:min-h-[88px] border bg-[#FCFAF4] border-amber-200/80 hover:border-amber-500 transition cursor-pointer group shadow-2xs"
           >
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-              <Bus size={16} />
+            <div className="flex items-center justify-between">
+              <div className="w-9 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Bus size={16} />
+              </div>
+              <ChevronRight size={14} className="text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all shrink-0" />
             </div>
-            <div className="min-w-0 flex-1">
-              <span className="text-xs font-bold text-[#0A2540] block truncate leading-tight">
-                Buses
+            <div className="mt-2">
+              <span className="text-xs font-extrabold text-[#0A2540] block leading-tight">
+                Directorio Buses
               </span>
-              <span className="text-[10px] font-semibold text-amber-700/80 block truncate mt-0.5">
+              <span className="text-[10px] font-semibold text-amber-700/90 block mt-0.5 leading-tight">
                 Terminales y rutas
               </span>
             </div>
-            <ChevronRight size={13} className="text-slate-400 group-hover:text-amber-600 shrink-0" />
           </div>
         </div>
       </div>
