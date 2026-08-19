@@ -141,14 +141,19 @@ function TaskStatusBar({ tasks, dateLabel }: { tasks: { status: string }[]; date
       </div>
 
       {/* Leyenda Semántica */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 pt-1">
+      <div className="flex flex-wrap items-center gap-2.5 pt-1">
         {counts
           .filter((c) => c.count > 0)
           .map((c) => (
-            <div key={c.key} className="flex items-center gap-2 text-xs">
+            <div
+              key={c.key}
+              className="inline-flex items-center gap-2 text-xs bg-slate-50 border border-slate-200/80 px-3 py-1.5 rounded-xl shadow-2xs"
+            >
               <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${c.color}`} aria-hidden="true" />
-              <span className="text-slate-600 truncate">{c.label}</span>
-              <span className="font-bold text-slate-900 font-mono ml-auto">{c.count}</span>
+              <span className="text-slate-600 font-medium">{c.label}</span>
+              <span className="font-bold text-slate-900 font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200/70 shadow-2xs text-[11px]">
+                {c.count}
+              </span>
             </div>
           ))}
       </div>
