@@ -340,7 +340,7 @@ export default function AdminLayout() {
             {/* Breadcrumb & Titular de Página */}
             <div>
               <div className="flex items-center gap-1.5 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
-                <Link to="/admin" className="hover:text-accent transition-colors">Bricklar</Link>
+                <Link to="/admin" className="hover:text-accent transition-colors font-bold">Bricklar GestorApp</Link>
                 <ChevronRight size={12} className="text-slate-300" />
                 <span className="text-slate-600">{pageTitle}</span>
               </div>

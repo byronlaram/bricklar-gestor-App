@@ -123,12 +123,12 @@ export default function CourierLayout() {
           </button>
 
           <div>
-            <h1 className="text-base font-extrabold text-white tracking-tight flex items-center gap-1 leading-tight">
-              ¡Hola, {profile?.display_name || profile?.full_name?.split(' ')[0] || 'Motorizado'}! 👋
-            </h1>
-            <p className="text-2xs font-medium text-blue-100/80 capitalize">
-              {new Date().toLocaleDateString('es-NI', { weekday: 'long', day: 'numeric', month: 'long' })}
-            </p>
+            <span className="text-base font-black text-white tracking-tight leading-tight block">
+              Bricklar GestorApp
+            </span>
+            <span className="text-[10px] font-semibold text-blue-200/90 leading-none block">
+              Gestor de Tareas
+            </span>
           </div>
         </div>
 

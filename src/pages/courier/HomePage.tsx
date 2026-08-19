@@ -154,6 +154,18 @@ export default function CourierHomePage() {
 
   return (
     <div className="space-y-3.5 animate-fade-in pb-20 max-w-2xl mx-auto">
+      {/* 0. Saludo y Fecha (Debajo de la franja azul, encima de todo) */}
+      <div className="flex items-center justify-between px-0.5 pt-0.5 pb-1">
+        <div>
+          <h1 className="text-lg font-black text-[#0A2540] tracking-tight flex items-center gap-1.5 leading-tight">
+            ¡Hola, {profile?.display_name || profile?.full_name?.split(' ')[0] || 'Motorizado'}! 👋
+          </h1>
+          <p className="text-xs font-semibold text-slate-500 capitalize mt-0.5">
+            {new Date().toLocaleDateString('es-NI', { weekday: 'long', day: 'numeric', month: 'long' })}
+          </p>
+        </div>
+      </div>
+
       {/* 1. Buscador Superior */}
       <div className="relative flex items-center gap-2">
         <div className="relative flex-1">
