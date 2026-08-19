@@ -9,14 +9,16 @@ import {
   SlidersHorizontal,
   Plus,
   Flag,
-  Sun,
-  CalendarCheck,
   MoreVertical,
   Check,
-  Clock,
   StopCircle,
   AlertTriangle,
   ArrowRight,
+  ClipboardList,
+  Banknote,
+  Calculator,
+  Bus,
+  ChevronRight,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday, useWorkdayMutations } from '@/modules/workdays/hooks/useWorkday'
@@ -36,13 +38,7 @@ import {
   ModalFooter,
   Input,
 } from '@/shared/components/ui'
-import {
-  getLocalDateString,
-  getLocalTomorrowString,
-  getStartOfWeekString,
-  getEndOfWeekString,
-} from '@/shared/utils/date'
-import { cn } from '@/shared/utils/cn'
+import { getLocalDateString } from '@/shared/utils/date'
 
 export default function CourierHomePage() {
   const navigate = useNavigate()
@@ -50,12 +46,9 @@ export default function CourierHomePage() {
   const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
 
   const todayStr = getLocalDateString()
-  const tomorrowStr = getLocalTomorrowString()
-  const startOfWeekStr = getStartOfWeekString()
-  const endOfWeekStr = getEndOfWeekString()
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [timeFilter, setTimeFilter] = useState<'today' | 'tomorrow' | 'week' | 'delayed'>('today')
+  const [timeFilter, setTimeFilter] = useState<'today' | 'delayed'>('today')
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'en_route' | 'completed'>('all')
   const [isStartModalOpen, setIsStartModalOpen] = useState(false)
   const [endKm, setEndKm] = useState<number | ''>('')
@@ -74,23 +67,10 @@ export default function CourierHomePage() {
 
   const allTasks = tasksData?.data || []
 
-  // Clasificación dinámica por fecha real sin desfase de zona horaria
+  // Clasificación dinámica: Tareas de hoy vs Retrasadas acumuladas
   const todayTasks = useMemo(
     () => allTasks.filter((t) => t.scheduled_date === todayStr),
     [allTasks, todayStr]
-  )
-
-  const tomorrowTasks = useMemo(
-    () => allTasks.filter((t) => t.scheduled_date === tomorrowStr),
-    [allTasks, tomorrowStr]
-  )
-
-  const weekTasks = useMemo(
-    () =>
-      allTasks.filter(
-        (t) => t.scheduled_date >= startOfWeekStr && t.scheduled_date <= endOfWeekStr
-      ),
-    [allTasks, startOfWeekStr, endOfWeekStr]
   )
 
   const delayedTasks = useMemo(
@@ -104,21 +84,10 @@ export default function CourierHomePage() {
     [allTasks, todayStr]
   )
 
-  // Conjunto base según el filtro temporal seleccionado (Hoy / Mañana / Semana / Retrasadas)
+  // Conjunto base: Entregas de hoy o Retrasadas
   const currentBaseTasks = useMemo(() => {
-    switch (timeFilter) {
-      case 'today':
-        return todayTasks
-      case 'tomorrow':
-        return tomorrowTasks
-      case 'week':
-        return weekTasks
-      case 'delayed':
-        return delayedTasks
-      default:
-        return todayTasks
-    }
-  }, [timeFilter, todayTasks, tomorrowTasks, weekTasks, delayedTasks])
+    return timeFilter === 'delayed' ? delayedTasks : todayTasks
+  }, [timeFilter, todayTasks, delayedTasks])
 
   // Contadores de estado en el grupo seleccionado
   const pendingCount = currentBaseTasks.filter(
@@ -166,18 +135,7 @@ export default function CourierHomePage() {
 
   // Título contextual para la lista
   const sectionTitle = useMemo(() => {
-    switch (timeFilter) {
-      case 'today':
-        return 'Entregas de hoy'
-      case 'tomorrow':
-        return 'Entregas de mañana'
-      case 'week':
-        return 'Entregas de esta semana'
-      case 'delayed':
-        return 'Tareas retrasadas pendientes'
-      default:
-        return 'Entregas'
-    }
+    return timeFilter === 'delayed' ? 'Tareas retrasadas pendientes' : 'Entregas de hoy'
   }, [timeFilter])
 
   return (
@@ -241,19 +199,15 @@ export default function CourierHomePage() {
           <h2 className="text-sm font-extrabold text-[#0A2540]">
             Resumen ({sectionTitle})
           </h2>
-          {statusFilter !== 'all' ? (
+          {statusFilter !== 'all' && (
             <button
-              onClick={() => setStatusFilter('all')}
-              className="text-2xs font-bold text-rose-600 hover:underline cursor-pointer bg-rose-50 px-2 py-0.5 rounded-full"
+              onClick={() => {
+                setStatusFilter('all')
+                setTimeFilter('today')
+              }}
+              className="text-2xs font-bold text-rose-600 hover:underline cursor-pointer bg-rose-50 px-2.5 py-1 rounded-full border border-rose-100"
             >
               Quitar filtro (Mostrar todas)
-            </button>
-          ) : (
-            <button
-              onClick={() => navigate('/motorizado/tareas')}
-              className="text-2xs font-bold text-[#004594] hover:underline cursor-pointer"
-            >
-              Ver calendario
             </button>
           )}
         </div>
@@ -397,130 +351,95 @@ export default function CourierHomePage() {
         </div>
       )}
 
-      {/* 3. Sección "Mis tareas" — Bento Grid 2x2 Interactivo de Fecha */}
+      {/* 3. Accesos Rápidos a Módulos (Mis Tareas, Fondos, Liquidación, Buses) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold text-[#0A2540]">Filtrar por Fecha</h2>
-          <span className="text-2xs text-slate-500 font-medium">Toca para cambiar la lista</span>
+          <h2 className="text-sm font-bold text-[#0A2540]">Accesos Rápidos</h2>
+          <span className="text-2xs text-slate-500 font-medium">Módulos de trabajo</span>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          {/* Card 1: Hoy */}
+          {/* Card 1: Mis Tareas */}
           <div
-            onClick={() => {
-              setTimeFilter('today')
-              setStatusFilter('all')
-            }}
-            className={cn(
-              'rounded-3xl p-4 flex flex-col justify-between space-y-3 transition cursor-pointer border',
-              timeFilter === 'today'
-                ? 'bg-[#F5F8FE] border-[#004594] ring-2 ring-[#004594]/30 shadow-xs'
-                : 'bg-[#F5F8FE]/60 border-blue-100/70 hover:bg-[#F5F8FE]'
-            )}
+            onClick={() => navigate('/motorizado/tareas')}
+            className="rounded-3xl p-4 flex flex-col justify-between space-y-3 transition cursor-pointer border bg-[#F5F8FE] border-blue-200/80 hover:border-[#004594] hover:shadow-xs group"
           >
             <div className="flex items-center justify-between">
-              <div className="w-9 h-9 rounded-2xl bg-[#004594]/10 text-[#004594] flex items-center justify-center">
-                <CalendarCheck size={18} />
+              <div className="w-9 h-9 rounded-2xl bg-[#004594]/10 text-[#004594] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <ClipboardList size={18} />
               </div>
-              <div className="text-right">
-                <span className="text-2xs font-bold text-[#0A2540] block leading-tight">Hoy</span>
-                <span className="text-[10px] font-medium text-slate-500">
-                  {new Date().getDate()} de {new Date().toLocaleDateString('es-NI', { month: 'short' })}
-                </span>
-              </div>
+              <ChevronRight size={16} className="text-slate-400 group-hover:text-[#004594] group-hover:translate-x-0.5 transition-all" />
             </div>
             <div>
-              <span className="text-2xl font-extrabold text-[#0A2540] font-mono block leading-none">
-                {todayTasks.length}
+              <span className="text-sm font-extrabold text-[#0A2540] block">
+                Mis Tareas
               </span>
-              <span className="text-2xs font-semibold text-slate-500 mt-1 block">tareas</span>
+              <span className="text-2xs font-semibold text-blue-700/80 mt-0.5 block">
+                {todayTasks.length} {todayTasks.length === 1 ? 'asignada' : 'asignadas'} hoy
+              </span>
             </div>
           </div>
 
-          {/* Card 2: Mañana */}
+          {/* Card 2: Fondos */}
           <div
-            onClick={() => {
-              setTimeFilter('tomorrow')
-              setStatusFilter('all')
-            }}
-            className={cn(
-              'rounded-3xl p-4 flex flex-col justify-between space-y-3 transition cursor-pointer border',
-              timeFilter === 'tomorrow'
-                ? 'bg-[#FCFAF4] border-amber-500 ring-2 ring-amber-500/30 shadow-xs'
-                : 'bg-[#FCFAF4]/60 border-amber-100/70 hover:bg-[#FCFAF4]'
-            )}
+            onClick={() => navigate('/motorizado/fondos')}
+            className="rounded-3xl p-4 flex flex-col justify-between space-y-3 transition cursor-pointer border bg-[#F3F9F6] border-emerald-200/80 hover:border-emerald-500 hover:shadow-xs group"
           >
             <div className="flex items-center justify-between">
-              <div className="w-9 h-9 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
-                <Sun size={18} />
+              <div className="w-9 h-9 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Banknote size={18} />
               </div>
-              <div className="text-right">
-                <span className="text-2xs font-bold text-[#0A2540] block leading-tight">Mañana</span>
-                <span className="text-[10px] font-medium text-slate-500">
-                  {new Date(Date.now() + 86400000).getDate()} de{' '}
-                  {new Date(Date.now() + 86400000).toLocaleDateString('es-NI', { month: 'short' })}
-                </span>
-              </div>
+              <ChevronRight size={16} className="text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all" />
             </div>
             <div>
-              <span className="text-2xl font-extrabold text-[#0A2540] font-mono block leading-none">
-                {tomorrowTasks.length}
+              <span className="text-sm font-extrabold text-[#0A2540] block">
+                Fondos & Caja
               </span>
-              <span className="text-2xs font-semibold text-slate-500 mt-1 block">tareas</span>
+              <span className="text-2xs font-semibold text-emerald-700/80 mt-0.5 block">
+                Viáticos y gastos
+              </span>
             </div>
           </div>
 
-          {/* Card 3: Esta semana */}
+          {/* Card 3: Liquidación */}
           <div
-            onClick={() => {
-              setTimeFilter('week')
-              setStatusFilter('all')
-            }}
-            className={cn(
-              'rounded-3xl p-4 flex flex-col justify-between space-y-3 transition cursor-pointer border',
-              timeFilter === 'week'
-                ? 'bg-[#F3F9F6] border-emerald-500 ring-2 ring-emerald-500/30 shadow-xs'
-                : 'bg-[#F3F9F6]/60 border-emerald-100/70 hover:bg-[#F3F9F6]'
-            )}
+            onClick={() => navigate('/motorizado/liquidacion')}
+            className="rounded-3xl p-4 flex flex-col justify-between space-y-3 transition cursor-pointer border bg-[#FAF8FE] border-purple-200/80 hover:border-purple-500 hover:shadow-xs group"
           >
             <div className="flex items-center justify-between">
-              <div className="w-9 h-9 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
-                <Calendar size={18} />
+              <div className="w-9 h-9 rounded-2xl bg-purple-500/10 text-purple-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Calculator size={18} />
               </div>
-              <span className="text-2xs font-bold text-[#0A2540]">Esta semana</span>
+              <ChevronRight size={16} className="text-slate-400 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all" />
             </div>
             <div>
-              <span className="text-2xl font-extrabold text-[#0A2540] font-mono block leading-none">
-                {weekTasks.length}
+              <span className="text-sm font-extrabold text-[#0A2540] block">
+                Liquidación
               </span>
-              <span className="text-2xs font-semibold text-slate-500 mt-1 block">tareas</span>
+              <span className="text-2xs font-semibold text-purple-700/80 mt-0.5 block">
+                Arqueo y balance
+              </span>
             </div>
           </div>
 
-          {/* Card 4: Retrasadas */}
+          {/* Card 4: Directorio Buses */}
           <div
-            onClick={() => {
-              setTimeFilter('delayed')
-              setStatusFilter('all')
-            }}
-            className={cn(
-              'rounded-3xl p-4 flex flex-col justify-between space-y-3 transition cursor-pointer border',
-              timeFilter === 'delayed'
-                ? 'bg-[#FCF5F7] border-rose-500 ring-2 ring-rose-500/30 shadow-xs'
-                : 'bg-[#FCF5F7]/60 border-rose-100/70 hover:bg-[#FCF5F7]'
-            )}
+            onClick={() => navigate('/motorizado/buses')}
+            className="rounded-3xl p-4 flex flex-col justify-between space-y-3 transition cursor-pointer border bg-[#FCFAF4] border-amber-200/80 hover:border-amber-500 hover:shadow-xs group"
           >
             <div className="flex items-center justify-between">
-              <div className="w-9 h-9 rounded-2xl bg-rose-500/10 text-rose-600 flex items-center justify-center">
-                <Clock size={18} />
+              <div className="w-9 h-9 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
+                <Bus size={18} />
               </div>
-              <span className="text-2xs font-bold text-[#0A2540]">Retrasadas</span>
+              <ChevronRight size={16} className="text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all" />
             </div>
             <div>
-              <span className="text-2xl font-extrabold text-[#0A2540] font-mono block leading-none">
-                {delayedTasks.length}
+              <span className="text-sm font-extrabold text-[#0A2540] block">
+                Directorio Buses
               </span>
-              <span className="text-2xs font-semibold text-slate-500 mt-1 block">tareas</span>
+              <span className="text-2xs font-semibold text-amber-700/80 mt-0.5 block">
+                Terminales y rutas
+              </span>
             </div>
           </div>
         </div>
