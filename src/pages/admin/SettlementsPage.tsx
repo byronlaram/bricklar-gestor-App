@@ -25,14 +25,16 @@ import {
   TableSkeleton,
   EmptyState,
 } from '@/shared/components/ui'
+import { getLocalDateString } from '@/shared/utils/date'
 
 export default function AdminSettlementsPage() {
   const { profile } = useAuth()
   const defaultBranchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
+  const todayStr = getLocalDateString()
 
   const [filters, setFilters] = useState<SettlementFilters>({
     branch_id: defaultBranchId,
-    date: '',
+    date: todayStr,
   })
 
   const [targetSettlement, setTargetSettlement] = useState<Settlement | null>(null)
@@ -174,17 +176,53 @@ export default function AdminSettlementsPage() {
       </div>
 
 
-      {/* Filtro de Fecha */}
-      <Card className="p-4 bg-white border-slate-200 shadow-2xs flex items-center gap-3">
-        <div className="relative w-full sm:w-48">
-          <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-          <input
-            type="date"
-            value={filters.date || ''}
-            onChange={(e) => setFilters({ ...filters, date: e.target.value })}
-            className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
-          />
+      {/* Filtro de Fecha y Selector Rápido */}
+      <Card className="p-4 bg-white border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <div className="relative w-full sm:w-48">
+            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+            <input
+              type="date"
+              value={filters.date || ''}
+              onChange={(e) => setFilters({ ...filters, date: e.target.value })}
+              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setFilters({ ...filters, date: todayStr })}
+            className={`px-3.5 py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
+              filters.date === todayStr
+                ? 'bg-[#004594] text-white border-[#004594] shadow-xs'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            Hoy
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setFilters({ ...filters, date: '' })}
+            className={`px-3.5 py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
+              !filters.date
+                ? 'bg-[#004594] text-white border-[#004594] shadow-xs'
+                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+            }`}
+          >
+            Todo el Historial
+          </button>
         </div>
+
+        {filters.date ? (
+          <span className="text-2xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
+            Liquidaciones del: <strong className="text-slate-800 font-mono">{filters.date}</strong> {filters.date === todayStr ? '(Hoy)' : ''}
+          </span>
+        ) : (
+          <span className="text-2xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full">
+            Mostrando acumulado de todo el historial
+          </span>
+        )}
       </Card>
 
       {/* Tabla de Liquidaciones */}
@@ -199,8 +237,18 @@ export default function AdminSettlementsPage() {
           </div>
         ) : settlements.length === 0 ? (
           <EmptyState
-            title="No hay liquidaciones registradas hoy"
-            description="Las solicitudes aparecerán automáticamente cuando los motorizados envíen su cuadre de turno."
+            title={
+              filters.date === todayStr
+                ? 'Sin liquidaciones registradas hoy'
+                : filters.date
+                ? `Sin liquidaciones para la fecha ${filters.date}`
+                : 'No hay liquidaciones registradas'
+            }
+            description={
+              filters.date === todayStr
+                ? 'Las liquidaciones de hoy aparecerán automáticamente cuando los motorizados envíen su solicitud de cierre de jornada.'
+                : 'No se encontraron liquidaciones para el filtro seleccionado.'
+            }
             icon={<Calculator className="h-8 w-8 text-slate-400" />}
           />
         ) : (
