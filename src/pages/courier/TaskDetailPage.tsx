@@ -13,6 +13,7 @@ import {
   Clock,
 } from 'lucide-react'
 import { useTask } from '@/modules/tasks/hooks/useTask'
+import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
@@ -29,6 +30,7 @@ import {
   Skeleton,
   useToast,
 } from '@/shared/components/ui'
+import { getLocalDateString } from '@/shared/utils/date'
 
 export default function CourierTaskDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -36,13 +38,21 @@ export default function CourierTaskDetailPage() {
   const { profile } = useAuth()
   const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
   const toast = useToast()
+  const todayStr = getLocalDateString()
 
   const { data: activeWorkday } = useActiveWorkday(profile?.id)
   const { task, isLoading, isError } = useTask(id)
+  const { data: todayTasksData } = useTasks({
+    courier_id: profile?.id,
+    date: todayStr,
+    page_size: 100,
+  })
   const { changeStatus, isChangingStatus } = useTaskMutations()
 
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false)
   const [isStartWorkdayOpen, setIsStartWorkdayOpen] = useState(false)
+
+  const todayTasks = todayTasksData?.data || []
 
   if (isLoading) {
     return (
@@ -84,6 +94,21 @@ export default function CourierTaskDetailPage() {
 
   const handleStartRoute = async () => {
     if (!requireActiveWorkday('poner esta tarea en ruta')) return
+
+    // Validar que no haya otra tarea activa
+    const currentActiveTask = todayTasks.find(
+      (t) => t.id !== task.id && ['en_route', 'in_progress'].includes(t.status)
+    )
+
+    if (currentActiveTask) {
+      const statusLabel = currentActiveTask.status === 'en_route' ? 'en ruta' : 'en gestión'
+      toast.warning(
+        'Ya tienes una tarea en curso',
+        `La parada ${currentActiveTask.code} (${currentActiveTask.title}) ya está ${statusLabel}. Debes completarla antes de iniciar una nueva ruta.`
+      )
+      return
+    }
+
     try {
       await changeStatus({ task_id: task.id, new_status: 'en_route', notes: 'Inició ruta' })
       toast.success('Ruta iniciada', `Parada ${task.code} en camino.`)

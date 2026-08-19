@@ -414,6 +414,21 @@ export default function CourierTasksPage() {
 
   const handleStartRoute = async (task: TaskWithCourier) => {
     if (!requireActiveWorkday('poner una tarea en ruta')) return
+
+    // Validar que no haya otra tarea activa ('en_route' o 'in_progress')
+    const currentActiveTask = allTasks.find(
+      (t) => t.id !== task.id && ['en_route', 'in_progress'].includes(t.status)
+    )
+
+    if (currentActiveTask) {
+      const statusLabel = currentActiveTask.status === 'en_route' ? 'en ruta' : 'en gestión'
+      toast.warning(
+        'Ya tienes una tarea en curso',
+        `La parada ${currentActiveTask.code} (${currentActiveTask.title}) ya está ${statusLabel}. Debes completarla antes de iniciar una nueva ruta.`
+      )
+      return
+    }
+
     try {
       await changeStatus({ task_id: task.id, new_status: 'en_route', notes: 'Inició ruta' })
       toast.success('Ruta iniciada', `Parada ${task.code} en camino.`)
