@@ -23,7 +23,6 @@ import { useActiveWorkday, useWorkdayMutations } from '@/modules/workdays/hooks/
 import { useCourierPendingBalances } from '@/modules/settlements/hooks/usePendingBalances'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { StartWorkdayModal } from '@/modules/courier/components/StartWorkdayModal'
-import { NewCourierGestionModal } from '@/modules/courier/components/NewCourierGestionModal'
 import {
   Button,
   Skeleton,
@@ -59,7 +58,6 @@ export default function CourierHomePage() {
   const [timeFilter, setTimeFilter] = useState<'today' | 'tomorrow' | 'week' | 'delayed'>('today')
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'en_route' | 'completed'>('all')
   const [isStartModalOpen, setIsStartModalOpen] = useState(false)
-  const [isNewGestionOpen, setIsNewGestionOpen] = useState(false)
   const [endKm, setEndKm] = useState<number | ''>('')
   const [isEndOpen, setIsEndOpen] = useState(false)
 
@@ -370,26 +368,34 @@ export default function CourierHomePage() {
         </div>
       </div>
 
-      {/* 2.5 Botón de Acción "+ Registrar nueva gestión" */}
-      <div className="space-y-1">
+      {/* 2.5 Control de Jornada Laboral */}
+      {!activeWorkday ? (
         <button
-          disabled={!activeWorkday || activeWorkday.status !== 'open'}
-          onClick={() => setIsNewGestionOpen(true)}
-          className={`w-full min-h-[52px] rounded-full text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-md transition ${
-            activeWorkday && activeWorkday.status === 'open'
-              ? 'bg-[#004594] hover:bg-[#083570] active:scale-[0.99] cursor-pointer'
-              : 'bg-[#004594]/40 border border-slate-200/80 cursor-not-allowed opacity-75'
-          }`}
+          onClick={() => setIsStartModalOpen(true)}
+          className="w-full min-h-[52px] rounded-full bg-[#004594] text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-md hover:bg-[#083570] active:scale-[0.99] transition cursor-pointer"
         >
-          <Plus size={20} strokeWidth={2.8} />
-          <span>+ Registrar nueva gestión</span>
+          <Plus size={20} strokeWidth={2.5} />
+          <span>Iniciar Jornada de Hoy</span>
         </button>
-        {(!activeWorkday || activeWorkday.status !== 'open') && (
-          <p className="text-[11px] font-semibold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-2xl text-center border border-amber-200/80">
-            💡 Inicia tu jornada para registrar una gestión o retiro.
-          </p>
-        )}
-      </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => navigate('/motorizado/tareas')}
+            className="flex-1 min-h-[52px] rounded-full bg-[#004594] text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-md hover:bg-[#083570] active:scale-[0.99] transition cursor-pointer"
+          >
+            <Navigation size={18} />
+            <span>Ver Mis Tareas / Ruta de Hoy</span>
+          </button>
+
+          <button
+            onClick={() => setIsEndOpen(true)}
+            className="h-[52px] px-4 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-rose-100 transition cursor-pointer shrink-0"
+          >
+            <StopCircle size={16} />
+            <span>Cierre</span>
+          </button>
+        </div>
+      )}
 
       {/* 3. Sección "Mis tareas" — Bento Grid 2x2 Interactivo de Fecha */}
       <div className="space-y-3">
@@ -519,35 +525,6 @@ export default function CourierHomePage() {
           </div>
         </div>
       </div>
-
-      {/* 4. Botón de Jornada */}
-      {!activeWorkday ? (
-        <button
-          onClick={() => setIsStartModalOpen(true)}
-          className="w-full min-h-[52px] rounded-full bg-[#004594] text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-md hover:bg-[#083570] transition cursor-pointer"
-        >
-          <Plus size={20} strokeWidth={2.5} />
-          <span>Iniciar Jornada de Hoy</span>
-        </button>
-      ) : (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => navigate('/motorizado/tareas')}
-            className="flex-1 min-h-[52px] rounded-full bg-[#004594] text-white text-sm font-extrabold flex items-center justify-center gap-2 shadow-md hover:bg-[#083570] transition cursor-pointer"
-          >
-            <Navigation size={18} />
-            <span>Ver Mis Tareas / Ruta de Hoy</span>
-          </button>
-
-          <button
-            onClick={() => setIsEndOpen(true)}
-            className="h-[52px] px-4 rounded-full bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-rose-100 transition cursor-pointer shrink-0"
-          >
-            <StopCircle size={16} />
-            <span>Cierre</span>
-          </button>
-        </div>
-      )}
 
       {/* 5. Lista de Entregas del Día */}
       <div className="space-y-3 pt-2">
@@ -723,12 +700,6 @@ export default function CourierHomePage() {
       </Modal>
 
       <StartWorkdayModal branchId={branchId} isOpen={isStartModalOpen} onClose={() => setIsStartModalOpen(false)} />
-      <NewCourierGestionModal
-        isOpen={isNewGestionOpen}
-        onClose={() => setIsNewGestionOpen(false)}
-        branchId={branchId}
-        workdayId={activeWorkday?.id}
-      />
     </div>
   )
 }
