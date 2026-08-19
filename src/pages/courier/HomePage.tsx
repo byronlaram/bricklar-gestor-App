@@ -58,10 +58,13 @@ export default function CourierHomePage() {
   const { data: pendingBalances } = useCourierPendingBalances(profile?.id)
   
   // Consultar todas las tareas asignadas al motorizado
-  const { data: tasksData, isLoading: isLoadingTasks } = useTasks({
-    courier_id: profile?.id,
-    page_size: 100,
-  })
+  const { data: tasksData, isLoading: isLoadingTasks } = useTasks(
+    {
+      courier_id: profile?.id,
+      page_size: 100,
+    },
+    { enabled: !!profile?.id }
+  )
 
   const { endWorkday, isEnding } = useWorkdayMutations()
 
@@ -91,7 +94,11 @@ export default function CourierHomePage() {
 
   // Contadores de estado en el grupo seleccionado
   const pendingCount = currentBaseTasks.filter(
-    (t) => t.status === 'pending' || t.status === 'assigned'
+    (t) =>
+      t.status === 'pending' ||
+      t.status === 'assigned' ||
+      t.status === 'not_completed' ||
+      t.status === 'rescheduled'
   ).length
   const enRouteCount = currentBaseTasks.filter(
     (t) => t.status === 'en_route' || t.status === 'in_progress'
@@ -111,7 +118,14 @@ export default function CourierHomePage() {
 
       if (!matchesSearch) return false
 
-      if (statusFilter === 'pending') return t.status === 'pending' || t.status === 'assigned'
+      if (statusFilter === 'pending') {
+        return (
+          t.status === 'pending' ||
+          t.status === 'assigned' ||
+          t.status === 'not_completed' ||
+          t.status === 'rescheduled'
+        )
+      }
       if (statusFilter === 'en_route') return t.status === 'en_route' || t.status === 'in_progress'
       if (statusFilter === 'completed') return t.status === 'completed'
       return true

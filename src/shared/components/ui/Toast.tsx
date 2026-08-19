@@ -1,6 +1,7 @@
 import {
   useState,
   useCallback,
+  useMemo,
   type ReactNode,
   type HTMLAttributes,
 } from 'react'
@@ -119,8 +120,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     [toast]
   )
 
+  const contextValue = useMemo(
+    () => ({ toast, success, error, warning, info, dismiss }),
+    [toast, success, error, warning, info, dismiss]
+  )
+
   return (
-    <ToastContext.Provider value={{ toast, success, error, warning, info, dismiss }}>
+    <ToastContext.Provider value={contextValue}>
       {children}
       {createPortal(
         <div
