@@ -33,7 +33,7 @@ export async function getWorkdayById(id: string): Promise<Workday | null> {
   // Obtener tareas y movimientos
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('expected_collection_amount, expected_collection_currency, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .select('expected_collection_amount, expected_collection_currency, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
     .eq('assigned_courier_id', wd.courier_id)
     .eq('scheduled_date', wd.work_date)
     .eq('status', 'completed')
@@ -248,7 +248,7 @@ export async function getWorkdays(filters: WorkdayFilters = {}): Promise<Workday
   // 1. Carga en lote de tareas completadas
   const { data: batchTasks } = await supabase
     .from('tasks')
-    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
     .in('assigned_courier_id', courierIds)
     .in('scheduled_date', workDates)
     .eq('status', 'completed')

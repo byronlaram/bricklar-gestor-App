@@ -172,7 +172,7 @@ export function ReceiveCashModal({
         // 2. Obtener cobros y pagos de tareas completadas
         const { data: tasks } = await supabase
           .from('tasks')
-          .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+          .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
           .eq('assigned_courier_id', wd.courier_id)
           .eq('scheduled_date', wd.work_date)
           .eq('status', 'completed')

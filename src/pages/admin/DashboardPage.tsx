@@ -21,6 +21,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useBranches } from '@/modules/branches/hooks/useBranches'
+import { calculateWorkdayCashSummary } from '@/modules/workdays/utils/workdayCalculations'
 import {
   Card,
   CardTitle,
@@ -41,7 +42,7 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
   try {
     let tasksQuery = supabase
       .from('tasks')
-      .select('id, status, financial_status, created_at, scheduled_date, branch_id')
+      .select('id, status, financial_status, created_at, scheduled_date, branch_id, requires_collection, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_payment, expected_payment_amount, expected_payment_currency, metadata')
       .eq('scheduled_date', targetDate)
 
     let workdaysQuery = supabase
@@ -51,8 +52,14 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
 
     let settlementsQuery = supabase
       .from('settlements')
-      .select('id, status, actual_cash, actual_transfers, total_expenses, branch_id')
+      .select('id, status, actual_cash, actual_transfers, total_expenses, expected_cash, branch_id')
       .eq('settlement_date', targetDate)
+
+    let movementsQuery = supabase
+      .from('cash_movements')
+      .select('id, amount, currency, direction, movement_type, workday_id')
+      .gte('created_at', `${targetDate}T00:00:00`)
+      .lte('created_at', `${targetDate}T23:59:59.999Z`)
 
     // Si se especificaron sucursales, filtrar por ellas
     if (branchIds && branchIds.length > 0) {
@@ -61,16 +68,18 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
       settlementsQuery = settlementsQuery.in('branch_id', branchIds)
     }
 
-    const [tasksRes, workdaysRes, settlementsRes] = await Promise.all([
+    const [tasksRes, workdaysRes, settlementsRes, movementsRes] = await Promise.all([
       tasksQuery,
       workdaysQuery,
       settlementsQuery,
+      movementsQuery,
     ])
 
     return {
       tasks: tasksRes.data ?? [],
       workdays: workdaysRes.data ?? [],
       settlements: settlementsRes.data ?? [],
+      movements: movementsRes.data ?? [],
     }
   } catch (err) {
     console.error('[Dashboard] Error fetching dashboard data:', err)
@@ -78,6 +87,7 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
       tasks: [],
       workdays: [],
       settlements: [],
+      movements: [],
     }
   }
 }
@@ -185,24 +195,52 @@ export default function DashboardPage() {
     const tasks = data?.tasks ?? []
     const workdays = data?.workdays ?? []
     const settlements = data?.settlements ?? []
+    const movements = data?.movements ?? []
 
-    const totalCash = settlements.reduce((s, r) => s + (Number(r.actual_cash) || 0), 0)
-    const totalTransfer = settlements.reduce((s, r) => s + (Number(r.actual_transfers) || 0), 0)
-    const totalExpenses = settlements.reduce((s, r) => s + (Number(r.total_expenses) || 0), 0)
-    const netCash = totalCash - totalExpenses
+    const completedTasks = tasks.filter((t) => t.status === 'completed')
+    const totalInitialCash = workdays.reduce((acc, w) => acc + (w.initial_cash || 0), 0)
+
+    const liveSummary = calculateWorkdayCashSummary(totalInitialCash, completedTasks, movements)
+
+    // Total recaudado en efectivo por tareas completadas
+    const totalCash = liveSummary.collectionsNIO
+
+    // Total transferencias recibidas
+    const totalTransfer = completedTasks.reduce((acc, t) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      if (pb?.transfer_amount && pb.transfer_amount > 0) return acc + pb.transfer_amount
+      if (
+        t.requires_collection &&
+        t.expected_payment_method &&
+        t.expected_payment_method !== 'cash' &&
+        (!pb || !pb.cash_amount)
+      ) {
+        return acc + (t.expected_collection_amount || 0)
+      }
+      return acc
+    }, 0)
+
+    // Total compras y gastos en calle desembolsados
+    const totalExpenses = liveSummary.expensesNIO
+
+    // Neto consolidado en caja / en mano
+    const netCash = liveSummary.cashInHandNIO
 
     return {
       totalTasks: tasks.length,
       pending: tasks.filter((t) => ['pending', 'assigned'].includes(t.status)).length,
       inRoute: tasks.filter((t) => ['en_route', 'in_progress'].includes(t.status)).length,
-      completed: tasks.filter((t) => t.status === 'completed').length,
+      completed: completedTasks.length,
       notCompleted: tasks.filter((t) => t.status === 'not_completed').length,
       activeCouriers: workdays.filter((w) => w.status === 'open').length,
       totalCash,
       totalTransfer,
       totalExpenses,
       netCash,
-      pendingSettlements: settlements.filter((s) => s.status === 'pending_review' || s.status === 'pending_settlement').length,
+      pendingSettlements: settlements.filter(
+        (s) => s.status === 'pending_review' || s.status === 'pending_settlement'
+      ).length,
     }
   }, [data])
 

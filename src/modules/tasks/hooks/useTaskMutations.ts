@@ -24,6 +24,9 @@ export function useTaskMutations() {
     queryClient.invalidateQueries({ queryKey: ['workdays'] })
     queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
     queryClient.invalidateQueries({ queryKey: ['settlements'] })
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+    queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
     if (taskId) {
       queryClient.invalidateQueries({ queryKey: ['task', taskId] })
       queryClient.invalidateQueries({ queryKey: ['task-history', taskId] })

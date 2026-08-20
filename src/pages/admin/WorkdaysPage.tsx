@@ -74,28 +74,60 @@ export default function AdminWorkdaysPage() {
     const totalAdminFundsNIO = totalInitialCashNIO + totalAdvancesNIO
 
     // 2. Cobros a Clientes (Solo Efectivo)
-    const cashCollectionTasks = allTasks.filter(
-      (t) => t.requires_collection && (!t.expected_payment_method || t.expected_payment_method === 'cash')
-    )
-    const projectedCollectionsNIO = cashCollectionTasks.reduce(
-      (acc, t) => acc + (t.expected_collection_amount || 0),
-      0
-    )
-    const completedCollectionsNIO = cashCollectionTasks
-      .filter((t) => t.status === 'completed')
-      .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
+    let completedCollectionsNIO = 0
+    let projectedCollectionsNIO = 0
+
+    allTasks.forEach((t) => {
+      if (!t.requires_collection) return
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      const isCompleted = t.status === 'completed'
+
+      if (isCompleted) {
+        const cashAmt =
+          pb && typeof pb.cash_amount === 'number'
+            ? pb.cash_amount
+            : (!t.expected_payment_method || t.expected_payment_method === 'cash')
+            ? t.expected_collection_amount || 0
+            : 0
+        completedCollectionsNIO += cashAmt
+        projectedCollectionsNIO += cashAmt
+      } else {
+        const expAmt =
+          !t.expected_payment_method || t.expected_payment_method === 'cash'
+            ? t.expected_collection_amount || 0
+            : 0
+        projectedCollectionsNIO += expAmt
+      }
+    })
 
     // 3. Pagos y Compras en Calle (Solo Efectivo)
-    const cashPaymentTasks = allTasks.filter(
-      (t) => t.requires_payment && (!t.expected_payment_method || t.expected_payment_method === 'cash')
-    )
-    const projectedPaymentsNIO = cashPaymentTasks.reduce(
-      (acc, t) => acc + (t.expected_payment_amount || 0),
-      0
-    )
-    const completedPaymentsNIO = cashPaymentTasks
-      .filter((t) => t.status === 'completed')
-      .reduce((acc, t) => acc + (t.expected_payment_amount || 0), 0)
+    let completedPaymentsNIO = 0
+    let projectedPaymentsNIO = 0
+
+    allTasks.forEach((t) => {
+      if (!t.requires_payment) return
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      const isCompleted = t.status === 'completed'
+
+      if (isCompleted) {
+        const isCash = !pb?.paid_method || pb?.paid_method === 'cash'
+        const paidAmt = isCash
+          ? pb && typeof pb.actual_paid_amount === 'number'
+            ? pb.actual_paid_amount
+            : t.expected_payment_amount || 0
+          : 0
+        completedPaymentsNIO += paidAmt
+        projectedPaymentsNIO += paidAmt
+      } else {
+        const expAmt =
+          !t.expected_payment_method || t.expected_payment_method === 'cash'
+            ? t.expected_payment_amount || 0
+            : 0
+        projectedPaymentsNIO += expAmt
+      }
+    })
 
     // 4. Entregado Previo a Oficina
     const totalAlreadyReceivedNIO = workdays.reduce(
@@ -104,10 +136,10 @@ export default function AdminWorkdaysPage() {
     )
 
     // 5. Efectivo en Mano en Calle en este momento
-    const liveCashInHandNIO = workdays.reduce(
-      (acc, w) => acc + (w.cash_summary?.cashInHandNIO ?? 0),
-      0
-    )
+    const liveCashInHandNIO =
+      workdays.length > 0
+        ? workdays.reduce((acc, w) => acc + (w.cash_summary?.cashInHandNIO ?? 0), 0)
+        : totalAdminFundsNIO + completedCollectionsNIO - completedPaymentsNIO - totalAlreadyReceivedNIO
 
     // 6. Neto Proyectado a Recibir al Cierre
     const netProjectedCashNIO =

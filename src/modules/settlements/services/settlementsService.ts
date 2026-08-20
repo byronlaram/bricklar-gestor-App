@@ -57,10 +57,10 @@ export async function getSettlements(filters: SettlementFilters = {}): Promise<S
   const workdayMap = new Map<string, number>()
   ;(workdays || []).forEach((w) => workdayMap.set(w.id, w.initial_cash || 0))
 
-  // 2. Carga en lote de tareas completadas
+    // 2. Carga en lote de tareas completadas
   const { data: batchTasks } = await supabase
     .from('tasks')
-    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
     .in('assigned_courier_id', courierIds)
     .in('scheduled_date', workDates)
     .eq('status', 'completed')
@@ -109,7 +109,7 @@ export async function getSettlementById(id: string): Promise<Settlement> {
 
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
     .eq('assigned_courier_id', s.courier_id)
     .eq('scheduled_date', s.settlement_date)
     .eq('status', 'completed')
@@ -150,7 +150,7 @@ export async function getSettlementByWorkday(workdayId: string): Promise<Settlem
 
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
     .eq('assigned_courier_id', s.courier_id)
     .eq('scheduled_date', s.settlement_date)
     .eq('status', 'completed')
@@ -188,7 +188,7 @@ export async function submitSettlement(workdayId: string, notes?: string): Promi
   // Calcular cobros y pagos de tareas completadas de esta jornada/motorizado
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
     .eq('assigned_courier_id', targetCourierId)
     .eq('scheduled_date', workday.work_date)
     .eq('status', 'completed')
@@ -207,9 +207,20 @@ export async function submitSettlement(workdayId: string, notes?: string): Promi
 
   const expectedCashNet = Math.max(0, cashSummary.cashInHandNIO)
   const totalExpenses = cashSummary.expensesNIO
-  const totalExpectedTransfers = (tasks || [])
-    .filter((t) => t.requires_collection && t.expected_payment_method && t.expected_payment_method !== 'cash')
-    .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
+  const totalExpectedTransfers = (tasks || []).reduce((acc, t) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pb = (t as any).metadata?.payment_breakdown
+    if (pb?.transfer_amount && pb.transfer_amount > 0) return acc + pb.transfer_amount
+    if (
+      t.requires_collection &&
+      t.expected_payment_method &&
+      t.expected_payment_method !== 'cash' &&
+      (!pb || !pb.cash_amount)
+    ) {
+      return acc + (t.expected_collection_amount || 0)
+    }
+    return acc
+  }, 0)
 
   const insertData = {
     workday_id: workdayId,
@@ -218,7 +229,7 @@ export async function submitSettlement(workdayId: string, notes?: string): Promi
     settlement_date: workday.work_date,
     status: 'pending_review',
     expected_cash: expectedCashNet,
-    actual_cash: expectedCashNet, // Borrador inicial igual al esperado
+    actual_cash: expectedCashNet, // Borrador inicial igual al esperado real
     expected_transfers: totalExpectedTransfers,
     actual_transfers: totalExpectedTransfers,
     total_expenses: totalExpenses,
