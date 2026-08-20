@@ -109,9 +109,24 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
     return list
   }, [completedTasks])
 
+  const liveExpectedCash = useMemo(() => {
+    if (!settlement) return 0
+    return settlement.cash_summary
+      ? Math.max(0, settlement.cash_summary.cashInHandNIO)
+      : (settlement.expected_cash ?? 0)
+  }, [settlement])
+
   useEffect(() => {
     if (settlement) {
-      setActualCash(settlement.actual_cash ?? settlement.expected_cash)
+      const exp = settlement.cash_summary
+        ? Math.max(0, settlement.cash_summary.cashInHandNIO)
+        : (settlement.expected_cash ?? 0)
+      // Si la liquidación está pendiente de revisión y actual_cash coincidía con el borrador anterior, pre-cargar con el esperado en vivo
+      const initialCash =
+        settlement.status === 'approved'
+          ? (settlement.actual_cash ?? exp)
+          : (settlement.actual_cash === settlement.expected_cash || !settlement.actual_cash ? exp : settlement.actual_cash)
+      setActualCash(initialCash)
       setActualTransfers(settlement.actual_transfers ?? settlement.expected_transfers)
       setNotes(settlement.notes || '')
       setAdjustmentReasonType('')
@@ -122,7 +137,7 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
   if (!settlement) return null
 
   const numericCash = Number(actualCash || 0)
-  const diff = numericCash - settlement.expected_cash
+  const diff = numericCash - liveExpectedCash
   const hasDiff = Math.abs(diff) > 0.001
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -203,7 +218,7 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
               <div className="flex justify-between items-center pt-2.5 border-t border-slate-200 font-extrabold text-sm">
                 <span className="text-slate-900">Saldo Neto de Efectivo a Recibir en Ventanilla (=):</span>
                 <span className="text-emerald-700 font-mono">
-                  C$ {(settlement.expected_cash ?? 0).toFixed(2)}
+                  C$ {liveExpectedCash.toFixed(2)}
                 </span>
               </div>
             </div>
@@ -309,7 +324,7 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
                 const val = e.target.value ? Number(e.target.value) : ''
                 setActualCash(val)
                 if (typeof val === 'number') {
-                  const newDiff = val - settlement.expected_cash
+                  const newDiff = val - liveExpectedCash
                   if (newDiff < 0 && !adjustmentReasonType) {
                     setAdjustmentReasonType('faltante_descuento_nomina')
                   } else if (newDiff > 0 && !adjustmentReasonType) {

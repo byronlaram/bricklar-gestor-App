@@ -259,19 +259,44 @@ export async function approveSettlement(payload: ApproveSettlementPayload): Prom
 
   const { data: current, error: getErr } = await supabase
     .from('settlements')
-    .select('expected_cash, workday_id, courier_id')
+    .select('expected_cash, workday_id, courier_id, settlement_date')
     .eq('id', payload.settlement_id)
     .single()
 
   if (getErr) throw new Error(getErr.message)
 
-  const expectedCash = (current as { expected_cash: number; workday_id?: string; courier_id?: string }).expected_cash
-  const workdayId = (current as { expected_cash: number; workday_id?: string; courier_id?: string }).workday_id
+  const currentStl = current as { expected_cash: number; workday_id?: string; courier_id?: string; settlement_date?: string }
+  const workdayId = currentStl.workday_id
+  const courierId = currentStl.courier_id
+  const settlementDate = currentStl.settlement_date
+
+  // Recalcular saldo esperado en tiempo real para asegurar exactitud financiera
+  let expectedCash = currentStl.expected_cash
+  let totalExpenses = 0
+  if (workdayId && courierId && settlementDate) {
+    const { data: wd } = await supabase.from('workdays').select('initial_cash').eq('id', workdayId).single()
+    const { data: tasks } = await supabase
+      .from('tasks')
+      .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
+      .eq('assigned_courier_id', courierId)
+      .eq('scheduled_date', settlementDate)
+      .eq('status', 'completed')
+    const { data: movements } = await supabase
+      .from('cash_movements')
+      .select('amount, currency, direction, movement_type')
+      .eq('workday_id', workdayId)
+    const summary = calculateWorkdayCashSummary(wd?.initial_cash || 0, tasks || [], movements || [])
+    expectedCash = Math.max(0, summary.cashInHandNIO)
+    totalExpenses = summary.expensesNIO
+  }
+
   const difference = payload.actual_cash - expectedCash
 
   const { data, error } = await supabase
     .from('settlements')
     .update({
+      expected_cash: expectedCash,
+      total_expenses: totalExpenses > 0 ? totalExpenses : undefined,
       actual_cash: payload.actual_cash,
       actual_transfers: payload.actual_transfers ?? 0,
       difference,
@@ -366,7 +391,7 @@ export async function adminForceSettlement(payload: AdminForceSettlementPayload)
   // 2. Obtener tareas y movimientos en tiempo real
   const { data: tasks } = await supabase
     .from('tasks')
-    .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
     .eq('assigned_courier_id', workday.courier_id)
     .eq('scheduled_date', workday.work_date)
     .eq('status', 'completed')
@@ -384,9 +409,20 @@ export async function adminForceSettlement(payload: AdminForceSettlementPayload)
 
   const expectedCashNet = Math.max(0, cashSummary.cashInHandNIO)
   const totalExpenses = cashSummary.expensesNIO
-  const totalExpectedTransfers = (tasks || [])
-    .filter((t) => t.requires_collection && t.expected_payment_method && t.expected_payment_method !== 'cash')
-    .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0)
+  const totalExpectedTransfers = (tasks || []).reduce((acc, t) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pb = (t as any).metadata?.payment_breakdown
+    if (pb?.transfer_amount && pb.transfer_amount > 0) return acc + pb.transfer_amount
+    if (
+      t.requires_collection &&
+      t.expected_payment_method &&
+      t.expected_payment_method !== 'cash' &&
+      (!pb || !pb.cash_amount)
+    ) {
+      return acc + (t.expected_collection_amount || 0)
+    }
+    return acc
+  }, 0)
 
   const difference = payload.actual_cash - expectedCashNet
 
@@ -633,7 +669,7 @@ export async function getDailyClosure(
 
   const { data: batchTasks } = await supabase
     .from('tasks')
-    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
     .in('assigned_courier_id', courierIds)
     .eq('scheduled_date', date)
     .eq('status', 'completed')
@@ -857,7 +893,7 @@ export async function getCourierPendingBalances(
     // Calcular tareas y movimientos en tiempo real para este día
     const { data: dayTasks } = await supabase
       .from('tasks')
-      .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+      .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
       .eq('assigned_courier_id', courierId)
       .eq('scheduled_date', wd.work_date)
       .eq('status', 'completed')
