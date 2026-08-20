@@ -1,5 +1,6 @@
 import { supabase } from '@/shared/lib/supabaseClient'
 import { calculateWorkdayCashSummary } from '@/modules/workdays/utils/workdayCalculations'
+import { getLocalDateString } from '@/shared/utils/date'
 import type {
   Settlement,
   CashMovement,
@@ -835,7 +836,7 @@ export async function getCourierPendingBalances(
   courierId: string,
   beforeDate?: string
 ): Promise<CourierPendingBalancesSummary> {
-  const currentDate = beforeDate || new Date().toISOString().split('T')[0]
+  const currentDate = beforeDate || getLocalDateString()
 
   // 1. Obtener jornadas pasadas del motorizado
   const { data: pastWorkdays, error: workdaysErr } = await supabase

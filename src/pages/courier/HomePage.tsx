@@ -55,7 +55,7 @@ export default function CourierHomePage() {
   const [isEndOpen, setIsEndOpen] = useState(false)
 
   const { data: activeWorkday } = useActiveWorkday(profile?.id)
-  const { data: pendingBalances } = useCourierPendingBalances(profile?.id)
+  const { data: pendingBalances } = useCourierPendingBalances(profile?.id, todayStr)
   
   // Consultar todas las tareas asignadas al motorizado
   const { data: tasksData, isLoading: isLoadingTasks } = useTasks(

@@ -20,6 +20,7 @@ import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
 import { uploadTaskEvidence } from '@/modules/tasks/services/tasksService'
 import type { TaskType, Currency, PaymentMethod } from '@/shared/types'
 import { TASK_TYPE_LABELS } from '@/shared/types'
+import { getLocalDateString } from '@/shared/utils/date'
 
 interface NewCourierGestionModalProps {
   isOpen: boolean
@@ -118,7 +119,7 @@ export function NewCourierGestionModal({
         setIsUploading(false)
       }
 
-      const todayStr = new Date().toISOString().split('T')[0]
+      const todayStr = getLocalDateString()
 
       const payload = {
         branch_id: branchId || profile.primary_branch_id || profile.branch_ids[0] || '',

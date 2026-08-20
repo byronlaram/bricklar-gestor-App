@@ -71,6 +71,8 @@ interface ReceptionHistoryItem {
   description: string
 }
 
+import { getLocalDateString } from '@/shared/utils/date'
+
 export function ReceiveCashModal({
   workdayId,
   courierName: initialCourierName,
@@ -81,7 +83,7 @@ export function ReceiveCashModal({
   const queryClient = useQueryClient()
   const toast = useToast()
   const { user, profile } = useAuth()
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateString()
 
   const [selectedCourierId, setSelectedCourierId] = useState<string>('')
   const [selectedWorkdayId, setSelectedWorkdayId] = useState<string>(workdayId || '')

@@ -23,6 +23,7 @@ import { TASK_STATUS_LABELS, TASK_TYPE_LABELS, WORKDAY_STATUS_LABELS } from '@/s
 import { getTasks } from '@/modules/tasks/services/tasksService'
 import { getSettlements } from '@/modules/settlements/services/settlementsService'
 import { getWorkdays } from '@/modules/workdays/services/workdaysService'
+import { getLocalDateString } from '@/shared/utils/date'
 
 type ReportType = 'tasks' | 'settlements' | 'workdays' | 'adjustments'
 
@@ -517,7 +518,7 @@ export default function ReportsPage() {
   const { profile } = useAuth()
   const { data: branches = [] } = useBranches()
 
-  const todayStr = new Date().toISOString().split('T')[0]
+  const todayStr = getLocalDateString()
   const [reportType, setReportType] = useState<ReportType>('tasks')
   const [selectedBranchId, setSelectedBranchId] = useState<string>('')
   const [from, setFrom] = useState(todayStr)
