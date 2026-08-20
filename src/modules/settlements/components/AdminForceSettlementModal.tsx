@@ -103,8 +103,8 @@ export function AdminForceSettlementModal({
           </div>
         </ModalHeader>
 
-        <form onSubmit={handleSubmit}>
-          <ModalBody className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <ModalBody className="space-y-4 overflow-y-auto flex-1 p-6">
             {/* Tarjeta de Información de Jornada */}
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2 text-xs">
               <div className="flex justify-between items-center text-slate-700">

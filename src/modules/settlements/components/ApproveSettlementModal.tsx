@@ -179,8 +179,8 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
           </div>
         </ModalHeader>
 
-        <form onSubmit={handleSubmit}>
-          <ModalBody className="space-y-4 max-h-[75vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <ModalBody className="space-y-4 overflow-y-auto flex-1 p-6">
             {/* Resumen de Arqueo Completo */}
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs">
               <div className="flex justify-between items-center text-slate-700">

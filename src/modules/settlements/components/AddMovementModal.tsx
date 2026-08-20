@@ -66,8 +66,8 @@ export function AddMovementModal({ workdayId, isOpen, onClose }: AddMovementModa
           </div>
         </ModalHeader>
 
-        <form onSubmit={handleSubmit}>
-          <ModalBody className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <ModalBody className="space-y-4 overflow-y-auto flex-1 p-6">
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-slate-700">
                 Tipo de Gasto <span className="text-rose-600">*</span>
