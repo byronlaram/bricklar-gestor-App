@@ -49,15 +49,18 @@ import {
   ModalTitle,
   ModalBody,
 } from '@/shared/components/ui'
+import { getLocalDateString } from '@/shared/utils/date'
 
 export default function TasksPage() {
   const navigate = useNavigate()
   const { profile } = useAuth()
   const { data: branches = [] } = useBranches()
   const defaultBranchId = profile?.primary_branch_id || profile?.branch_ids[0] || (branches[0]?.id ?? '')
+  const todayStr = getLocalDateString()
 
   const [filters, setFilters] = useState<FilterType>({
     branch_id: defaultBranchId,
+    date: todayStr,
     page: 1,
     page_size: 15,
   })
