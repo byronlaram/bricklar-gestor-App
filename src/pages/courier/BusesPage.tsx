@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Bus, Search, Phone, Clock, MapPin, Navigation } from 'lucide-react'
+import { Bus, Search, Phone, Clock, MapPin, Navigation, Plus } from 'lucide-react'
 import { useBusRoutes } from '@/modules/buses/hooks/useBuses'
+import { BusFormModal } from '@/modules/buses/components/BusFormModal'
 import {
   Input,
   Skeleton,
@@ -10,6 +11,7 @@ import {
 
 export default function CourierBusesPage() {
   const [search, setSearch] = useState('')
+  const [isFormOpen, setIsFormOpen] = useState(false)
 
   const { data: routes = [], isLoading } = useBusRoutes()
 
@@ -31,16 +33,26 @@ export default function CourierBusesPage() {
   return (
     <div className="space-y-5 animate-fade-in pb-20 max-w-2xl mx-auto">
       {/* Header Celeste Pastel Ejecutivo */}
-      <div className="bg-[#F5F8FE] border border-blue-100/70 rounded-3xl p-5 shadow-2xs flex items-center justify-between">
+      <div className="bg-[#F5F8FE] border border-blue-100/70 rounded-3xl p-5 shadow-2xs flex items-center justify-between gap-3">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-[#0A2540] flex items-center gap-2">
             <Bus className="h-5 w-5 text-sky-700" />
             Directorio de Buses
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Consulta rápida de destinos, cooperativas, horarios y contactos.
+            Consulta y registra destinos, cooperativas, horarios y contactos.
           </p>
         </div>
+
+        <Button
+          onClick={() => setIsFormOpen(true)}
+          variant="primary"
+          size="sm"
+          leftIcon={<Plus className="h-4 w-4" />}
+          className="font-bold text-xs shadow-xs shrink-0 rounded-2xl bg-[#004594] hover:bg-[#003875] text-white"
+        >
+          Registrar Bus
+        </Button>
       </div>
 
       {/* Buscador táctil */}
@@ -134,6 +146,12 @@ export default function CourierBusesPage() {
           })}
         </div>
       )}
+
+      {/* Modal de Registro / Edición de Bus */}
+      <BusFormModal
+        isOpen={isFormOpen}
+        onClose={() => setIsFormOpen(false)}
+      />
     </div>
   )
 }
