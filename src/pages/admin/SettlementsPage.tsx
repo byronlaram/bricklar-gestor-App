@@ -42,7 +42,10 @@ export default function AdminSettlementsPage() {
   const [loadingWorkdayId, setLoadingWorkdayId] = useState<string | null>(null)
 
   const { data: settlements = [], isLoading, isError, error } = useSettlements(filters)
-  const { data: allPendingBalances = [] } = useAllCouriersPendingBalances(filters.branch_id || undefined)
+  const { data: allPendingBalances = [] } = useAllCouriersPendingBalances(
+    filters.branch_id || undefined,
+    todayStr
+  )
 
   const handleOpenForceSettlement = async (workdayId: string) => {
     try {
@@ -279,20 +282,9 @@ export default function AdminSettlementsPage() {
                   const collections = summary?.collectionsNIO ?? s.expected_cash
                   const expenses = summary?.expensesNIO ?? s.total_expenses
                   const alreadyReceived = summary?.alreadyReceivedNIO ?? 0
-                  const expNetCash =
-                    s.status === 'approved'
-                      ? (s.expected_cash ?? 0)
-                      : s.cash_summary
-                      ? Math.max(0, s.cash_summary.cashInHandNIO)
-                      : (s.expected_cash ?? 0)
-                  const actCash =
-                    s.status === 'approved'
-                      ? (s.actual_cash ?? 0)
-                      : (s.actual_cash ?? expNetCash)
-                  const diff =
-                    s.status === 'approved'
-                      ? (s.difference ?? 0)
-                      : actCash - expNetCash
+                  const expNetCash = s.expected_cash ?? 0
+                  const actCash = s.actual_cash ?? 0
+                  const diff = s.difference ?? 0
 
                   return (
                     <tr key={s.id} className="hover:bg-slate-50/80 transition-colors">

@@ -79,9 +79,21 @@ export async function getSettlements(filters: SettlementFilters = {}): Promise<S
     )
     const sMovements = (batchMovements || []).filter((m) => m.workday_id === s.workday_id)
     const summary = calculateWorkdayCashSummary(initialCash, sTasks, sMovements)
+    const liveExpected = Math.max(0, summary.cashInHandNIO)
+
+    const isPending = s.status === 'pending_review' || s.status === 'draft' || s.status === 'observed'
+    const expectedCash = isPending ? liveExpected : s.expected_cash
+    const actualCash = isPending
+      ? (s.actual_cash === s.expected_cash || !s.actual_cash ? liveExpected : s.actual_cash)
+      : s.actual_cash
+    const difference = isPending ? actualCash - expectedCash : s.difference
 
     return {
       ...s,
+      expected_cash: expectedCash,
+      actual_cash: actualCash,
+      difference: difference,
+      total_expenses: isPending ? summary.expensesNIO : s.total_expenses,
       cash_summary: summary,
     }
   })
@@ -121,9 +133,20 @@ export async function getSettlementById(id: string): Promise<Settlement> {
     .eq('workday_id', s.workday_id)
 
   const summary = calculateWorkdayCashSummary(workday?.initial_cash || 0, tasks || [], movements || [])
+  const isPending = s.status === 'pending_review' || s.status === 'draft' || s.status === 'observed'
+  const liveExpected = Math.max(0, summary.cashInHandNIO)
+  const expectedCash = isPending ? liveExpected : s.expected_cash
+  const actualCash = isPending
+    ? (s.actual_cash === s.expected_cash || !s.actual_cash ? liveExpected : s.actual_cash)
+    : s.actual_cash
+  const difference = isPending ? actualCash - expectedCash : s.difference
 
   return {
     ...s,
+    expected_cash: expectedCash,
+    actual_cash: actualCash,
+    difference: difference,
+    total_expenses: isPending ? summary.expensesNIO : s.total_expenses,
     cash_summary: summary,
   }
 }
@@ -162,9 +185,20 @@ export async function getSettlementByWorkday(workdayId: string): Promise<Settlem
     .eq('workday_id', s.workday_id)
 
   const summary = calculateWorkdayCashSummary(workday?.initial_cash || 0, tasks || [], movements || [])
+  const isPending = s.status === 'pending_review' || s.status === 'draft' || s.status === 'observed'
+  const liveExpected = Math.max(0, summary.cashInHandNIO)
+  const expectedCash = isPending ? liveExpected : s.expected_cash
+  const actualCash = isPending
+    ? (s.actual_cash === s.expected_cash || !s.actual_cash ? liveExpected : s.actual_cash)
+    : s.actual_cash
+  const difference = isPending ? actualCash - expectedCash : s.difference
 
   return {
     ...s,
+    expected_cash: expectedCash,
+    actual_cash: actualCash,
+    difference: difference,
+    total_expenses: isPending ? summary.expensesNIO : s.total_expenses,
     cash_summary: summary,
   }
 }
@@ -946,8 +980,11 @@ export async function getCourierPendingBalances(
 }
 
 export async function getAllCouriersPendingBalances(
-  branchId?: string
+  branchId?: string,
+  beforeDate?: string
 ): Promise<CourierPendingBalancesSummary[]> {
+  const cutoffDate = beforeDate || getLocalDateString()
+
   // Obtener todos los perfiles de motorizados
   let query = supabase
     .from('profiles')
@@ -964,7 +1001,7 @@ export async function getAllCouriersPendingBalances(
 
   const results: CourierPendingBalancesSummary[] = []
   for (const c of couriers) {
-    const summary = await getCourierPendingBalances(c.id)
+    const summary = await getCourierPendingBalances(c.id, cutoffDate)
     if (summary.hasPendingBalances) {
       summary.courierName = c.display_name || c.full_name
       results.push(summary)

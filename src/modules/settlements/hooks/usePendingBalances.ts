@@ -26,10 +26,10 @@ export function useCourierPendingBalances(courierId?: string, beforeDate?: strin
   })
 }
 
-export function useAllCouriersPendingBalances(branchId?: string) {
+export function useAllCouriersPendingBalances(branchId?: string, beforeDate?: string) {
   return useQuery<CourierPendingBalancesSummary[]>({
-    queryKey: ['all_couriers_pending_balances', branchId],
-    queryFn: () => getAllCouriersPendingBalances(branchId),
+    queryKey: ['all_couriers_pending_balances', branchId, beforeDate],
+    queryFn: () => getAllCouriersPendingBalances(branchId, beforeDate),
     staleTime: 1000 * 30,
     refetchInterval: 1000 * 60,
   })
