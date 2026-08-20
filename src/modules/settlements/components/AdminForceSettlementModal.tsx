@@ -87,7 +87,7 @@ export function AdminForceSettlementModal({
   }
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} closeOnBackdropClick={false}>
       <ModalContent size="md">
         <ModalHeader onClose={onClose}>
           <div className="flex items-center gap-3">
