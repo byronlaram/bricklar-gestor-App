@@ -228,6 +228,14 @@ function Sidebar({
   )
 }
 
+// ─── Navegación Inferior Móvil para Administrador ───────────────────────────
+const ADMIN_BOTTOM_NAV_ITEMS = [
+  { to: '/admin', label: 'Inicio', icon: LayoutDashboard, exact: true },
+  { to: '/admin/tareas', label: 'Tareas', icon: ClipboardList },
+  { to: '/admin/jornadas', label: 'Jornadas', icon: Briefcase },
+  { to: '/admin/liquidaciones', label: 'Liquidación', icon: Receipt },
+]
+
 // ─── Componente Principal AdminLayout (App Shell Definitivo) ───────────────────
 
 export default function AdminLayout() {
@@ -323,52 +331,58 @@ export default function AdminLayout() {
 
       {/* Ámbito Principal del App Shell */}
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Header Definitivo */}
-        <header className="flex h-16 flex-shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 sm:px-6 shadow-2xs z-20">
+        {/* Topbar Corporativo Azul Premium (Estilo Banpro / Bricklar) */}
+        <header className="sticky top-0 z-30 flex h-16 flex-shrink-0 items-center justify-between bg-gradient-to-r from-[#003875] via-[#004594] to-[#003875] px-4 sm:px-6 shadow-md border-b border-white/10 text-white">
           <div className="flex items-center gap-3">
-            {/* Botón Toggle Mobile */}
-            <Button
-              size="icon"
-              variant="ghost"
+            {/* Botón Menú Lateral en Mobile (Tarjeta Translúcida de Vidrio) */}
+            <button
+              type="button"
               onClick={() => setSidebarOpen(true)}
-              className="lg:hidden text-slate-600 hover:text-slate-900"
-              aria-label="Abrir menú de navegación"
+              className="lg:hidden w-10 h-10 rounded-2xl bg-white/15 border border-white/20 shadow-2xs flex items-center justify-center text-white hover:bg-white/25 transition cursor-pointer backdrop-blur-xs shrink-0"
+              aria-label="Abrir menú de navegación completo"
             >
-              <Menu size={20} />
-            </Button>
-
-            {/* Breadcrumb & Titular de Página */}
-            <div>
-              <div className="flex items-center gap-1.5 text-2xs font-semibold text-slate-400 uppercase tracking-wider">
-                <Link to="/admin" className="hover:text-accent transition-colors font-bold">Bricklar GestorApp</Link>
-                <ChevronRight size={12} className="text-slate-300" />
-                <span className="text-slate-600">{pageTitle}</span>
+              <div className="flex flex-col gap-1 w-4">
+                <span className="h-0.5 w-full bg-white rounded-full" />
+                <span className="h-0.5 w-3/4 bg-white rounded-full" />
+                <span className="h-0.5 w-full bg-white rounded-full" />
               </div>
-              <h1 className="text-base font-bold text-slate-900 tracking-tight leading-tight">
+            </button>
+
+            {/* Logo e Identidad / Breadcrumb Dinámico */}
+            <div>
+              <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-200/90 tracking-tight">
+                <Link to="/admin" className="hover:text-white transition-colors font-extrabold flex items-center gap-1">
+                  <span className="hidden sm:inline">Bricklar GestorApp</span>
+                  <span className="sm:hidden">GestorApp</span>
+                </Link>
+                <ChevronRight size={12} className="text-blue-300/60" />
+                <span className="text-white font-medium truncate max-w-[140px] sm:max-w-none">{pageTitle}</span>
+              </div>
+              <h1 className="text-sm sm:text-base font-bold text-white tracking-tight leading-tight truncate">
                 {pageTitle}
               </h1>
             </div>
           </div>
 
-          {/* Área Derecha Header: Notificaciones + User Dropdown en Topbar */}
-          <div className="flex items-center gap-3">
-            <Button
-              size="icon"
-              variant="outline"
+          {/* Área Derecha Header: Notificaciones + User Dropdown */}
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Campana de Notificaciones / Auditoría con Badge numérico */}
+            <button
+              type="button"
               onClick={() => navigate('/admin/auditoria')}
-              className="relative text-slate-600 hover:text-primary rounded-lg border-slate-200"
+              className="relative w-10 h-10 rounded-2xl bg-white/15 border border-white/20 shadow-2xs flex items-center justify-center text-white hover:bg-white/25 transition cursor-pointer backdrop-blur-xs"
               aria-label="Auditoría y notificaciones"
               title="Notificaciones y Registro de Auditoría"
             >
-              <Bell size={18} />
+              <Bell size={18} className="text-white" />
               {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-extrabold flex items-center justify-center shadow-xs">
+                <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-rose-500 text-white text-[10px] font-extrabold flex items-center justify-center shadow-xs animate-scale-in">
                   {unreadCount > 9 ? '9+' : unreadCount}
                 </span>
               )}
-            </Button>
+            </button>
 
-            {/* User Profile Dropdown en Escritorio/Topbar */}
+            {/* Menú de Perfil de Usuario con Avatar */}
             <div className="relative" ref={dropdownRef}>
               <button
                 type="button"
@@ -376,27 +390,31 @@ export default function AdminLayout() {
                 aria-haspopup="true"
                 aria-expanded={userMenuOpen}
                 aria-label="Menú de perfil de usuario"
-                className="flex items-center gap-2.5 pl-2 border-l border-slate-200 rounded-lg p-1.5 hover:bg-slate-50 transition cursor-pointer"
+                className="flex items-center gap-2 pl-2 rounded-2xl p-1 bg-white/10 hover:bg-white/20 border border-white/15 transition cursor-pointer backdrop-blur-xs"
               >
                 <Avatar name={profile?.full_name ?? 'Admin'} size="sm" src={profile?.avatar_url} />
-                <div className="hidden sm:block text-left">
-                  <p className="text-xs font-bold text-slate-900 leading-tight">{profile?.full_name ?? 'Administrador'}</p>
-                  <p className="text-2xs text-slate-400 font-medium capitalize">{profile?.role?.replace('_', ' ') ?? 'General Admin'}</p>
+                <div className="hidden md:block text-left pr-1">
+                  <p className="text-xs font-bold text-white leading-tight truncate max-w-[120px]">
+                    {profile?.display_name || profile?.full_name || 'Administrador'}
+                  </p>
+                  <p className="text-[10px] text-blue-200/90 font-medium capitalize leading-none mt-0.5">
+                    {profile?.role?.replace('_', ' ') ?? 'General Admin'}
+                  </p>
                 </div>
-                <ChevronDown size={14} className={cn('text-slate-400 transition-transform duration-200', userMenuOpen ? 'rotate-180' : '')} />
+                <ChevronDown size={14} className={cn('text-blue-200 transition-transform duration-200 hidden sm:block', userMenuOpen ? 'rotate-180' : '')} />
               </button>
 
-              {/* Menú Desplegable (Dropdown) */}
+              {/* Menú Desplegable Flotante (Dropdown) */}
               {userMenuOpen && (
                 <div
-                  className="absolute right-0 mt-2 w-64 rounded-2xl bg-white border border-slate-200 shadow-xl py-2 z-50 animate-fade-in"
+                  className="absolute right-0 mt-2 w-64 rounded-2xl bg-white border border-slate-200/90 shadow-2xl py-2 z-50 animate-fade-in text-slate-800"
                   role="menu"
                   aria-orientation="vertical"
                 >
                   <div className="px-4 py-2.5 border-b border-slate-100 space-y-0.5">
-                    <p className="text-xs font-bold text-slate-900 truncate">{profile?.full_name ?? 'Administrador'}</p>
+                    <p className="text-xs font-bold text-[#004594] truncate">{profile?.display_name || profile?.full_name || 'Administrador'}</p>
                     <p className="text-2xs text-slate-400 truncate">{profile?.email}</p>
-                    <span className="inline-block mt-1 px-2 py-0.5 text-2xs font-semibold text-accent bg-sky-50 border border-sky-100 rounded-full capitalize">
+                    <span className="inline-block mt-1 px-2 py-0.5 text-2xs font-semibold text-[#004594] bg-blue-50 border border-blue-100 rounded-full capitalize">
                       {profile?.role?.replace('_', ' ') ?? 'Administrador'}
                     </span>
                   </div>
@@ -409,9 +427,9 @@ export default function AdminLayout() {
                         setUserMenuOpen(false)
                         navigate('/admin/configuracion')
                       }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#004594] transition cursor-pointer"
                     >
-                      <Settings size={15} className="text-slate-400" />
+                      <Settings size={16} className="text-[#004594]" />
                       Configuración de cuenta
                     </button>
                     <button
@@ -421,9 +439,9 @@ export default function AdminLayout() {
                         setUserMenuOpen(false)
                         navigate('/admin/auditoria')
                       }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#004594] transition cursor-pointer"
                     >
-                      <UserCheck size={15} className="text-slate-400" />
+                      <UserCheck size={16} className="text-[#004594]" />
                       Log de Actividad / Auditoría
                     </button>
                   </div>
@@ -436,9 +454,9 @@ export default function AdminLayout() {
                         setUserMenuOpen(false)
                         setLogoutConfirmOpen(true)
                       }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50 hover:text-rose-600 transition cursor-pointer"
+                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-bold text-slate-700 hover:bg-rose-50 hover:text-rose-600 transition cursor-pointer"
                     >
-                      <LogOut size={15} className="text-slate-400" />
+                      <LogOut size={16} className="text-slate-400" />
                       Cerrar sesión
                     </button>
                   </div>
@@ -448,12 +466,63 @@ export default function AdminLayout() {
           </div>
         </header>
 
-        {/* Área Principal de Contenido Uniforme */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-50" id="main-content">
+        {/* Área Principal de Contenido Uniforme (con padding inferior en móvil para el bottom nav) */}
+        <main className="flex-1 overflow-y-auto p-3 sm:p-6 lg:p-8 pb-24 lg:pb-8 bg-slate-50" id="main-content">
           <div className="max-w-7xl mx-auto space-y-6">
             <Outlet />
           </div>
         </main>
+
+        {/* 📱 Barra de Navegación Inferior Móvil para Administradores (Estilo App Nativa) */}
+        <nav
+          className="fixed bottom-0 left-0 right-0 z-40 flex h-16 items-center justify-around border-t border-slate-200/80 bg-white/95 pb-safe shadow-2xl px-1 backdrop-blur-md lg:hidden"
+          aria-label="Navegación principal móvil del administrador"
+        >
+          {ADMIN_BOTTOM_NAV_ITEMS.map((item) => {
+            const Icon = item.icon
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.exact}
+                className={({ isActive }: { isActive: boolean }) =>
+                  cn(
+                    'flex flex-1 flex-col items-center justify-center gap-1 py-1 text-center transition-all min-h-[48px] rounded-xl',
+                    isActive ? 'text-[#004594] font-extrabold' : 'text-slate-400 hover:text-slate-600'
+                  )
+                }
+                aria-label={item.label}
+              >
+                {({ isActive }) => (
+                  <>
+                    <div
+                      className={cn(
+                        'p-1 rounded-xl transition-all duration-200',
+                        isActive ? 'bg-blue-50 text-[#004594] scale-110 shadow-2xs' : 'text-slate-400'
+                      )}
+                    >
+                      <Icon size={19} />
+                    </div>
+                    <span className="text-[10px] leading-none tracking-tight">{item.label}</span>
+                  </>
+                )}
+              </NavLink>
+            )
+          })}
+
+          {/* Botón "Más / Menú Completo" */}
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="flex flex-1 flex-col items-center justify-center gap-1 py-1 text-center transition-all min-h-[48px] rounded-xl text-slate-400 hover:text-slate-700 cursor-pointer"
+            aria-label="Más opciones"
+          >
+            <div className="p-1 rounded-xl text-slate-400">
+              <Menu size={19} />
+            </div>
+            <span className="text-[10px] leading-none tracking-tight">Más</span>
+          </button>
+        </nav>
       </div>
 
       {/* ConfirmDialog de Cierre de Sesión para Administración */}
