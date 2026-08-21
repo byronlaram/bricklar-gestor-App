@@ -348,11 +348,33 @@ export default function TasksPage() {
                       </div>
                     </td>
 
-                    {/* Contacto / Cliente */}
+                    {/* Contacto / Cliente / Entidad */}
                     <td className="py-3 px-3 max-w-[180px]">
-                      <div className="font-semibold text-slate-900 truncate">
-                        {task.contact_name || task.company_name || 'Sin contacto'}
+                      <div
+                        className="font-semibold text-slate-900 truncate"
+                        title={
+                          task.contact_name ||
+                          task.provider_name ||
+                          task.institution_name ||
+                          task.company_name ||
+                          task.destination_contact ||
+                          'Sin contacto'
+                        }
+                      >
+                        {task.contact_name ||
+                          task.provider_name ||
+                          task.institution_name ||
+                          task.company_name ||
+                          task.destination_contact ||
+                          'Sin contacto'}
                       </div>
+                      {task.company_name &&
+                        task.contact_name &&
+                        task.company_name !== task.contact_name && (
+                          <div className="text-2xs text-slate-500 truncate" title={task.company_name}>
+                            {task.company_name}
+                          </div>
+                        )}
                       {task.phone && (
                         <div className="text-2xs text-slate-400 font-mono">{task.phone}</div>
                       )}

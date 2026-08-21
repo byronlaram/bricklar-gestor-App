@@ -198,9 +198,9 @@ export default function TaskDetailPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider block">Contacto / Cliente</span>
+                <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider block">Contacto / Entidad</span>
                 <span className="text-sm font-bold text-slate-900 block mt-0.5">
-                  {task.contact_name || 'No especificado'}
+                  {task.contact_name || task.provider_name || task.institution_name || 'No especificado'}
                 </span>
                 {task.company_name && (
                   <span className="text-xs text-slate-500 flex items-center gap-1.5 pt-1 font-medium">

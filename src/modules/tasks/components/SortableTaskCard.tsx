@@ -153,10 +153,10 @@ export function SortableTaskCard({
             <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-[#004594] transition-colors shrink-0 mt-0.5" />
           </div>
 
-          {task.contact_name && (
+          {(task.contact_name || task.provider_name || task.institution_name || task.company_name) && (
             <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
               <User className="h-3.5 w-3.5 text-indigo-600" />
-              <span>{task.contact_name}</span>
+              <span>{task.contact_name || task.provider_name || task.institution_name || task.company_name}</span>
             </p>
           )}
 

@@ -221,7 +221,7 @@ export default function CourierTaskDetailPage() {
           <span className="text-2xs text-slate-400 uppercase tracking-wider font-semibold block">Contacto</span>
           <span className="text-sm font-bold text-slate-900 flex items-center gap-1.5 mt-0.5">
             <User className="h-4 w-4 text-indigo-600" />
-            {task.contact_name || 'Sin nombre especificado'}
+            {task.contact_name || task.provider_name || task.institution_name || task.company_name || 'Sin nombre especificado'}
           </span>
         </div>
 
