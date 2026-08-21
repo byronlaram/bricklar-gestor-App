@@ -91,32 +91,11 @@ async function fetchReportData(
   }
 
   if (type === 'settlements') {
-    let settlementsList: any[] = []
-    if (from === to) {
-      settlementsList = await getSettlements({
-        date: from,
-        branch_id: branchId || undefined,
-      })
-    } else {
-      const { data } = await supabase
-        .from('settlements')
-        .select(`
-          *,
-          courier_profile:profiles!settlements_courier_id_fkey (
-            id, full_name, display_name, phone
-          ),
-          branch:branches!settlements_branch_id_fkey (
-            id, name, code
-          )
-        `)
-        .gte('settlement_date', from)
-        .lte('settlement_date', to)
-        .order('settlement_date', { ascending: false })
-
-      let filtered = (data ?? []) as any[]
-      if (branchId) filtered = filtered.filter((s: any) => s.branch_id === branchId)
-      settlementsList = filtered
-    }
+    const settlementsList = await getSettlements({
+      date_from: from,
+      date_to: to,
+      branch_id: branchId || undefined,
+    })
 
     const formatted = settlementsList.map((s: any) => {
       const summary = s.cash_summary
@@ -147,32 +126,11 @@ async function fetchReportData(
   }
 
   if (type === 'workdays') {
-    let workdaysList: any[] = []
-    if (from === to) {
-      workdaysList = await getWorkdays({
-        date: from,
-        branch_id: branchId || undefined,
-      })
-    } else {
-      const { data } = await supabase
-        .from('workdays')
-        .select(`
-          *,
-          courier_profile:profiles!workdays_courier_id_fkey (
-            id, full_name, display_name, phone
-          ),
-          branch:branches!workdays_branch_id_fkey (
-            id, name, code
-          )
-        `)
-        .gte('work_date', from)
-        .lte('work_date', to)
-        .order('work_date', { ascending: false })
-
-      let filtered = (data ?? []) as any[]
-      if (branchId) filtered = filtered.filter((w: any) => w.branch_id === branchId)
-      workdaysList = filtered
-    }
+    const workdaysList = await getWorkdays({
+      date_from: from,
+      date_to: to,
+      branch_id: branchId || undefined,
+    })
 
     const formatted = workdaysList.map((w: any) => {
       let kmDisplay = 'No disponible'
@@ -183,17 +141,23 @@ async function fetchReportData(
         if (reason) kmDisplay = `No disponible (${reason})`
       }
 
+      const initialCash = w.cash_summary?.initialCashNIO ?? w.initial_cash ?? 0
+      const collections = w.cash_summary?.collectionsNIO ?? 0
+      const expenses = w.cash_summary?.expensesNIO ?? 0
+      const alreadyReceived = w.cash_summary?.alreadyReceivedNIO ?? 0
+      const cashInHand = w.cash_summary?.cashInHandNIO ?? initialCash
+
       return {
         id: w.id,
         fecha: w.work_date,
         motorizado: w.courier_profile?.display_name || w.courier_profile?.full_name || 'N/A',
         sucursal: w.branch?.name || 'N/A',
         estado: (WORKDAY_STATUS_LABELS && WORKDAY_STATUS_LABELS[w.status as keyof typeof WORKDAY_STATUS_LABELS]) || w.status,
-        fondo_inicial: `C$ ${(w.initial_cash || 0).toFixed(2)}`,
-        cobros_ruta: `+C$ ${(w.cash_summary?.collectionsNIO ?? 0).toFixed(2)}`,
-        gastos_ruta: `-C$ ${(w.cash_summary?.expensesNIO ?? 0).toFixed(2)}`,
-        entregas_caja: `-C$ ${(w.cash_summary?.alreadyReceivedNIO ?? 0).toFixed(2)}`,
-        saldo_en_mano: `C$ ${(w.cash_summary?.cashInHandNIO ?? 0).toFixed(2)}`,
+        fondo_inicial: `C$ ${initialCash.toFixed(2)}`,
+        cobros_ruta: `+C$ ${collections.toFixed(2)}`,
+        gastos_ruta: `-C$ ${expenses.toFixed(2)}`,
+        entregas_caja: `-C$ ${alreadyReceived.toFixed(2)}`,
+        saldo_en_mano: `C$ ${cashInHand.toFixed(2)}`,
         km_inicial: kmDisplay,
         km_final: w.final_km !== null && w.final_km !== undefined ? `${w.final_km} km` : 'En recorrido',
         observaciones: w.notes || 'Ninguna',

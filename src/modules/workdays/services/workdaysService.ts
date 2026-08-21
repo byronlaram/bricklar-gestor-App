@@ -218,7 +218,7 @@ export async function endWorkday(payload: EndWorkdayPayload): Promise<Workday> {
 }
 
 export async function getWorkdays(filters: WorkdayFilters = {}): Promise<Workday[]> {
-  const { branch_id, courier_id, date, status } = filters
+  const { branch_id, courier_id, date, date_from, date_to, status } = filters
 
   let query = supabase
     .from('workdays')
@@ -229,6 +229,8 @@ export async function getWorkdays(filters: WorkdayFilters = {}): Promise<Workday
   if (branch_id) query = query.eq('branch_id', branch_id)
   if (courier_id) query = query.eq('courier_id', courier_id)
   if (date) query = query.eq('work_date', date)
+  if (date_from) query = query.gte('work_date', date_from)
+  if (date_to) query = query.lte('work_date', date_to)
   if (status) query = query.eq('status', status)
 
   const { data, error } = await query

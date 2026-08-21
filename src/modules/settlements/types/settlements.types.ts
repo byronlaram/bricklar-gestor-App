@@ -123,6 +123,8 @@ export interface SettlementFilters {
   branch_id?: string
   courier_id?: string
   date?: string // YYYY-MM-DD
+  date_from?: string
+  date_to?: string
   status?: SettlementStatus
 }
 

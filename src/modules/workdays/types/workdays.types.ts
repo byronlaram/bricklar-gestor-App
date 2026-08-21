@@ -50,6 +50,8 @@ export interface WorkdayFilters {
   branch_id?: string
   courier_id?: string
   date?: string
+  date_from?: string
+  date_to?: string
   status?: WorkdayStatus | ''
   page?: number
   page_size?: number

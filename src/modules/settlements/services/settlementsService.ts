@@ -22,7 +22,7 @@ const SETTLEMENT_SELECT = `
 `
 
 export async function getSettlements(filters: SettlementFilters = {}): Promise<Settlement[]> {
-  const { branch_id, courier_id, date, status } = filters
+  const { branch_id, courier_id, date, date_from, date_to, status } = filters
 
   let query = supabase
     .from('settlements')
@@ -33,6 +33,8 @@ export async function getSettlements(filters: SettlementFilters = {}): Promise<S
   if (branch_id) query = query.eq('branch_id', branch_id)
   if (courier_id) query = query.eq('courier_id', courier_id)
   if (date) query = query.eq('settlement_date', date)
+  if (date_from) query = query.gte('settlement_date', date_from)
+  if (date_to) query = query.lte('settlement_date', date_to)
   if (status) query = query.eq('status', status)
 
   const { data, error } = await query
