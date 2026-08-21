@@ -40,7 +40,7 @@ export async function getWorkdayById(id: string): Promise<Workday | null> {
 
   const { data: movements } = await supabase
     .from('cash_movements')
-    .select('amount, currency, direction, movement_type')
+    .select('amount, currency, direction, movement_type, description')
     .eq('workday_id', wd.id)
 
   const summary = calculateWorkdayCashSummary(wd.initial_cash || 0, tasks || [], movements || [])
@@ -256,7 +256,7 @@ export async function getWorkdays(filters: WorkdayFilters = {}): Promise<Workday
   // 2. Carga en lote de movimientos de caja
   const { data: batchMovements } = await supabase
     .from('cash_movements')
-    .select('workday_id, amount, currency, direction, movement_type')
+    .select('workday_id, amount, currency, direction, movement_type, description')
     .in('workday_id', workdayIds)
 
   return list.map((w) => {

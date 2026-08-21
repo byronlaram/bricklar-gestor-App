@@ -39,8 +39,11 @@ export function calculateWorkdayCashSummary(
     currency?: string | null
     direction: string
     movement_type: string
+    description?: string | null
   }> = []
 ): WorkdayCashSummary {
+  let initialCashNIO = initialCash || 0
+  let initialCashUSD = 0
   let advancesNIO = 0
   let advancesUSD = 0
   let collectionsNIO = 0
@@ -96,26 +99,43 @@ export function calculateWorkdayCashSummary(
   movements.forEach((m) => {
     const amt = m.amount || 0
     const curr = m.currency || 'NIO'
+    const desc = (m.description || '').toLowerCase()
 
     if (m.direction === 'expense') {
       if (curr === 'USD') expensesUSD += amt
       else expensesNIO += amt
     } else if (m.direction === 'income') {
-      if (['cash_advance', 'advance', 'initial_cash'].includes(m.movement_type)) {
+      const isInitialCashEntry =
+        m.movement_type === 'initial_cash' || desc.includes('fondo inicial')
+
+      if (isInitialCashEntry) {
+        // Es el registro de auditoría de la entrega del fondo inicial.
+        // Si la jornada tenía initialCash = 0, se lo asignamos aquí.
+        // Si ya tenía initialCash > 0, NO se suma como adelanto extra para evitar duplicar el fondo inicial.
+        if (curr === 'USD') {
+          if (initialCashUSD === 0) initialCashUSD = amt
+        } else {
+          if (initialCashNIO === 0) initialCashNIO = amt
+        }
+      } else if (['cash_advance', 'advance', 'additional_fund'].includes(m.movement_type)) {
+        // Es un adelanto/entrega ADICIONAL durante el turno
         if (curr === 'USD') advancesUSD += amt
         else advancesNIO += amt
-      } else if (['cash_return', 'deposit', 'adjustment', 'settlement_payment'].includes(m.movement_type)) {
+      } else if (
+        ['cash_return', 'deposit', 'adjustment', 'settlement_payment', 'reception'].includes(
+          m.movement_type
+        )
+      ) {
         if (curr === 'USD') alreadyReceivedUSD += amt
         else alreadyReceivedNIO += amt
       }
     }
   })
 
-  const initialCashNIO = initialCash || 0
-  const initialCashUSD = 0
-
-  const cashInHandNIO = initialCashNIO + advancesNIO + collectionsNIO - expensesNIO - alreadyReceivedNIO
-  const cashInHandUSD = initialCashUSD + advancesUSD + collectionsUSD - expensesUSD - alreadyReceivedUSD
+  const cashInHandNIO =
+    initialCashNIO + advancesNIO + collectionsNIO - expensesNIO - alreadyReceivedNIO
+  const cashInHandUSD =
+    initialCashUSD + advancesUSD + collectionsUSD - expensesUSD - alreadyReceivedUSD
 
   return {
     initialCashNIO,

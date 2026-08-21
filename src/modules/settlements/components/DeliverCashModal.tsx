@@ -356,13 +356,14 @@ export function DeliverCashModal({
           .eq('id', targetWorkdayId)
       }
 
-      // Inserción del movimiento de caja (cash_advance)
+      // Inserción del movimiento de caja (initial_cash vs cash_advance)
+      const movementType = deliveryType === 'initial_cash' ? 'initial_cash' : 'cash_advance'
       const { data: movement, error: movErr } = await supabase
         .from('cash_movements')
         .insert({
           workday_id: targetWorkdayId,
           courier_id: targetCourierId,
-          movement_type: 'cash_advance',
+          movement_type: movementType,
           direction: 'income',
           amount: numAmount,
           currency,
