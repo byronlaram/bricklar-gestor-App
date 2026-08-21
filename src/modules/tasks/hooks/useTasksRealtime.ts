@@ -1,8 +1,12 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useToast } from '@/shared/components/ui'
+import {
+  getGlobalRealtimeChannel,
+  onLocalBroadcast,
+  type RealtimeSyncPayload,
+} from '@/shared/lib/realtimeSync'
 
 interface TaskPayloadRow {
   id?: string
@@ -12,6 +16,7 @@ interface TaskPayloadRow {
   status?: string
   branch_id?: string
   scheduled_date?: string
+  approval_status?: string
 }
 
 interface AssignmentPayloadRow {
@@ -22,11 +27,11 @@ interface AssignmentPayloadRow {
 }
 
 /**
- * Hook para suscribirse en tiempo real a los cambios de las tablas 'tasks' y 'task_assignments' en Supabase.
- * - Mantiene referencia estable de toast para evitar desconexiones espurias.
- * - Invalida y refresca de inmediato todas las queries activas de tareas, saldos, usuarios y KPIs.
- * - Escucha eventos INSERT, UPDATE y DELETE tanto en tasks como en task_assignments.
- * - Incluye listeners de resiliencia ante visibilitychange, focus y online (desbloqueo y reconexión).
+ * Hook de sincronización en tiempo real multicapa:
+ * 1. WebSocket Broadcast Global (Supabase): Latencia <50ms entre cualquier dispositivo.
+ * 2. Web BroadcastChannel (Pestañas locales): Sincronización 0ms sin tráfico de red.
+ * 3. PostgreSQL Changes CDC (Supabase): Captura de eventos INSERT, UPDATE, DELETE a nivel de base de datos.
+ * 4. Invalida y re-consulta de forma activa TanStack Query para tareas, dashboard, liquidaciones y jornadas.
  */
 export function useTasksRealtime() {
   const queryClient = useQueryClient()
@@ -38,74 +43,120 @@ export function useTasksRealtime() {
     toastRef.current = toast
   }, [toast])
 
+  const refetchAllActiveQueries = useCallback(() => {
+    // 1. Tareas y Asignaciones
+    queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    queryClient.refetchQueries({ queryKey: ['tasks'], type: 'active' })
+
+    // 2. Motorizados y Jornadas
+    queryClient.invalidateQueries({ queryKey: ['couriers'] })
+    queryClient.refetchQueries({ queryKey: ['couriers'], type: 'active' })
+
+    queryClient.invalidateQueries({ queryKey: ['workdays'] })
+    queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
+
+    // 3. Saldos, Movimientos y Liquidaciones
+    queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
+    queryClient.refetchQueries({ queryKey: ['cash_movements'], type: 'active' })
+
+    queryClient.invalidateQueries({ queryKey: ['settlements'] })
+    queryClient.refetchQueries({ queryKey: ['settlements'], type: 'active' })
+
+    queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+    queryClient.refetchQueries({ queryKey: ['courier_pending_balances'], type: 'active' })
+
+    queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+    queryClient.refetchQueries({ queryKey: ['all_couriers_pending_balances'], type: 'active' })
+
+    // 4. Panel Dashboard (Admin)
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
+
+    // 5. Notificaciones de usuario
+    if (profile?.id) {
+      queryClient.invalidateQueries({ queryKey: ['notifications', profile.id] })
+      queryClient.refetchQueries({ queryKey: ['notifications', profile.id], type: 'active' })
+    }
+  }, [queryClient, profile?.id])
+
   useEffect(() => {
     const userId = profile?.id
     if (!userId) return
 
     const isCourier = profile?.role === 'courier'
-    const isAdmin = profile?.role === 'general_admin' || profile?.role === 'junior_admin'
     const isDev = import.meta.env.DEV
 
     if (isDev) {
-      console.log(`[Realtime] Inicializando suscripción para usuario ${profile.full_name} (${userId}), rol: ${profile.role}`)
+      console.log(`[Realtime Hub] Inicializando suscripción para ${profile.full_name} (${userId})`)
     }
 
-    const refetchAllActiveQueries = () => {
-      // 1. Tareas y asignaciones
-      queryClient.invalidateQueries({ queryKey: ['tasks'] })
-      queryClient.refetchQueries({ queryKey: ['tasks'], type: 'active' })
+    // ─── 1. Procesar Eventos de Difusión Rápida (Broadcast) ────────────────
+    const handleBroadcastEvent = (payload: RealtimeSyncPayload) => {
+      if (isDev) {
+        console.log(`[Realtime Broadcast Received: ${payload.domain}:${payload.action}]`, payload)
+      }
 
-      // 2. Motorizados y Jornadas
-      queryClient.invalidateQueries({ queryKey: ['couriers'] })
-      queryClient.refetchQueries({ queryKey: ['couriers'], type: 'active' })
+      refetchAllActiveQueries()
 
-      queryClient.invalidateQueries({ queryKey: ['workdays'] })
-      queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
+      // Notificaciones Toasts específicas para motorizados
+      if (isCourier) {
+        const isTargetCourier = payload.assignedCourierId === userId
+        const wasTargetCourier = payload.previousCourierId === userId
 
-      // 3. Saldos, Movimientos y Liquidaciones
-      queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
-      queryClient.refetchQueries({ queryKey: ['cash_movements'], type: 'active' })
+        const codeStr = payload.taskCode ? ` [${payload.taskCode}]` : ''
+        const titleStr = payload.taskTitle ? `: ${payload.taskTitle}` : ''
 
-      queryClient.invalidateQueries({ queryKey: ['settlements'] })
-      queryClient.refetchQueries({ queryKey: ['settlements'], type: 'active' })
-
-      queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
-      queryClient.refetchQueries({ queryKey: ['courier_pending_balances'], type: 'active' })
-
-      queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
-      queryClient.refetchQueries({ queryKey: ['all_couriers_pending_balances'], type: 'active' })
-
-      // 4. Notificaciones
-      queryClient.invalidateQueries({ queryKey: ['notifications', userId] })
-      queryClient.refetchQueries({ queryKey: ['notifications', userId], type: 'active' })
-
-      // 5. Dashboard KPIs (Admin)
-      if (isAdmin) {
-        queryClient.invalidateQueries({ queryKey: ['dashboard-kpis'] })
-        queryClient.refetchQueries({ queryKey: ['dashboard-kpis'], type: 'active' })
+        if (payload.action === 'create' && isTargetCourier) {
+          toastRef.current.info(
+            'Nueva tarea asignada',
+            `Se ha añadido a tu ruta la tarea${codeStr}${titleStr}`
+          )
+        } else if (payload.action === 'assign' && isTargetCourier && !wasTargetCourier) {
+          toastRef.current.info(
+            'Nueva tarea asignada',
+            `Se te ha asignado la tarea${codeStr}${titleStr}`
+          )
+        } else if (payload.action === 'assign' && wasTargetCourier && !isTargetCourier) {
+          toastRef.current.warning(
+            'Tarea reasignada',
+            `La tarea${codeStr} ha sido reasignada a otro motorizado.`
+          )
+        } else if (payload.action === 'approve' && isTargetCourier) {
+          toastRef.current.success(
+            'Gestión aprobada',
+            `Tu gestión${codeStr} ha sido aprobada por administración.`
+          )
+        } else if (payload.action === 'reject' && isTargetCourier) {
+          toastRef.current.error(
+            'Gestión rechazada',
+            `Tu gestión${codeStr} ha sido rechazada por administración.`
+          )
+        }
       }
     }
 
-    // Canal único para evitar colisiones durante limpiezas asíncronas
-    const channelId = Math.random().toString(36).substring(2, 7)
-    const channelName = `tasks_realtime_${userId}_${channelId}`
-    const channel = supabase.channel(channelName)
+    // Escuchar mensajes del BroadcastChannel local entre pestañas
+    const unsubscribeLocal = onLocalBroadcast(handleBroadcastEvent)
 
-    // 1. Listener de eventos sobre la tabla 'tasks' (todos los eventos)
-    channel.on(
+    // ─── 2. Conectar al Canal Compartido de Supabase ─────────────────────────
+    const globalChannel = getGlobalRealtimeChannel()
+
+    // Listener Broadcast WebSocket
+    globalChannel.on('broadcast', { event: 'sync_event' }, ({ payload }) => {
+      handleBroadcastEvent(payload as RealtimeSyncPayload)
+    })
+
+    // Listener PostgreSQL CDC sobre 'tasks'
+    globalChannel.on(
       'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'tasks',
-      },
+      { event: '*', schema: 'public', table: 'tasks' },
       (payload) => {
         const newRow = payload.new as TaskPayloadRow | undefined
         const oldRow = payload.old as TaskPayloadRow | undefined
         const eventType = payload.eventType
 
         if (isDev) {
-          console.log(`[Realtime Tasks Event: ${eventType}]`, {
+          console.log(`[Realtime CDC Tasks Event: ${eventType}]`, {
             userId,
             new_assigned: newRow?.assigned_courier_id,
             old_assigned: oldRow?.assigned_courier_id,
@@ -115,7 +166,7 @@ export function useTasksRealtime() {
 
         refetchAllActiveQueries()
 
-        // Toasts contextuales para el motorizado
+        // Toasts contextuales de respaldo por CDC
         if (isCourier) {
           const isAssignedToMe = newRow?.assigned_courier_id === userId
           const wasAssignedToMe = oldRow?.assigned_courier_id === userId
@@ -138,35 +189,65 @@ export function useTasksRealtime() {
       }
     )
 
-    // 2. Listener sobre 'task_assignments' (todos los eventos)
-    channel.on(
+    // Listener PostgreSQL CDC sobre 'task_assignments'
+    globalChannel.on(
       'postgres_changes',
-      {
-        event: '*',
-        schema: 'public',
-        table: 'task_assignments',
-      },
+      { event: '*', schema: 'public', table: 'task_assignments' },
       (payload) => {
         const row = (payload.new || payload.old) as AssignmentPayloadRow | undefined
         if (isDev) {
-          console.log(`[Realtime Assignment Event: ${payload.eventType}]`, row)
+          console.log(`[Realtime CDC Assignment Event: ${payload.eventType}]`, row)
         }
-        if (row?.courier_id === userId || isAdmin) {
-          refetchAllActiveQueries()
-        }
+        refetchAllActiveQueries()
       }
     )
 
-    // 3. Resiliencia: Listener de visibilidad de pantalla, foco y estado de red
+    // Listener PostgreSQL CDC sobre 'workdays'
+    globalChannel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'workdays' },
+      () => {
+        refetchAllActiveQueries()
+      }
+    )
+
+    // Listener PostgreSQL CDC sobre 'settlements'
+    globalChannel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'settlements' },
+      () => {
+        refetchAllActiveQueries()
+      }
+    )
+
+    // Listener PostgreSQL CDC sobre 'cash_movements'
+    globalChannel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'cash_movements' },
+      () => {
+        refetchAllActiveQueries()
+      }
+    )
+
+    // Listener PostgreSQL CDC sobre 'notifications'
+    globalChannel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'notifications' },
+      () => {
+        refetchAllActiveQueries()
+      }
+    )
+
+    // ─── 3. Resiliencia: Listener de visibilidad, foco y red ────────────────
     const handleSync = () => {
       if (document.visibilityState === 'visible') {
-        if (isDev) console.log('[Realtime Resilience] App activa/visible/foco. Ejecutando refetch activo.')
+        if (isDev) console.log('[Realtime Resilience] App visible/foco. Ejecutando refetch activo.')
         refetchAllActiveQueries()
       }
     }
 
     const handleOnline = () => {
-      if (isDev) console.log('[Realtime Resilience] Conexión a red restablecida. Ejecutando refetch activo.')
+      if (isDev) console.log('[Realtime Resilience] Red restablecida. Ejecutando refetch activo.')
       refetchAllActiveQueries()
     }
 
@@ -174,34 +255,26 @@ export function useTasksRealtime() {
     window.addEventListener('focus', handleSync)
     window.addEventListener('online', handleOnline)
 
-    // 4. Suscripción con reconexión en caso de error
-    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
-
-    channel.subscribe((status, err) => {
+    // Suscribir al canal global
+    globalChannel.subscribe((status, err) => {
       if (isDev) {
-        console.log(`[Realtime Channel ${channelName}] Status: ${status}`)
+        console.log(`[Realtime Hub Status] ${status}`)
         if (err) {
-          console.error(`[Realtime Channel ${channelName}] Error:`, err)
+          console.error('[Realtime Hub Error]', err)
         }
       }
 
-      if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-        reconnectTimeout = setTimeout(() => {
-          if (isDev) console.log('[Realtime] Reintentando sincronización tras error de canal...')
-          refetchAllActiveQueries()
-        }, 2500)
+      if (status === 'SUBSCRIBED') {
+        refetchAllActiveQueries()
       }
     })
 
     return () => {
-      if (isDev) {
-        console.log(`[Realtime] Limpiando canal ${channelName}`)
-      }
-      if (reconnectTimeout) clearTimeout(reconnectTimeout)
+      unsubscribeLocal()
       window.removeEventListener('visibilitychange', handleSync)
       window.removeEventListener('focus', handleSync)
       window.removeEventListener('online', handleOnline)
-      supabase.removeChannel(channel)
     }
-  }, [queryClient, profile?.id, profile?.role, profile?.full_name])
+  }, [profile?.id, profile?.role, profile?.full_name, refetchAllActiveQueries])
 }
+

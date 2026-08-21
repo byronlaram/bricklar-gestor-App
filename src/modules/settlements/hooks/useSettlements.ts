@@ -17,6 +17,7 @@ import type {
   ApproveSettlementPayload,
   AdminForceSettlementPayload,
 } from '../types/settlements.types'
+import { broadcastSyncEvent } from '@/shared/lib/realtimeSync'
 
 export function useSettlements(filters: SettlementFilters = {}) {
   return useQuery({
@@ -66,12 +67,16 @@ export function useSettlementMutations() {
       submitSettlement(workdayId, notes),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settlements'] })
+      queryClient.refetchQueries({ queryKey: ['settlements'], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['workday-settlement'] })
       queryClient.invalidateQueries({ queryKey: ['workdays'] })
+      queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['active-workday'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
       queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+      broadcastSyncEvent('settlements', 'update')
     },
   })
 
@@ -79,14 +84,18 @@ export function useSettlementMutations() {
     mutationFn: (payload: ApproveSettlementPayload) => approveSettlement(payload),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['settlements'] })
+      queryClient.refetchQueries({ queryKey: ['settlements'], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['settlement', data.id] })
       queryClient.invalidateQueries({ queryKey: ['workday-settlement'] })
       queryClient.invalidateQueries({ queryKey: ['active-workday'] })
       queryClient.invalidateQueries({ queryKey: ['workdays'] })
+      queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['daily-closure'] })
       queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
       queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+      broadcastSyncEvent('settlements', 'update', { entityId: data.id })
     },
   })
 
@@ -94,13 +103,17 @@ export function useSettlementMutations() {
     mutationFn: (payload: AdminForceSettlementPayload) => adminForceSettlement(payload),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settlements'] })
+      queryClient.refetchQueries({ queryKey: ['settlements'], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['workday-settlement'] })
       queryClient.invalidateQueries({ queryKey: ['active-workday'] })
       queryClient.invalidateQueries({ queryKey: ['workdays'] })
+      queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['daily-closure'] })
       queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
       queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+      broadcastSyncEvent('settlements', 'update')
     },
   })
 
@@ -109,13 +122,17 @@ export function useSettlementMutations() {
       confirmDailyClosure(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settlements'] })
+      queryClient.refetchQueries({ queryKey: ['settlements'], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['workday-settlement'] })
       queryClient.invalidateQueries({ queryKey: ['active-workday'] })
       queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['workdays'] })
+      queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['daily-closure'] })
       queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
       queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+      broadcastSyncEvent('settlements', 'update')
     },
   })
 
@@ -125,6 +142,12 @@ export function useSettlementMutations() {
       queryClient.invalidateQueries({ queryKey: ['cash-movements', data.workday_id] })
       queryClient.invalidateQueries({ queryKey: ['workday-settlement', data.workday_id] })
       queryClient.invalidateQueries({ queryKey: ['workdays'] })
+      queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
+      queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
+      queryClient.refetchQueries({ queryKey: ['cash_movements'], type: 'active' })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
+      broadcastSyncEvent('cash_movements', 'create', { entityId: data.id })
     },
   })
 

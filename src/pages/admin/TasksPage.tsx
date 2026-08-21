@@ -327,6 +327,11 @@ export default function TasksPage() {
                       <div className="text-2xs text-slate-400 pt-0.5 font-medium">
                         {task.scheduled_date} {task.scheduled_start_time ? `• ${task.scheduled_start_time}` : ''}
                       </div>
+
+                      {/* Estado de la tarea en móvil (inferior izquierda debajo de textos) */}
+                      <div className="mt-1.5 md:hidden">
+                        <TaskStatusBadge status={task.status} className="text-[10px] py-0.5 px-2" />
+                      </div>
                     </td>
 
                     {/* Tipo & Origen */}

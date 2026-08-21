@@ -10,6 +10,7 @@ import type {
   EndWorkdayPayload,
   WorkdayFilters,
 } from '../types/workdays.types'
+import { broadcastSyncEvent } from '@/shared/lib/realtimeSync'
 
 export function useActiveWorkday(userId?: string) {
   return useQuery({
@@ -36,6 +37,13 @@ export function useWorkdayMutations() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['active-workday', data.courier_id] })
       queryClient.invalidateQueries({ queryKey: ['workdays'] })
+      queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
+      broadcastSyncEvent('workdays', 'update', {
+        entityId: data.id,
+        assignedCourierId: data.courier_id,
+      })
     },
   })
 
@@ -44,6 +52,13 @@ export function useWorkdayMutations() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['active-workday', data.courier_id] })
       queryClient.invalidateQueries({ queryKey: ['workdays'] })
+      queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
+      broadcastSyncEvent('workdays', 'update', {
+        entityId: data.id,
+        assignedCourierId: data.courier_id,
+      })
     },
   })
 

@@ -15,18 +15,33 @@ import type {
   AssignCourierPayload,
   ChangeStatusPayload,
 } from '../types/task.types'
+import { broadcastSyncEvent } from '@/shared/lib/realtimeSync'
 
 export function useTaskMutations() {
   const queryClient = useQueryClient()
 
   const invalidateTaskQueries = (taskId?: string) => {
     queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    queryClient.refetchQueries({ queryKey: ['tasks'], type: 'active' })
+
     queryClient.invalidateQueries({ queryKey: ['workdays'] })
+    queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
+
     queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
+    queryClient.refetchQueries({ queryKey: ['cash_movements'], type: 'active' })
+
     queryClient.invalidateQueries({ queryKey: ['settlements'] })
+    queryClient.refetchQueries({ queryKey: ['settlements'], type: 'active' })
+
     queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
+
     queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+    queryClient.refetchQueries({ queryKey: ['courier_pending_balances'], type: 'active' })
+
     queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+    queryClient.refetchQueries({ queryKey: ['all_couriers_pending_balances'], type: 'active' })
+
     if (taskId) {
       queryClient.invalidateQueries({ queryKey: ['task', taskId] })
       queryClient.invalidateQueries({ queryKey: ['task-history', taskId] })
@@ -36,40 +51,93 @@ export function useTaskMutations() {
 
   const createTaskMutation = useMutation({
     mutationFn: (payload: CreateTaskPayload) => createTask(payload),
-    onSuccess: () => invalidateTaskQueries(),
+    onSuccess: (data) => {
+      invalidateTaskQueries(data.id)
+      broadcastSyncEvent('tasks', 'create', {
+        entityId: data.id,
+        taskCode: data.code,
+        taskTitle: data.title,
+        assignedCourierId: data.assigned_courier_id,
+      })
+    },
   })
 
   const updateTaskMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: UpdateTaskPayload }) =>
       updateTask(id, payload),
-    onSuccess: (data) => invalidateTaskQueries(data.id),
+    onSuccess: (data) => {
+      invalidateTaskQueries(data.id)
+      broadcastSyncEvent('tasks', 'update', {
+        entityId: data.id,
+        taskCode: data.code,
+        taskTitle: data.title,
+        assignedCourierId: data.assigned_courier_id,
+      })
+    },
   })
 
   const deleteTaskMutation = useMutation({
     mutationFn: (id: string) => deleteTask(id),
-    onSuccess: (_, id) => invalidateTaskQueries(id),
+    onSuccess: (_, id) => {
+      invalidateTaskQueries(id)
+      broadcastSyncEvent('tasks', 'delete', {
+        entityId: id,
+      })
+    },
   })
 
   const assignTaskMutation = useMutation({
     mutationFn: (payload: AssignCourierPayload) => assignTask(payload),
-    onSuccess: (data) => invalidateTaskQueries(data.id),
+    onSuccess: (data) => {
+      invalidateTaskQueries(data.id)
+      broadcastSyncEvent('tasks', 'assign', {
+        entityId: data.id,
+        taskCode: data.code,
+        taskTitle: data.title,
+        assignedCourierId: data.assigned_courier_id,
+      })
+    },
   })
 
   const changeStatusMutation = useMutation({
     mutationFn: (payload: ChangeStatusPayload) => changeTaskStatus(payload),
-    onSuccess: (data) => invalidateTaskQueries(data.id),
+    onSuccess: (data) => {
+      invalidateTaskQueries(data.id)
+      broadcastSyncEvent('tasks', 'status_change', {
+        entityId: data.id,
+        taskCode: data.code,
+        taskTitle: data.title,
+        assignedCourierId: data.assigned_courier_id,
+      })
+    },
   })
 
   const approveTaskMutation = useMutation({
     mutationFn: ({ taskId, notes }: { taskId: string; notes?: string }) =>
       approveTask(taskId, notes),
-    onSuccess: (data) => invalidateTaskQueries(data.id),
+    onSuccess: (data) => {
+      invalidateTaskQueries(data.id)
+      broadcastSyncEvent('tasks', 'approve', {
+        entityId: data.id,
+        taskCode: data.code,
+        taskTitle: data.title,
+        assignedCourierId: data.assigned_courier_id,
+      })
+    },
   })
 
   const rejectTaskMutation = useMutation({
     mutationFn: ({ taskId, reason }: { taskId: string; reason: string }) =>
       rejectTask(taskId, reason),
-    onSuccess: (data) => invalidateTaskQueries(data.id),
+    onSuccess: (data) => {
+      invalidateTaskQueries(data.id)
+      broadcastSyncEvent('tasks', 'reject', {
+        entityId: data.id,
+        taskCode: data.code,
+        taskTitle: data.title,
+        assignedCourierId: data.assigned_courier_id,
+      })
+    },
   })
 
   const reorderTasksMutation = useMutation({
@@ -107,6 +175,8 @@ export function useTaskMutations() {
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.refetchQueries({ queryKey: ['tasks'], type: 'active' })
+      broadcastSyncEvent('tasks', 'reorder')
     },
   })
 
@@ -143,3 +213,4 @@ export function useTaskMutations() {
     reorderError: reorderTasksMutation.error,
   }
 }
+
