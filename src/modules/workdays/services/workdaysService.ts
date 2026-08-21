@@ -272,3 +272,92 @@ export async function getWorkdays(filters: WorkdayFilters = {}): Promise<Workday
     }
   })
 }
+
+// ─── getCashMovements (Kardex / Flujo de Movimientos de Caja) ─────────────────
+
+export interface DetailedCashMovement {
+  id: string
+  created_at: string
+  workday_id: string
+  courier_id: string
+  movement_type: string
+  direction: 'income' | 'expense'
+  amount: number
+  currency: string
+  payment_method: string
+  description: string
+  receipt_url: string | null
+  task_id: string | null
+  courier_profile?: {
+    id: string
+    full_name: string
+    display_name: string | null
+    avatar_url: string | null
+    phone: string | null
+  } | null
+  workday?: {
+    id: string
+    work_date: string
+    branch_id: string
+    branch?: {
+      id: string
+      name: string
+      code: string
+    } | null
+  } | null
+  task?: {
+    id: string
+    code: string
+    title: string
+  } | null
+}
+
+export async function getCashMovements(filters: {
+  branch_id?: string
+  date?: string
+  workday_id?: string
+  courier_id?: string
+} = {}): Promise<DetailedCashMovement[]> {
+  let query = supabase
+    .from('cash_movements')
+    .select(`
+      id, created_at, workday_id, courier_id, movement_type, direction, amount, currency, payment_method, description, receipt_url, task_id,
+      courier_profile:profiles!cash_movements_courier_id_fkey (id, full_name, display_name, avatar_url, phone),
+      workday:workdays!cash_movements_workday_id_fkey (
+        id, work_date, branch_id,
+        branch:branches!workdays_branch_id_fkey (id, name, code)
+      ),
+      task:tasks!cash_movements_task_id_fkey (id, code, title)
+    `)
+    .order('created_at', { ascending: false })
+
+  if (filters.workday_id) {
+    query = query.eq('workday_id', filters.workday_id)
+  }
+  if (filters.courier_id) {
+    query = query.eq('courier_id', filters.courier_id)
+  }
+
+  const { data, error } = await query
+
+  if (error) {
+    console.error('[Workdays] getCashMovements error:', error)
+    return []
+  }
+
+  let list = (data || []) as unknown as DetailedCashMovement[]
+
+  // Filtrado en memoria por fecha y sucursal
+  if (filters.date) {
+    list = list.filter((m) => {
+      const wDate = m.workday?.work_date || m.created_at.slice(0, 10)
+      return wDate === filters.date
+    })
+  }
+
+  if (filters.branch_id && filters.branch_id !== 'all') {
+    list = list.filter((m) => m.workday?.branch_id === filters.branch_id)
+  }
+
+  return list
+}

@@ -196,10 +196,12 @@ export interface TaskPaymentBreakdown {
   cheque_amount?: number
   cheque_bank?: string
   cheque_number?: string
+  discrepancy_collection_reason?: string
   // Para compras / gastos:
   actual_paid_amount?: number
   invoice_number?: string
   paid_method?: PaymentMethod | 'cheque'
+  discrepancy_payment_reason?: string
 }
 
 // ─── Payload para cambiar estado ──────────────────────────────────────────────

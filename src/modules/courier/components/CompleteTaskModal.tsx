@@ -44,9 +44,11 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
   const [actualPaidAmount, setActualPaidAmount] = useState<number | ''>('')
   const [invoiceNumber, setInvoiceNumber] = useState<string>('')
   const [paidMethod, setPaidMethod] = useState<PaymentMethod | 'cheque'>('cash')
+  const [paymentDiscrepancyReason, setPaymentDiscrepancyReason] = useState<string>('')
 
   // ─── Estados para Cobros a Clientes ───
   const [collectionMode, setCollectionMode] = useState<'single' | 'mixed'>('single')
+  const [collectionDiscrepancyReason, setCollectionDiscrepancyReason] = useState<string>('')
 
   // Modo único
   const [singleCollectedAmount, setSingleCollectedAmount] = useState<number | ''>('')
@@ -75,6 +77,7 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
       setActualPaidAmount(task.expected_payment_amount ?? '')
       setInvoiceNumber('')
       setPaidMethod((task.expected_payment_method as PaymentMethod | 'cheque') || 'cash')
+      setPaymentDiscrepancyReason('')
 
       // Cobros
       setCollectionMode('single')
@@ -83,6 +86,7 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
       setSingleBank('Banpro Grupo Promerica')
       setSingleReference('')
       setSingleChequeNumber('')
+      setCollectionDiscrepancyReason('')
 
       setMixedCash(task.expected_collection_amount ?? '')
       setMixedTransfer('')
@@ -101,6 +105,32 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
     const cheque = typeof mixedCheque === 'number' ? mixedCheque : 0
     return cash + transfer + cheque
   }, [mixedCash, mixedTransfer, mixedCheque])
+
+  // Cálculo de discrepancias
+  const expectedPayment = task?.expected_payment_amount ?? 0
+  const actualPaymentNum = typeof actualPaidAmount === 'number' ? actualPaidAmount : 0
+  const paymentDiff =
+    task?.requires_payment && actualPaidAmount !== ''
+      ? Number((actualPaymentNum - expectedPayment).toFixed(2))
+      : 0
+  const hasPaymentDiscrepancy =
+    task?.requires_payment && actualPaidAmount !== '' && Math.abs(paymentDiff) > 0.009
+
+  const expectedCollection = task?.expected_collection_amount ?? 0
+  const actualCollectionNum =
+    collectionMode === 'single'
+      ? typeof singleCollectedAmount === 'number'
+        ? singleCollectedAmount
+        : 0
+      : totalMixedCollected
+  const isCollectionEntered =
+    collectionMode === 'single' ? singleCollectedAmount !== '' : totalMixedCollected > 0
+  const collectionDiff =
+    task?.requires_collection && isCollectionEntered
+      ? Number((actualCollectionNum - expectedCollection).toFixed(2))
+      : 0
+  const hasCollectionDiscrepancy =
+    task?.requires_collection && isCollectionEntered && Math.abs(collectionDiff) > 0.009
 
   if (!isOpen || !task) return null
 
@@ -122,6 +152,24 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
           paymentBreakdown.invoice_number = invoiceNumber.trim() || undefined
           paymentBreakdown.paid_method = paidMethod
 
+          if (hasPaymentDiscrepancy) {
+            if (!paymentDiscrepancyReason.trim()) {
+              toast.error(
+                'Justificación Requerida',
+                'Debes justificar la diferencia entre el monto estimado y el monto pagado.'
+              )
+              return
+            }
+            paymentBreakdown.discrepancy_payment_reason = paymentDiscrepancyReason.trim()
+            notesParts.push(
+              `⚠️ Discrepancia Compra (${
+                paymentDiff > 0
+                  ? `+${currencySymbol}${paymentDiff.toFixed(2)}`
+                  : `-${currencySymbol}${Math.abs(paymentDiff).toFixed(2)}`
+              }): ${paymentDiscrepancyReason.trim()}`
+            )
+          }
+
           notesParts.push(
             `Pagado: ${currencySymbol}${paidNum.toFixed(2)} (${
               paidMethod === 'cash'
@@ -138,6 +186,24 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
 
         // 2. Manejo de Cobros
         if (task.requires_collection) {
+          if (hasCollectionDiscrepancy) {
+            if (!collectionDiscrepancyReason.trim()) {
+              toast.error(
+                'Justificación Requerida',
+                'Debes justificar la diferencia entre el monto esperado y el monto cobrado al cliente.'
+              )
+              return
+            }
+            paymentBreakdown.discrepancy_collection_reason = collectionDiscrepancyReason.trim()
+            notesParts.push(
+              `⚠️ Discrepancia Cobro (${
+                collectionDiff > 0
+                  ? `+${currencySymbol}${collectionDiff.toFixed(2)}`
+                  : `-${currencySymbol}${Math.abs(collectionDiff).toFixed(2)}`
+              }): ${collectionDiscrepancyReason.trim()}`
+            )
+          }
+
           if (collectionMode === 'single') {
             const collectedNum =
               typeof singleCollectedAmount === 'number' ? singleCollectedAmount : 0
@@ -342,6 +408,35 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                       <option value="cheque">📑 Cheque entregado al proveedor</option>
                     </select>
                   </div>
+
+                  {/* Alerta y Justificación si hay Discrepancia en Compra */}
+                  {hasPaymentDiscrepancy && (
+                    <div className="p-3 bg-amber-100/90 border border-amber-300 rounded-xl space-y-2 animate-fade-in">
+                      <div className="flex items-center justify-between text-2xs font-extrabold text-amber-950">
+                        <span className="flex items-center gap-1">
+                          ⚠️ Diferencia detectada en compra:
+                        </span>
+                        <span className="font-mono text-amber-900 bg-white/80 px-2 py-0.5 rounded-full border border-amber-300">
+                          {paymentDiff > 0
+                            ? `+${currencySymbol}${paymentDiff.toFixed(2)} pagado de más`
+                            : `-${currencySymbol}${Math.abs(paymentDiff).toFixed(2)} pagado de menos`}
+                        </span>
+                      </div>
+                      <div>
+                        <label className="block text-2xs font-extrabold text-amber-950 mb-1">
+                          Motivo / Justificación de la diferencia <span className="text-rose-600">*</span>
+                        </label>
+                        <textarea
+                          required
+                          rows={2}
+                          placeholder="Explica por qué se pagó una cantidad distinta a la estimada (ej: Subida de precio en tienda, no había producto completo...)"
+                          value={paymentDiscrepancyReason}
+                          onChange={(e) => setPaymentDiscrepancyReason(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs bg-white border border-amber-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -616,6 +711,35 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                           {currencySymbol}
                           {totalMixedCollected.toFixed(2)}
                         </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Alerta y Justificación si hay Discrepancia en Cobro al Cliente */}
+                  {hasCollectionDiscrepancy && (
+                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2 animate-fade-in mt-2">
+                      <div className="flex items-center justify-between text-2xs font-extrabold text-rose-950">
+                        <span className="flex items-center gap-1">
+                          ⚠️ Diferencia detectada en cobro:
+                        </span>
+                        <span className="font-mono text-rose-800 bg-white/90 px-2 py-0.5 rounded-full border border-rose-200">
+                          {collectionDiff > 0
+                            ? `+${currencySymbol}${collectionDiff.toFixed(2)} de más`
+                            : `-${currencySymbol}${Math.abs(collectionDiff).toFixed(2)} de menos / incompleto`}
+                        </span>
+                      </div>
+                      <div>
+                        <label className="block text-2xs font-extrabold text-rose-950 mb-1">
+                          Motivo / Justificación de la diferencia en el cobro <span className="text-rose-600">*</span>
+                        </label>
+                        <textarea
+                          required
+                          rows={2}
+                          placeholder="Explica por qué el cliente pagó una cantidad distinta a la esperada (ej: Descuento acordado con oficina, pago parcial, propina extra...)"
+                          value={collectionDiscrepancyReason}
+                          onChange={(e) => setCollectionDiscrepancyReason(e.target.value)}
+                          className="w-full px-2.5 py-1.5 text-xs bg-white border border-rose-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium"
+                        />
                       </div>
                     </div>
                   )}

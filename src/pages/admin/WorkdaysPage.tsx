@@ -13,9 +13,17 @@ import {
   Receipt,
   Calculator,
   Building2,
+  History,
+  Eye,
+  ArrowDownLeft,
+  ArrowUpRight,
+  FileText,
+  Layers,
+  Banknote,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useWorkdays } from '@/modules/workdays/hooks/useWorkday'
+import { useCashMovements } from '@/modules/workdays/hooks/useCashMovements'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { useBranches } from '@/modules/branches/hooks/useBranches'
 import type { WorkdayFilters, Workday } from '@/modules/workdays/types/workdays.types'
@@ -23,6 +31,7 @@ import { WORKDAY_STATUS_LABELS } from '@/shared/types'
 import { ReceiveCashModal } from '@/modules/settlements/components/ReceiveCashModal'
 import { DeliverCashModal } from '@/modules/settlements/components/DeliverCashModal'
 import { AdminForceSettlementModal } from '@/modules/settlements/components/AdminForceSettlementModal'
+import { WorkdayMovementsModal } from '@/modules/workdays/components/WorkdayMovementsModal'
 import {
   Card,
   MetricCard,
@@ -39,6 +48,7 @@ export default function AdminWorkdaysPage() {
   const defaultBranchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
   const todayStr = getLocalDateString()
 
+  const [activeTab, setActiveTab] = useState<'workdays' | 'ledger'>('workdays')
   const [filters, setFilters] = useState<WorkdayFilters>({
     branch_id: defaultBranchId,
     date: todayStr,
@@ -46,10 +56,19 @@ export default function AdminWorkdaysPage() {
 
   const [receiveCashWorkday, setReceiveCashWorkday] = useState<Workday | null>(null)
   const [forceSettlementWorkday, setForceSettlementWorkday] = useState<Workday | null>(null)
+  const [viewMovementsWorkday, setViewMovementsWorkday] = useState<Workday | null>(null)
   const [isGlobalDeliverCashOpen, setIsGlobalDeliverCashOpen] = useState(false)
 
   const { data: branches = [] } = useBranches()
   const { data: workdays = [], isLoading, isError, error } = useWorkdays(filters)
+  const {
+    data: ledgerMovements = [],
+    isLoading: isLoadingLedger,
+    isError: isErrorLedger,
+  } = useCashMovements({
+    date: filters.date || undefined,
+    branch_id: filters.branch_id || undefined,
+  })
   const { data: tasksData } = useTasks({
     branch_id: filters.branch_id || undefined,
     date: filters.date || undefined,
@@ -326,189 +345,411 @@ export default function AdminWorkdaysPage() {
         )}
       </Card>
 
-      {/* Tabla de Jornadas */}
-      <Card className="p-0 overflow-hidden bg-white border-slate-200 shadow-xs">
-        {isLoading ? (
-          <div className="p-4">
-            <TableSkeleton columns={6} rows={5} />
-          </div>
-        ) : isError ? (
-          <div className="py-12 text-center text-xs text-rose-600 font-semibold bg-rose-50 border-t border-b border-rose-200">
-            Error al cargar jornadas: {(error as Error).message}
-          </div>
-        ) : workdays.length === 0 ? (
-          <EmptyState
-            title="No hay jornadas registradas para esta fecha"
-            description="Los motorizados aparecerán automáticamente al iniciar su turno desde la app móvil o al recibir fondo inicial."
-            icon={<Clock className="h-8 w-8 text-slate-400" />}
-          />
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-2xs">
-                  <th className="py-3.5 px-4">Motorizado</th>
-                  <th className="py-3.5 px-3">Fecha & Inicio</th>
-                  <th className="py-3.5 px-3">Kilometraje</th>
-                  <th className="py-3.5 px-3">Fondos</th>
-                  <th className="py-3.5 px-3">Estado</th>
-                  <th className="py-3.5 px-4 text-right">Acciones</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {workdays.map((w) => {
-                  const kmTraveled =
-                    w.final_km && w.initial_km ? w.final_km - w.initial_km : null
+      {/* 📑 Selector de Pestañas: Turnos vs Libro Diario de Movimientos */}
+      <div className="flex items-center gap-1.5 p-1 bg-slate-200/80 rounded-2xl w-fit">
+        <button
+          type="button"
+          onClick={() => setActiveTab('workdays')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
+            activeTab === 'workdays'
+              ? 'bg-[#004594] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Layers className="h-4 w-4" />
+          Turnos & Saldos ({workdays.length})
+        </button>
 
-                  const summary = w.cash_summary
-                  const initialNIO = summary?.initialCashNIO ?? w.initial_cash ?? 0
-                  const initialUSD = summary?.initialCashUSD ?? 0
-                  const cashInHandNIO = summary?.cashInHandNIO ?? initialNIO
-                  const cashInHandUSD = summary?.cashInHandUSD ?? initialUSD
-                  const isDiscrepancy = summary?.isDiscrepancyNIO || summary?.isDiscrepancyUSD
-                  const isZeroBalance = summary ? (summary.isFullyDeliveredNIO && summary.isFullyDeliveredUSD) : cashInHandNIO === 0
+        <button
+          type="button"
+          onClick={() => setActiveTab('ledger')}
+          className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
+            activeTab === 'ledger'
+              ? 'bg-[#004594] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <History className="h-4 w-4" />
+          Libro Diario de Movimientos ({ledgerMovements.length})
+        </button>
+      </div>
 
-                  return (
-                    <tr key={w.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-3 px-4">
-                        <div className="flex items-center gap-3">
-                          <Avatar name={w.courier_profile?.full_name || 'Motorizado'} size="sm" />
-                          <div>
-                            <div className="font-semibold text-slate-900">
-                              {w.courier_profile?.display_name || w.courier_profile?.full_name}
+      {/* ─── PESTAÑA 1: Turnos & Saldos por Motorizado ─── */}
+      {activeTab === 'workdays' && (
+        <Card className="p-0 overflow-hidden bg-white border-slate-200 shadow-xs">
+          {isLoading ? (
+            <div className="p-4">
+              <TableSkeleton columns={6} rows={5} />
+            </div>
+          ) : isError ? (
+            <div className="py-12 text-center text-xs text-rose-600 font-semibold bg-rose-50 border-t border-b border-rose-200">
+              Error al cargar jornadas: {(error as Error).message}
+            </div>
+          ) : workdays.length === 0 ? (
+            <EmptyState
+              title="No hay jornadas registradas para esta fecha"
+              description="Los motorizados aparecerán automáticamente al iniciar su turno desde la app móvil o al recibir fondo inicial."
+              icon={<Clock className="h-8 w-8 text-slate-400" />}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-2xs">
+                    <th className="py-3.5 px-4">Motorizado</th>
+                    <th className="py-3.5 px-3">Fecha & Inicio</th>
+                    <th className="py-3.5 px-3">Kilometraje</th>
+                    <th className="py-3.5 px-3">Fondos</th>
+                    <th className="py-3.5 px-3">Estado</th>
+                    <th className="py-3.5 px-4 text-right">Acciones</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {workdays.map((w) => {
+                    const kmTraveled =
+                      w.final_km && w.initial_km ? w.final_km - w.initial_km : null
+
+                    const summary = w.cash_summary
+                    const initialNIO = summary?.initialCashNIO ?? w.initial_cash ?? 0
+                    const initialUSD = summary?.initialCashUSD ?? 0
+                    const cashInHandNIO = summary?.cashInHandNIO ?? initialNIO
+                    const cashInHandUSD = summary?.cashInHandUSD ?? initialUSD
+                    const isDiscrepancy = summary?.isDiscrepancyNIO || summary?.isDiscrepancyUSD
+                    const isZeroBalance = summary
+                      ? summary.isFullyDeliveredNIO && summary.isFullyDeliveredUSD
+                      : cashInHandNIO === 0
+
+                    return (
+                      <tr key={w.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            <Avatar
+                              name={w.courier_profile?.full_name || 'Motorizado'}
+                              size="sm"
+                            />
+                            <div>
+                              <div className="font-semibold text-slate-900">
+                                {w.courier_profile?.display_name || w.courier_profile?.full_name}
+                              </div>
+                              <div className="flex items-center gap-2 text-2xs text-slate-400 mt-0.5">
+                                {w.branch?.name && (
+                                  <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1">
+                                    <Building2 className="h-2.5 w-2.5 text-slate-400" />
+                                    {w.branch.name}
+                                  </span>
+                                )}
+                                {w.courier_profile?.phone && (
+                                  <span className="font-mono">{w.courier_profile.phone}</span>
+                                )}
+                              </div>
                             </div>
-                            <div className="flex items-center gap-2 text-2xs text-slate-400 mt-0.5">
-                              {w.branch?.name && (
-                                <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1">
-                                  <Building2 className="h-2.5 w-2.5 text-slate-400" />
-                                  {w.branch.name}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-3">
+                          <div className="font-semibold text-slate-900">{w.work_date}</div>
+                          <div className="text-2xs text-slate-400 font-medium">
+                            Inicio:{' '}
+                            {w.start_time
+                              ? new Date(w.start_time).toLocaleTimeString([], {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })
+                              : '—'}
+                          </div>
+                        </td>
+
+                        <td className="py-3 px-3">
+                          {w.initial_km !== null && w.initial_km !== undefined ? (
+                            <div className="flex items-center gap-1 font-semibold text-slate-900">
+                              <Gauge className="h-3.5 w-3.5 text-accent" />
+                              Inicial: {w.initial_km} km
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-400">
+                                <Gauge className="h-3.5 w-3.5 text-amber-500" />
+                                <span>Inicial: No disponible</span>
+                              </div>
+                              {w.notes?.includes('[Kilometraje No Disponible]') && (
+                                <div className="text-[10px] text-amber-600 dark:text-amber-500 font-medium truncate max-w-[150px]">
+                                  {w.notes.match(/Motivo:\s*([^|]+)/)?.[1]?.trim() ||
+                                    'Declarado por motorizado'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                          {w.final_km !== null && w.final_km !== undefined ? (
+                            <div className="text-2xs text-emerald-600 font-bold">
+                              Final: {w.final_km} km ({kmTraveled} km recorridos)
+                            </div>
+                          ) : (
+                            <div className="text-2xs text-slate-400 italic">En recorrido...</div>
+                          )}
+                        </td>
+
+                        <td className="py-3 px-3 min-w-[170px]">
+                          <div className="space-y-0.5">
+                            <div className="text-2xs text-slate-500 font-medium">
+                              Inicial:{' '}
+                              <span className="font-semibold text-slate-700 font-mono">
+                                C$ {initialNIO.toFixed(2)}
+                              </span>
+                              {initialUSD > 0 && (
+                                <span className="font-semibold text-slate-700 font-mono ml-1.5">
+                                  | US$ {initialUSD.toFixed(2)}
                                 </span>
                               )}
-                              {w.courier_profile?.phone && (
-                                <span className="font-mono">{w.courier_profile.phone}</span>
-                              )}
                             </div>
-                          </div>
-                        </div>
-                      </td>
 
-                      <td className="py-3 px-3">
-                        <div className="font-semibold text-slate-900">{w.work_date}</div>
-                        <div className="text-2xs text-slate-400 font-medium">
-                          Inicio: {w.start_time ? new Date(w.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-3">
-                        {w.initial_km !== null && w.initial_km !== undefined ? (
-                          <div className="flex items-center gap-1 font-semibold text-slate-900">
-                            <Gauge className="h-3.5 w-3.5 text-accent" />
-                            Inicial: {w.initial_km} km
-                          </div>
-                        ) : (
-                          <div>
-                            <div className="flex items-center gap-1 font-semibold text-amber-700 dark:text-amber-400">
-                              <Gauge className="h-3.5 w-3.5 text-amber-500" />
-                              <span>Inicial: No disponible</span>
-                            </div>
-                            {w.notes?.includes('[Kilometraje No Disponible]') && (
-                              <div className="text-[10px] text-amber-600 dark:text-amber-500 font-medium truncate max-w-[150px]">
-                                {w.notes.match(/Motivo:\s*([^|]+)/)?.[1]?.trim() || 'Declarado por motorizado'}
+                            {isDiscrepancy ? (
+                              <div className="text-xs font-extrabold text-rose-600 flex items-center gap-1">
+                                <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+                                <span>Revisar saldo</span>
+                              </div>
+                            ) : (
+                              <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 flex-wrap">
+                                <span className="text-slate-600 font-bold">En Mano:</span>
+                                <span className="font-mono text-emerald-700 text-sm">
+                                  C$ {cashInHandNIO.toFixed(2)}
+                                </span>
+                                {cashInHandUSD > 0 && (
+                                  <span className="font-mono text-emerald-700 text-sm">
+                                    | US$ {cashInHandUSD.toFixed(2)}
+                                  </span>
+                                )}
+                                {isZeroBalance && (
+                                  <Badge
+                                    variant="completed"
+                                    size="sm"
+                                    className="text-3xs py-0 bg-emerald-50 text-emerald-700 border-emerald-200"
+                                  >
+                                    Fondos entregados
+                                  </Badge>
+                                )}
                               </div>
                             )}
                           </div>
-                        )}
-                        {w.final_km !== null && w.final_km !== undefined ? (
-                          <div className="text-2xs text-emerald-600 font-bold">
-                            Final: {w.final_km} km ({kmTraveled} km recorridos)
-                          </div>
-                        ) : (
-                          <div className="text-2xs text-slate-400 italic">En recorrido...</div>
-                        )}
-                      </td>
+                        </td>
 
-                      <td className="py-3 px-3 min-w-[170px]">
-                        <div className="space-y-0.5">
-                          <div className="text-2xs text-slate-500 font-medium">
-                            Inicial:{' '}
-                            <span className="font-semibold text-slate-700 font-mono">
-                              C$ {initialNIO.toFixed(2)}
-                            </span>
-                            {initialUSD > 0 && (
-                              <span className="font-semibold text-slate-700 font-mono ml-1.5">
-                                | US$ {initialUSD.toFixed(2)}
-                              </span>
-                            )}
-                          </div>
-
-                          {isDiscrepancy ? (
-                            <div className="text-xs font-extrabold text-rose-600 flex items-center gap-1">
-                              <AlertCircle className="h-3.5 w-3.5 shrink-0" />
-                              <span>Revisar saldo</span>
-                            </div>
-                          ) : (
-                            <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5 flex-wrap">
-                              <span className="text-slate-600 font-bold">En Mano:</span>
-                              <span className="font-mono text-emerald-700 text-sm">
-                                C$ {cashInHandNIO.toFixed(2)}
-                              </span>
-                              {cashInHandUSD > 0 && (
-                                <span className="font-mono text-emerald-700 text-sm">
-                                  | US$ {cashInHandUSD.toFixed(2)}
-                                </span>
-                              )}
-                              {isZeroBalance && (
-                                <Badge variant="completed" size="sm" className="text-3xs py-0 bg-emerald-50 text-emerald-700 border-emerald-200">
-                                  Fondos entregados
-                                </Badge>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      </td>
-
-                      <td className="py-3 px-3">
-                        <Badge
-                          variant={w.status === 'open' ? 'completed' : w.status === 'pending_settlement' ? 'pending' : 'neutral'}
-                          size="sm"
-                        >
-                          {(WORKDAY_STATUS_LABELS && WORKDAY_STATUS_LABELS[w.status]) || w.status}
-                        </Badge>
-                      </td>
-
-                      <td className="py-3 px-4 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <Button
-                            onClick={() => setReceiveCashWorkday(w)}
-                            variant="primary"
+                        <td className="py-3 px-3">
+                          <Badge
+                            variant={
+                              w.status === 'open'
+                                ? 'completed'
+                                : w.status === 'pending_settlement'
+                                ? 'pending'
+                                : 'neutral'
+                            }
                             size="sm"
-                            leftIcon={<HandCoins className="h-3.5 w-3.5" />}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent text-2xs font-bold"
                           >
-                            Recibir Efectivo
-                          </Button>
-                          {(w.status === 'open' || w.status === 'pending_settlement') && (
+                            {(WORKDAY_STATUS_LABELS && WORKDAY_STATUS_LABELS[w.status]) || w.status}
+                          </Badge>
+                        </td>
+
+                        <td className="py-3 px-4 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            {/* Botón Ver Movimientos Individuales */}
                             <Button
-                              onClick={() => setForceSettlementWorkday(w)}
+                              onClick={() => setViewMovementsWorkday(w)}
                               variant="outline"
                               size="sm"
-                              leftIcon={<PhoneOff className="h-3.5 w-3.5 text-amber-600" />}
-                              className="border-amber-300 text-amber-900 bg-amber-50/70 hover:bg-amber-100/90 text-2xs font-bold shadow-2xs"
-                              title="Liquidar jornada directamente en caso de que el motorizado tenga el celular apagado o dañado"
+                              leftIcon={<Eye className="h-3.5 w-3.5 text-blue-600" />}
+                              className="border-slate-200 text-slate-700 bg-white hover:bg-blue-50 text-2xs font-bold shadow-2xs"
+                              title="Ver historial de flujo de caja de esta jornada"
                             >
-                              Liquidar (Contingencia)
+                              Movimientos
                             </Button>
+
+                            <Button
+                              onClick={() => setReceiveCashWorkday(w)}
+                              variant="primary"
+                              size="sm"
+                              leftIcon={<HandCoins className="h-3.5 w-3.5" />}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent text-2xs font-bold"
+                            >
+                              Recibir Efectivo
+                            </Button>
+                            {(w.status === 'open' || w.status === 'pending_settlement') && (
+                              <Button
+                                onClick={() => setForceSettlementWorkday(w)}
+                                variant="outline"
+                                size="sm"
+                                leftIcon={<PhoneOff className="h-3.5 w-3.5 text-amber-600" />}
+                                className="border-amber-300 text-amber-900 bg-amber-50/70 hover:bg-amber-100/90 text-2xs font-bold shadow-2xs"
+                                title="Liquidar jornada directamente en caso de que el motorizado tenga el celular apagado o dañado"
+                              >
+                                Liquidar (Contingencia)
+                              </Button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* ─── PESTAÑA 2: Libro Diario de Movimientos (Kardex en Vivo) ─── */}
+      {activeTab === 'ledger' && (
+        <Card className="p-0 overflow-hidden bg-white border-slate-200 shadow-xs">
+          {isLoadingLedger ? (
+            <div className="p-4">
+              <TableSkeleton columns={6} rows={5} />
+            </div>
+          ) : isErrorLedger ? (
+            <div className="py-12 text-center text-xs text-rose-600 font-semibold bg-rose-50 border-t border-b border-rose-200">
+              Error al cargar movimientos de caja.
+            </div>
+          ) : ledgerMovements.length === 0 ? (
+            <EmptyState
+              title="No hay movimientos registrados para esta fecha"
+              description="Cada entrega de efectivo, fondo inicial, cobro de cliente o devolución en oficina aparecerá aquí en tiempo real."
+              icon={<Banknote className="h-8 w-8 text-slate-400" />}
+            />
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-2xs">
+                    <th className="py-3.5 px-4">Fecha & Hora</th>
+                    <th className="py-3.5 px-3">Motorizado & Sucursal</th>
+                    <th className="py-3.5 px-3">Tipo de Operación</th>
+                    <th className="py-3.5 px-3">Concepto / Descripción</th>
+                    <th className="py-3.5 px-3">Método</th>
+                    <th className="py-3.5 px-4 text-right">Monto</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {ledgerMovements.map((m) => {
+                    const isIncome = m.direction === 'income'
+                    const dateObj = new Date(m.created_at)
+                    const timeStr = dateObj.toLocaleTimeString([], {
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                    })
+                    const dateStr = dateObj.toISOString().slice(0, 10)
+
+                    return (
+                      <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
+                        {/* Fecha & Hora */}
+                        <td className="py-3 px-4">
+                          <div className="font-semibold text-slate-900 font-mono text-2xs">
+                            {dateStr}
+                          </div>
+                          <div className="text-2xs text-slate-400 flex items-center gap-1 font-mono mt-0.5">
+                            <Clock className="h-3 w-3 text-slate-400" />
+                            {timeStr}
+                          </div>
+                        </td>
+
+                        {/* Motorizado & Sucursal */}
+                        <td className="py-3 px-3">
+                          <div className="flex items-center gap-2.5">
+                            <Avatar
+                              name={m.courier_profile?.full_name || 'Motorizado'}
+                              size="sm"
+                            />
+                            <div>
+                              <p className="font-bold text-slate-900 leading-tight">
+                                {m.courier_profile?.display_name ||
+                                  m.courier_profile?.full_name ||
+                                  'Motorizado'}
+                              </p>
+                              {m.workday?.branch?.name && (
+                                <span className="inline-flex items-center gap-1 text-[10px] text-slate-500 bg-slate-100 px-1.5 py-0.2 rounded font-medium mt-0.5">
+                                  <Building2 className="h-2.5 w-2.5 text-slate-400" />
+                                  {m.workday.branch.name}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Tipo de Operación */}
+                        <td className="py-3 px-3">
+                          <span
+                            className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold capitalize ${
+                              m.movement_type === 'cash_advance'
+                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                : m.movement_type === 'reception'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : m.movement_type === 'expense'
+                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
+                            }`}
+                          >
+                            {m.movement_type === 'cash_advance'
+                              ? 'Entrega / Fondo'
+                              : m.movement_type === 'reception'
+                              ? 'Recepción Oficina'
+                              : m.movement_type === 'expense'
+                              ? 'Gasto / Compra'
+                              : m.movement_type}
+                          </span>
+                        </td>
+
+                        {/* Concepto / Descripción */}
+                        <td className="py-3 px-3 max-w-xs">
+                          <p className="text-slate-800 font-semibold leading-tight line-clamp-2">
+                            {m.description || 'Movimiento de caja'}
+                          </p>
+                          {m.task && (
+                            <p className="text-2xs text-indigo-600 font-mono font-bold flex items-center gap-1 mt-0.5">
+                              <FileText className="h-3 w-3" />
+                              Tarea {m.task.code}: {m.task.title}
+                            </p>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  )
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </Card>
+                        </td>
+
+                        {/* Método */}
+                        <td className="py-3 px-3">
+                          <span className="text-2xs text-slate-600 font-medium capitalize">
+                            {m.payment_method === 'cash' ? '💵 Efectivo' : m.payment_method}
+                          </span>
+                        </td>
+
+                        {/* Monto */}
+                        <td className="py-3 px-4 text-right">
+                          <div
+                            className={`font-mono text-sm font-extrabold flex items-center justify-end gap-1 ${
+                              isIncome ? 'text-emerald-600' : 'text-rose-600'
+                            }`}
+                          >
+                            {isIncome ? (
+                              <ArrowDownLeft className="h-3.5 w-3.5" />
+                            ) : (
+                              <ArrowUpRight className="h-3.5 w-3.5" />
+                            )}
+                            <span>
+                              {isIncome ? '+' : '-'}C$ {Number(m.amount).toFixed(2)}
+                            </span>
+                          </div>
+                          <span className="text-[10px] text-slate-400 font-semibold uppercase">
+                            {m.currency || 'NIO'}
+                          </span>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Modal para Ver Movimientos de una Jornada en Particular */}
+      <WorkdayMovementsModal
+        workday={viewMovementsWorkday}
+        isOpen={!!viewMovementsWorkday}
+        onClose={() => setViewMovementsWorkday(null)}
+      />
 
       {/* Modal para Entregar Efectivo al Motorizado (Administración -> Motorizado) */}
       <DeliverCashModal
@@ -521,7 +762,10 @@ export default function AdminWorkdaysPage() {
       <ReceiveCashModal
         branchId={filters.branch_id || defaultBranchId}
         workdayId={receiveCashWorkday?.id}
-        courierName={receiveCashWorkday?.courier_profile?.display_name || receiveCashWorkday?.courier_profile?.full_name}
+        courierName={
+          receiveCashWorkday?.courier_profile?.display_name ||
+          receiveCashWorkday?.courier_profile?.full_name
+        }
         isOpen={!!receiveCashWorkday}
         onClose={() => setReceiveCashWorkday(null)}
       />
@@ -535,4 +779,5 @@ export default function AdminWorkdaysPage() {
     </div>
   )
 }
+
 
