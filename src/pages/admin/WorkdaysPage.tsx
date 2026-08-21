@@ -21,7 +21,10 @@ import {
   Layers,
   Banknote,
   RotateCcw,
+  Wallet,
+  Sparkles,
 } from 'lucide-react'
+import { cn } from '@/shared/utils/cn'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useWorkdays } from '@/modules/workdays/hooks/useWorkday'
 import { useCashMovements } from '@/modules/workdays/hooks/useCashMovements'
@@ -52,6 +55,7 @@ export default function AdminWorkdaysPage() {
   const todayStr = getLocalDateString()
 
   const [activeTab, setActiveTab] = useState<'workdays' | 'ledger'>('workdays')
+  const [viewMode, setViewMode] = useState<'projected' | 'live'>('projected')
   const [filters, setFilters] = useState<WorkdayFilters>({
     branch_id: defaultBranchId,
     date: todayStr,
@@ -213,7 +217,82 @@ export default function AdminWorkdaysPage() {
         </Button>
       </div>
 
-      {/* 📊 Tarjetas de Flujo Financiero Proyectado y en Vivo (Solo Efectivo) */}
+      {/* 🔮/⚡ Selector de Perspectiva Financiera: Proyección vs Real en Mano */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-3">
+          <div
+            className={cn(
+              'w-9 h-9 rounded-xl flex items-center justify-center font-extrabold transition-all shrink-0 shadow-2xs',
+              viewMode === 'projected'
+                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200/80'
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-200/80'
+            )}
+          >
+            {viewMode === 'projected' ? (
+              <Calculator className="h-5 w-5" />
+            ) : (
+              <Wallet className="h-5 w-5" />
+            )}
+          </div>
+          <div>
+            <div className="text-xs font-bold text-slate-900 flex items-center gap-2 flex-wrap">
+              <span>
+                {viewMode === 'projected'
+                  ? 'Perspectiva: Proyección al Cierre de Jornada'
+                  : 'Perspectiva: Efectivo Real en Mano (En Vivo)'}
+              </span>
+              <span
+                className={cn(
+                  'text-[10px] px-2 py-0.5 rounded-full font-extrabold uppercase tracking-wider border transition-colors',
+                  viewMode === 'projected'
+                    ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-300 animate-pulse'
+                )}
+              >
+                {viewMode === 'projected' ? '🔮 Fin de Día' : '⚡ En Calle Ahora'}
+              </span>
+            </div>
+            <p className="text-2xs text-slate-500 font-medium">
+              {viewMode === 'projected'
+                ? 'Calcula el balance final estimado incluyendo todas las gestiones pendientes de cobro y compra en ruta.'
+                : 'Muestra únicamente el dinero físico que los motorizados han cobrado, desembolsado y poseen en mano en este momento.'}
+            </p>
+          </div>
+        </div>
+
+        {/* Switch de Perspectiva */}
+        <div className="inline-flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200 shrink-0 self-start sm:self-auto shadow-2xs">
+          <button
+            type="button"
+            onClick={() => setViewMode('projected')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
+              viewMode === 'projected'
+                ? 'bg-white text-indigo-700 shadow-xs'
+                : 'text-slate-500 hover:text-slate-900'
+            )}
+          >
+            <Calculator className="h-3.5 w-3.5" />
+            <span>Proyectado (Cierre)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setViewMode('live')}
+            className={cn(
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
+              viewMode === 'live'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-500 hover:text-slate-900'
+            )}
+          >
+            <Wallet className="h-3.5 w-3.5" />
+            <span>Real en Mano (En Vivo)</span>
+          </button>
+        </div>
+      </div>
+
+      {/* 📊 Tarjetas de Flujo Financiero Dinámicas (Proyectado vs Real en Vivo) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <MetricCard
           title="Fondos Entregados Admin"
@@ -224,27 +303,57 @@ export default function AdminWorkdaysPage() {
         />
 
         <MetricCard
-          title="Cobros Proyectados (Ruta)"
-          value={`+C$ ${financialSummary.projectedCollectionsNIO.toFixed(2)}`}
-          subtitle={`Ya cobrado: C$ ${financialSummary.completedCollectionsNIO.toFixed(2)} (${financialSummary.collectionProgressPct}%)`}
+          title={viewMode === 'projected' ? 'Cobros Proyectados (Ruta)' : 'Cobros Realizados (Efectivos)'}
+          value={
+            viewMode === 'projected'
+              ? `+C$ ${financialSummary.projectedCollectionsNIO.toFixed(2)}`
+              : `+C$ ${financialSummary.completedCollectionsNIO.toFixed(2)}`
+          }
+          subtitle={
+            viewMode === 'projected'
+              ? `Ya cobrado: C$ ${financialSummary.completedCollectionsNIO.toFixed(2)} (${financialSummary.collectionProgressPct}%)`
+              : `De +C$ ${financialSummary.projectedCollectionsNIO.toFixed(2)} proyectados (${financialSummary.collectionProgressPct}%)`
+          }
           icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
           accentColor="success"
         />
 
         <MetricCard
-          title="Compras / Pagos en Ruta"
-          value={`-C$ ${financialSummary.projectedPaymentsNIO.toFixed(2)}`}
-          subtitle={`Ya desembolsado: -C$ ${financialSummary.completedPaymentsNIO.toFixed(2)}`}
+          title={viewMode === 'projected' ? 'Compras / Pagos en Ruta' : 'Compras / Pagos Ejecutados'}
+          value={
+            viewMode === 'projected'
+              ? `-C$ ${financialSummary.projectedPaymentsNIO.toFixed(2)}`
+              : `-C$ ${financialSummary.completedPaymentsNIO.toFixed(2)}`
+          }
+          subtitle={
+            viewMode === 'projected'
+              ? `Ya desembolsado: -C$ ${financialSummary.completedPaymentsNIO.toFixed(2)}`
+              : `De -C$ ${financialSummary.projectedPaymentsNIO.toFixed(2)} presupuestados`
+          }
           icon={<Receipt className="h-4 w-4 text-rose-600" />}
           accentColor="destructive"
         />
 
         <MetricCard
-          title="Neto Proyectado al Cierre"
-          value={`C$ ${financialSummary.netProjectedCashNIO.toFixed(2)}`}
-          subtitle={`En mano en calle ahora: C$ ${financialSummary.liveCashInHandNIO.toFixed(2)}`}
-          icon={<Calculator className="h-4 w-4 text-purple-600" />}
-          accentColor="primary"
+          title={viewMode === 'projected' ? 'Neto Proyectado al Cierre' : 'Efectivo Real en Mano Ahora'}
+          value={
+            viewMode === 'projected'
+              ? `C$ ${financialSummary.netProjectedCashNIO.toFixed(2)}`
+              : `C$ ${financialSummary.liveCashInHandNIO.toFixed(2)}`
+          }
+          subtitle={
+            viewMode === 'projected'
+              ? `En mano en calle ahora: C$ ${financialSummary.liveCashInHandNIO.toFixed(2)}`
+              : `Neto proyectado al cierre: C$ ${financialSummary.netProjectedCashNIO.toFixed(2)}`
+          }
+          icon={
+            viewMode === 'projected' ? (
+              <Calculator className="h-4 w-4 text-purple-600" />
+            ) : (
+              <Wallet className="h-4 w-4 text-emerald-600" />
+            )
+          }
+          accentColor={viewMode === 'projected' ? 'primary' : 'success'}
         />
       </div>
 
