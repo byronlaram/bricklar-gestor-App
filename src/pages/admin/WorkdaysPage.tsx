@@ -12,10 +12,12 @@ import {
   DollarSign,
   Receipt,
   Calculator,
+  Building2,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useWorkdays } from '@/modules/workdays/hooks/useWorkday'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
+import { useBranches } from '@/modules/branches/hooks/useBranches'
 import type { WorkdayFilters, Workday } from '@/modules/workdays/types/workdays.types'
 import { WORKDAY_STATUS_LABELS } from '@/shared/types'
 import { ReceiveCashModal } from '@/modules/settlements/components/ReceiveCashModal'
@@ -46,6 +48,7 @@ export default function AdminWorkdaysPage() {
   const [forceSettlementWorkday, setForceSettlementWorkday] = useState<Workday | null>(null)
   const [isGlobalDeliverCashOpen, setIsGlobalDeliverCashOpen] = useState(false)
 
+  const { data: branches = [] } = useBranches()
   const { data: workdays = [], isLoading, isError, error } = useWorkdays(filters)
   const { data: tasksData } = useTasks({
     branch_id: filters.branch_id || undefined,
@@ -293,6 +296,23 @@ export default function AdminWorkdaysPage() {
               <option value="closed">Cerrada</option>
             </select>
           </div>
+
+          {/* Selector de Sucursal */}
+          <div className="relative w-full sm:w-48">
+            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+            <select
+              value={filters.branch_id || ''}
+              onChange={(e) => setFilters({ ...filters, branch_id: e.target.value })}
+              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
+            >
+              <option value="">Todas las sucursales</option>
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} ({b.code})
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {filters.date ? (
@@ -357,9 +377,17 @@ export default function AdminWorkdaysPage() {
                             <div className="font-semibold text-slate-900">
                               {w.courier_profile?.display_name || w.courier_profile?.full_name}
                             </div>
-                            {w.courier_profile?.phone && (
-                              <div className="text-2xs text-slate-400 font-mono">{w.courier_profile.phone}</div>
-                            )}
+                            <div className="flex items-center gap-2 text-2xs text-slate-400 mt-0.5">
+                              {w.branch?.name && (
+                                <span className="font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] flex items-center gap-1">
+                                  <Building2 className="h-2.5 w-2.5 text-slate-400" />
+                                  {w.branch.name}
+                                </span>
+                              )}
+                              {w.courier_profile?.phone && (
+                                <span className="font-mono">{w.courier_profile.phone}</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>

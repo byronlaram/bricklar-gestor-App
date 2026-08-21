@@ -475,7 +475,7 @@ export function DeliverCashModal({
                     ) : (
                       couriers.map((c) => (
                         <option key={c.id} value={c.id}>
-                          👤 {c.display_name || c.full_name}
+                          👤 {c.display_name || c.full_name} {(c as any).branch_name ? `(${(c as any).branch_name})` : ''}
                         </option>
                       ))
                     )}
