@@ -22,7 +22,6 @@ import {
   Banknote,
   RotateCcw,
   Wallet,
-  Sparkles,
 } from 'lucide-react'
 import { cn } from '@/shared/utils/cn'
 import { useAuth } from '@/modules/auth/useAuth'
