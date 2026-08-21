@@ -20,6 +20,7 @@ import {
   FileText,
   Layers,
   Banknote,
+  RotateCcw,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useWorkdays } from '@/modules/workdays/hooks/useWorkday'
@@ -32,6 +33,8 @@ import { ReceiveCashModal } from '@/modules/settlements/components/ReceiveCashMo
 import { DeliverCashModal } from '@/modules/settlements/components/DeliverCashModal'
 import { AdminForceSettlementModal } from '@/modules/settlements/components/AdminForceSettlementModal'
 import { WorkdayMovementsModal } from '@/modules/workdays/components/WorkdayMovementsModal'
+import { VoidMovementModal } from '@/modules/workdays/components/VoidMovementModal'
+import type { DetailedCashMovement } from '@/modules/workdays/services/workdaysService'
 import {
   Card,
   MetricCard,
@@ -57,6 +60,7 @@ export default function AdminWorkdaysPage() {
   const [receiveCashWorkday, setReceiveCashWorkday] = useState<Workday | null>(null)
   const [forceSettlementWorkday, setForceSettlementWorkday] = useState<Workday | null>(null)
   const [viewMovementsWorkday, setViewMovementsWorkday] = useState<Workday | null>(null)
+  const [voidTargetMovement, setVoidTargetMovement] = useState<DetailedCashMovement | null>(null)
   const [isGlobalDeliverCashOpen, setIsGlobalDeliverCashOpen] = useState(false)
 
   const { data: branches = [] } = useBranches()
@@ -622,11 +626,13 @@ export default function AdminWorkdaysPage() {
                     <th className="py-3.5 px-3">Concepto / Descripción</th>
                     <th className="py-3.5 px-3">Método</th>
                     <th className="py-3.5 px-4 text-right">Monto</th>
+                    <th className="py-3.5 px-4 text-right">Acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {ledgerMovements.map((m) => {
                     const isIncome = m.direction === 'income'
+                    const isVoided = (m.description || '').includes('[ANULADO]')
                     const dateObj = new Date(m.created_at)
                     const timeStr = dateObj.toLocaleTimeString([], {
                       hour: '2-digit',
@@ -636,7 +642,12 @@ export default function AdminWorkdaysPage() {
                     const dateStr = dateObj.toISOString().slice(0, 10)
 
                     return (
-                      <tr key={m.id} className="hover:bg-slate-50/80 transition-colors">
+                      <tr
+                        key={m.id}
+                        className={`transition-colors ${
+                          isVoided ? 'bg-rose-50/30 opacity-70' : 'hover:bg-slate-50/80'
+                        }`}
+                      >
                         {/* Fecha & Hora */}
                         <td className="py-3 px-4">
                           <div className="font-semibold text-slate-900 font-mono text-2xs">
@@ -673,30 +684,45 @@ export default function AdminWorkdaysPage() {
 
                         {/* Tipo de Operación */}
                         <td className="py-3 px-3">
-                          <span
-                            className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold capitalize ${
-                              m.movement_type === 'cash_advance'
-                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span
+                              className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold capitalize ${
+                                isVoided
+                                  ? 'bg-slate-100 text-slate-500 line-through'
+                                  : m.movement_type === 'initial_cash' || m.movement_type === 'cash_advance'
+                                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                                  : m.movement_type === 'reception'
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                  : m.movement_type === 'expense'
+                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+                              }`}
+                            >
+                              {m.movement_type === 'initial_cash'
+                                ? 'Fondo Inicial'
+                                : m.movement_type === 'cash_advance'
+                                ? 'Entrega / Adelanto'
                                 : m.movement_type === 'reception'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                ? 'Recepción Oficina'
                                 : m.movement_type === 'expense'
-                                ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                : 'bg-slate-100 text-slate-700 border border-slate-200'
-                            }`}
-                          >
-                            {m.movement_type === 'cash_advance'
-                              ? 'Entrega / Fondo'
-                              : m.movement_type === 'reception'
-                              ? 'Recepción Oficina'
-                              : m.movement_type === 'expense'
-                              ? 'Gasto / Compra'
-                              : m.movement_type}
-                          </span>
+                                ? 'Gasto / Compra'
+                                : m.movement_type}
+                            </span>
+                            {isVoided && (
+                              <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-rose-100 text-rose-700 border border-rose-200">
+                                ANULADO
+                              </span>
+                            )}
+                          </div>
                         </td>
 
                         {/* Concepto / Descripción */}
                         <td className="py-3 px-3 max-w-xs">
-                          <p className="text-slate-800 font-semibold leading-tight line-clamp-2">
+                          <p
+                            className={`text-slate-800 font-semibold leading-tight line-clamp-2 ${
+                              isVoided ? 'line-through text-slate-400 italic' : ''
+                            }`}
+                          >
                             {m.description || 'Movimiento de caja'}
                           </p>
                           {m.task && (
@@ -718,7 +744,11 @@ export default function AdminWorkdaysPage() {
                         <td className="py-3 px-4 text-right">
                           <div
                             className={`font-mono text-sm font-extrabold flex items-center justify-end gap-1 ${
-                              isIncome ? 'text-emerald-600' : 'text-rose-600'
+                              isVoided
+                                ? 'text-slate-400 line-through'
+                                : isIncome
+                                ? 'text-emerald-600'
+                                : 'text-rose-600'
                             }`}
                           >
                             {isIncome ? (
@@ -733,6 +763,26 @@ export default function AdminWorkdaysPage() {
                           <span className="text-[10px] text-slate-400 font-semibold uppercase">
                             {m.currency || 'NIO'}
                           </span>
+                        </td>
+
+                        {/* Acción Anular */}
+                        <td className="py-3 px-4 text-right">
+                          {!isVoided &&
+                          ['cash_advance', 'initial_cash', 'reception', 'deposit', 'cash_return'].includes(
+                            m.movement_type
+                          ) ? (
+                            <button
+                              type="button"
+                              onClick={() => setVoidTargetMovement(m)}
+                              className="text-2xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2.5 py-1 rounded-lg transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                              title="Anular o revertir esta entrega de efectivo"
+                            >
+                              <RotateCcw className="h-3 w-3" />
+                              Anular
+                            </button>
+                          ) : (
+                            <span className="text-2xs text-slate-300">—</span>
+                          )}
                         </td>
                       </tr>
                     )
@@ -749,6 +799,13 @@ export default function AdminWorkdaysPage() {
         workday={viewMovementsWorkday}
         isOpen={!!viewMovementsWorkday}
         onClose={() => setViewMovementsWorkday(null)}
+      />
+
+      {/* Modal para Anular Entrega / Movimiento */}
+      <VoidMovementModal
+        movement={voidTargetMovement}
+        isOpen={!!voidTargetMovement}
+        onClose={() => setVoidTargetMovement(null)}
       />
 
       {/* Modal para Entregar Efectivo al Motorizado (Administración -> Motorizado) */}

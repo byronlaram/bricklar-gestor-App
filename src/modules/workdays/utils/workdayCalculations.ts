@@ -101,6 +101,11 @@ export function calculateWorkdayCashSummary(
     const curr = m.currency || 'NIO'
     const desc = (m.description || '').toLowerCase()
 
+    // Movimientos anulados o de reversión de auditoría no impactan el balance activo
+    if (desc.includes('[anulado]') || m.movement_type === 'void_adjustment') {
+      return
+    }
+
     if (m.direction === 'expense') {
       if (curr === 'USD') expensesUSD += amt
       else expensesNIO += amt

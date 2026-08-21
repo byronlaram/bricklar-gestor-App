@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   X,
   History,
@@ -7,9 +8,12 @@ import {
   Clock,
   Banknote,
   FileText,
+  RotateCcw,
 } from 'lucide-react'
 import type { Workday } from '../types/workdays.types'
 import { useCashMovements } from '../hooks/useCashMovements'
+import { VoidMovementModal } from './VoidMovementModal'
+import type { DetailedCashMovement } from '../services/workdaysService'
 import { Badge, TableSkeleton, EmptyState } from '@/shared/components/ui'
 
 interface WorkdayMovementsModalProps {
@@ -23,6 +27,7 @@ export function WorkdayMovementsModal({
   isOpen,
   onClose,
 }: WorkdayMovementsModalProps) {
+  const [voidTarget, setVoidTarget] = useState<DetailedCashMovement | null>(null)
   const { data: movements = [], isLoading } = useCashMovements(
     workday ? { workday_id: workday.id } : { workday_id: 'none' }
   )
@@ -139,7 +144,9 @@ export function WorkdayMovementsModal({
 
               {movements.map((m) => {
                 const isIncome = m.direction === 'income'
-                const timeStr = new Date(m.created_at).toLocaleTimeString([], {
+                const isVoided = (m.description || '').includes('[ANULADO]')
+                const dateObj = new Date(m.created_at)
+                const timeStr = dateObj.toLocaleTimeString([], {
                   hour: '2-digit',
                   minute: '2-digit',
                   second: '2-digit',
@@ -148,38 +155,57 @@ export function WorkdayMovementsModal({
                 return (
                   <div
                     key={m.id}
-                    className="px-4 py-3 hover:bg-slate-50/80 transition-colors grid grid-cols-12 gap-2 items-center"
+                    className={`grid grid-cols-12 items-center gap-2 p-3 rounded-2xl border text-xs transition ${
+                      isVoided
+                        ? 'bg-rose-50/20 border-rose-100 opacity-60'
+                        : 'bg-white border-slate-100 hover:border-slate-200 shadow-2xs'
+                    }`}
                   >
-                    {/* Hora & Badge de Tipo */}
+                    {/* Hora y Tipo */}
                     <div className="col-span-3 space-y-1">
                       <div className="font-mono text-2xs text-slate-400 font-bold flex items-center gap-1">
                         <Clock className="h-3 w-3 text-slate-400" />
                         {timeStr}
                       </div>
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold capitalize ${
-                          m.movement_type === 'cash_advance'
-                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span
+                          className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-extrabold capitalize ${
+                            isVoided
+                              ? 'bg-slate-100 text-slate-500 line-through'
+                              : m.movement_type === 'initial_cash' || m.movement_type === 'cash_advance'
+                              ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                              : m.movement_type === 'reception'
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                              : m.movement_type === 'expense'
+                              ? 'bg-rose-50 text-rose-700 border border-rose-100'
+                              : 'bg-slate-100 text-slate-700 border border-slate-200'
+                          }`}
+                        >
+                          {m.movement_type === 'initial_cash'
+                            ? 'Fondo Inicial'
+                            : m.movement_type === 'cash_advance'
+                            ? 'Entrega / Adelanto'
                             : m.movement_type === 'reception'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
+                            ? 'Recepción Oficina'
                             : m.movement_type === 'expense'
-                            ? 'bg-rose-50 text-rose-700 border border-rose-100'
-                            : 'bg-slate-100 text-slate-700 border border-slate-200'
-                        }`}
-                      >
-                        {m.movement_type === 'cash_advance'
-                          ? 'Entrega / Fondo'
-                          : m.movement_type === 'reception'
-                          ? 'Recepción Oficina'
-                          : m.movement_type === 'expense'
-                          ? 'Gasto / Compra'
-                          : m.movement_type}
-                      </span>
+                            ? 'Gasto / Compra'
+                            : m.movement_type}
+                        </span>
+                        {isVoided && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[9px] font-extrabold bg-rose-100 text-rose-700 border border-rose-200">
+                            ANULADO
+                          </span>
+                        )}
+                      </div>
                     </div>
 
                     {/* Descripción y Detalles */}
-                    <div className="col-span-6 space-y-0.5 pr-2">
-                      <p className="text-slate-800 font-semibold leading-tight">
+                    <div className="col-span-5 space-y-0.5 pr-2">
+                      <p
+                        className={`text-slate-800 font-semibold leading-tight ${
+                          isVoided ? 'line-through text-slate-400 italic' : ''
+                        }`}
+                      >
                         {m.description || 'Movimiento de efectivo'}
                       </p>
                       {m.task && (
@@ -194,10 +220,14 @@ export function WorkdayMovementsModal({
                     </div>
 
                     {/* Monto con Color */}
-                    <div className="col-span-3 text-right">
+                    <div className="col-span-2 text-right">
                       <div
                         className={`font-mono text-sm font-extrabold flex items-center justify-end gap-0.5 ${
-                          isIncome ? 'text-emerald-600' : 'text-rose-600'
+                          isVoided
+                            ? 'text-slate-400 line-through'
+                            : isIncome
+                            ? 'text-emerald-600'
+                            : 'text-rose-600'
                         }`}
                       >
                         {isIncome ? (
@@ -212,6 +242,26 @@ export function WorkdayMovementsModal({
                       <span className="text-[10px] text-slate-400 uppercase font-semibold">
                         {m.currency || 'NIO'}
                       </span>
+                    </div>
+
+                    {/* Acción Anular */}
+                    <div className="col-span-2 text-right">
+                      {!isVoided &&
+                      ['cash_advance', 'initial_cash', 'reception', 'deposit', 'cash_return'].includes(
+                        m.movement_type
+                      ) ? (
+                        <button
+                          type="button"
+                          onClick={() => setVoidTarget(m)}
+                          className="text-2xs font-bold text-rose-600 hover:text-rose-800 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-1 rounded-lg transition cursor-pointer inline-flex items-center gap-1 shadow-2xs"
+                          title="Anular o revertir este movimiento"
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                          Anular
+                        </button>
+                      ) : (
+                        <span className="text-2xs text-slate-300">—</span>
+                      )}
                     </div>
                   </div>
                 )
@@ -234,6 +284,13 @@ export function WorkdayMovementsModal({
           </button>
         </div>
       </div>
+
+      {/* Modal de Anulación */}
+      <VoidMovementModal
+        movement={voidTarget}
+        isOpen={!!voidTarget}
+        onClose={() => setVoidTarget(null)}
+      />
     </div>
   )
 }

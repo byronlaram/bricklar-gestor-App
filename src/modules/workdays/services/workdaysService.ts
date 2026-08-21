@@ -361,3 +361,81 @@ export async function getCashMovements(filters: {
 
   return list
 }
+
+// ─── voidCashMovement (Anulación / Reverso de Movimientos de Caja) ───────────
+
+export interface VoidCashMovementPayload {
+  movementId: string
+  reason: string
+  adminId: string
+  adminName: string
+}
+
+export async function voidCashMovement(payload: VoidCashMovementPayload): Promise<void> {
+  if (!payload.reason.trim()) {
+    throw new Error('Debes ingresar un motivo para anular el movimiento.')
+  }
+
+  // 1. Obtener el movimiento original
+  const { data: movement, error: movErr } = await supabase
+    .from('cash_movements')
+    .select('*, workday:workdays!cash_movements_workday_id_fkey(id, initial_cash, status, branch_id)')
+    .eq('id', payload.movementId)
+    .single()
+
+  if (movErr || !movement) {
+    throw new Error(movErr?.message || 'No se encontró el movimiento de caja.')
+  }
+
+  if (movement.description?.includes('[ANULADO]')) {
+    throw new Error('Este movimiento ya ha sido anulado previamente.')
+  }
+
+  const workday = movement.workday as any
+  const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const updatedDesc = `[ANULADO ${nowStr}] ${movement.description || movement.movement_type} (Motivo: ${payload.reason.trim()} | Anulado por: ${payload.adminName})`
+
+  // 2. Marcar el movimiento original como [ANULADO]
+  const { error: updateErr } = await supabase
+    .from('cash_movements')
+    .update({ description: updatedDesc })
+    .eq('id', payload.movementId)
+
+  if (updateErr) {
+    throw new Error(updateErr.message || 'Error al anular el movimiento.')
+  }
+
+  // 3. Si era un fondo inicial reflejado en la tabla workdays, ajustar workdays.initial_cash
+  const isInitialCash =
+    movement.movement_type === 'initial_cash' ||
+    (movement.description && movement.description.toLowerCase().includes('fondo inicial'))
+
+  if (isInitialCash && workday && workday.initial_cash > 0) {
+    const newInitialCash = Math.max(0, workday.initial_cash - movement.amount)
+    await supabase
+      .from('workdays')
+      .update({ initial_cash: newInitialCash })
+      .eq('id', workday.id)
+  }
+
+  // 4. Registrar evento en log_audit_event
+  try {
+    await supabase.rpc('log_audit_event', {
+      p_action: 'cash_movement_voided',
+      p_entity_type: 'cash_movement',
+      p_entity_id: payload.movementId,
+      p_entity_code: workday?.id || payload.movementId,
+      p_branch_id: workday?.branch_id || undefined,
+      p_changes: {
+        reason: payload.reason.trim(),
+        voided_by: payload.adminName,
+        admin_id: payload.adminId,
+        original_amount: movement.amount,
+        original_type: movement.movement_type,
+        original_description: movement.description,
+      },
+    })
+  } catch (auditErr) {
+    console.warn('[Audit] Error logging void event:', auditErr)
+  }
+}
