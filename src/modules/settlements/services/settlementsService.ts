@@ -69,7 +69,7 @@ export async function getSettlements(filters: SettlementFilters = {}): Promise<S
   // 3. Carga en lote de movimientos de caja
   const { data: batchMovements } = await supabase
     .from('cash_movements')
-    .select('workday_id, amount, currency, direction, movement_type')
+    .select('workday_id, amount, currency, direction, movement_type, description')
     .in('workday_id', workdayIds)
 
   return list.map((s) => {
@@ -129,7 +129,7 @@ export async function getSettlementById(id: string): Promise<Settlement> {
 
   const { data: movements } = await supabase
     .from('cash_movements')
-    .select('workday_id, amount, currency, direction, movement_type')
+    .select('workday_id, amount, currency, direction, movement_type, description')
     .eq('workday_id', s.workday_id)
 
   const summary = calculateWorkdayCashSummary(workday?.initial_cash || 0, tasks || [], movements || [])
@@ -181,7 +181,7 @@ export async function getSettlementByWorkday(workdayId: string): Promise<Settlem
 
   const { data: movements } = await supabase
     .from('cash_movements')
-    .select('workday_id, amount, currency, direction, movement_type')
+    .select('workday_id, amount, currency, direction, movement_type, description')
     .eq('workday_id', s.workday_id)
 
   const summary = calculateWorkdayCashSummary(workday?.initial_cash || 0, tasks || [], movements || [])
@@ -231,7 +231,7 @@ export async function submitSettlement(workdayId: string, notes?: string): Promi
   // Obtener movimientos de caja de esta jornada
   const { data: movements } = await supabase
     .from('cash_movements')
-    .select('amount, currency, direction, movement_type')
+    .select('amount, currency, direction, movement_type, description')
     .eq('workday_id', workdayId)
 
   const cashSummary = calculateWorkdayCashSummary(
@@ -318,7 +318,7 @@ export async function approveSettlement(payload: ApproveSettlementPayload): Prom
       .eq('status', 'completed')
     const { data: movements } = await supabase
       .from('cash_movements')
-      .select('amount, currency, direction, movement_type')
+      .select('amount, currency, direction, movement_type, description')
       .eq('workday_id', workdayId)
     const summary = calculateWorkdayCashSummary(wd?.initial_cash || 0, tasks || [], movements || [])
     expectedCash = Math.max(0, summary.cashInHandNIO)
@@ -433,7 +433,7 @@ export async function adminForceSettlement(payload: AdminForceSettlementPayload)
 
   const { data: movements } = await supabase
     .from('cash_movements')
-    .select('amount, currency, direction, movement_type')
+    .select('amount, currency, direction, movement_type, description')
     .eq('workday_id', workday.id)
 
   const cashSummary = calculateWorkdayCashSummary(
@@ -711,7 +711,7 @@ export async function getDailyClosure(
 
   const { data: batchMovements } = await supabase
     .from('cash_movements')
-    .select('workday_id, amount, currency, direction, movement_type')
+    .select('workday_id, amount, currency, direction, movement_type, description')
     .in('workday_id', workdayIds)
 
   // 3. Liquidaciones registradas para este día
@@ -935,7 +935,7 @@ export async function getCourierPendingBalances(
 
     const { data: dayMovements } = await supabase
       .from('cash_movements')
-      .select('amount, currency, direction, movement_type')
+      .select('amount, currency, direction, movement_type, description')
       .eq('workday_id', wd.id)
 
     // Usar la función centralizada de cálculo en tiempo real

@@ -57,7 +57,7 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
 
     let movementsQuery = supabase
       .from('cash_movements')
-      .select('id, amount, currency, direction, movement_type, workday_id')
+      .select('id, amount, currency, direction, movement_type, description, workday_id')
       .gte('created_at', `${targetDate}T00:00:00`)
       .lte('created_at', `${targetDate}T23:59:59.999Z`)
 
