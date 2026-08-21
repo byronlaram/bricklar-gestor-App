@@ -37,7 +37,7 @@ export type ReceptionType = 'partial' | 'final' | 'adjustment'
 export interface ReceiveCashModalProps {
   workdayId?: string
   courierName?: string
-  branchId: string
+  branchId?: string
   isOpen: boolean
   onClose: () => void
 }
@@ -48,6 +48,7 @@ interface WorkdayContextData {
   courier_name: string
   courier_phone: string | null
   courier_avatar: string | null
+  branch_id?: string
   branch_name: string
   work_date: string
   start_time: string | null
@@ -103,8 +104,10 @@ export function ReceiveCashModal({
   const { data: couriers = [] } = useCouriers(branchId)
 
   useEffect(() => {
-    if (couriers.length > 0 && !selectedCourierId && !workdayId) {
-      setSelectedCourierId(couriers[0].id)
+    if (couriers.length > 0 && !workdayId) {
+      if (!selectedCourierId || !couriers.some(c => c.id === selectedCourierId)) {
+        setSelectedCourierId(couriers[0].id)
+      }
     }
   }, [couriers, selectedCourierId, workdayId])
 
@@ -124,10 +127,11 @@ export function ReceiveCashModal({
 
       try {
         let currentWorkdayId = selectedWorkdayId || workdayId
-        let targetCourierId = selectedCourierId
+        let targetCourierId = selectedCourierId || (couriers.length > 0 ? couriers[0].id : '')
 
         if (!currentWorkdayId && targetCourierId) {
-          const { data: workdayRow } = await supabase
+          // 1. Buscar jornada activa o pendiente de liquidación
+          const { data: activeWd } = await supabase
             .from('workdays')
             .select(`
               id, courier_id, branch_id, work_date, start_time, status, initial_cash,
@@ -135,11 +139,29 @@ export function ReceiveCashModal({
               branch:branches!workdays_branch_id_fkey (id, name, code)
             `)
             .eq('courier_id', targetCourierId)
-            .eq('work_date', todayStr)
+            .in('status', ['open', 'pending_settlement'])
+            .order('work_date', { ascending: false })
+            .limit(1)
             .maybeSingle()
 
-          if (workdayRow) {
-            currentWorkdayId = workdayRow.id
+          if (activeWd) {
+            currentWorkdayId = activeWd.id
+          } else {
+            // 2. Buscar por fecha de hoy
+            const { data: todayWd } = await supabase
+              .from('workdays')
+              .select(`
+                id, courier_id, branch_id, work_date, start_time, status, initial_cash,
+                courier_profile:profiles!workdays_courier_id_fkey (id, full_name, display_name, phone, avatar_url),
+                branch:branches!workdays_branch_id_fkey (id, name, code)
+              `)
+              .eq('courier_id', targetCourierId)
+              .eq('work_date', todayStr)
+              .maybeSingle()
+
+            if (todayWd) {
+              currentWorkdayId = todayWd.id
+            }
           }
         }
 
@@ -326,7 +348,7 @@ export function ReceiveCashModal({
           p_entity_type: 'cash_movement',
           p_entity_id: movement.id,
           p_entity_code: contextData?.work_date || todayStr,
-          p_branch_id: branchId,
+          p_branch_id: contextData?.branch_id || branchId || undefined,
           p_changes: {
             admin_id: user?.id,
             admin_name: adminName,

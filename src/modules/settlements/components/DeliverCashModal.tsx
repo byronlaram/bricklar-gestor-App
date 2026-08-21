@@ -36,7 +36,7 @@ export type DeliveryType = 'cash_advance' | 'initial_cash'
 export interface DeliverCashModalProps {
   workdayId?: string
   courierName?: string
-  branchId: string
+  branchId?: string
   isOpen: boolean
   onClose: () => void
 }
@@ -47,6 +47,7 @@ interface WorkdayDeliveryContextData {
   courier_name: string
   courier_phone: string | null
   courier_avatar: string | null
+  branch_id?: string
   branch_name: string
   work_date: string
   start_time: string | null
@@ -98,8 +99,10 @@ export function DeliverCashModal({
   const { data: couriers = [] } = useCouriers(branchId)
 
   useEffect(() => {
-    if (couriers.length > 0 && !selectedCourierId && !workdayId) {
-      setSelectedCourierId(couriers[0].id)
+    if (couriers.length > 0 && !workdayId) {
+      if (!selectedCourierId || !couriers.some(c => c.id === selectedCourierId)) {
+        setSelectedCourierId(couriers[0].id)
+      }
     }
   }, [couriers, selectedCourierId, workdayId])
 
@@ -119,10 +122,11 @@ export function DeliverCashModal({
 
       try {
         let currentWorkdayId = selectedWorkdayId || workdayId
-        let targetCourierId = selectedCourierId
+        let targetCourierId = selectedCourierId || (couriers.length > 0 ? couriers[0].id : '')
 
         if (!currentWorkdayId && targetCourierId) {
-          const { data: workdayRow } = await supabase
+          // 1. Buscar jornada abierta o pendiente de liquidación
+          const { data: activeWd } = await supabase
             .from('workdays')
             .select(`
               id, courier_id, branch_id, work_date, start_time, status, initial_cash,
@@ -130,15 +134,59 @@ export function DeliverCashModal({
               branch:branches!workdays_branch_id_fkey (id, name, code)
             `)
             .eq('courier_id', targetCourierId)
-            .eq('work_date', todayStr)
+            .in('status', ['open', 'pending_settlement'])
+            .order('work_date', { ascending: false })
+            .limit(1)
             .maybeSingle()
 
-          if (workdayRow) {
-            currentWorkdayId = workdayRow.id
+          if (activeWd) {
+            currentWorkdayId = activeWd.id
+          } else {
+            // 2. Buscar por fecha de hoy
+            const { data: todayWd } = await supabase
+              .from('workdays')
+              .select(`
+                id, courier_id, branch_id, work_date, start_time, status, initial_cash,
+                courier_profile:profiles!workdays_courier_id_fkey (id, full_name, display_name, phone, avatar_url),
+                branch:branches!workdays_branch_id_fkey (id, name, code)
+              `)
+              .eq('courier_id', targetCourierId)
+              .eq('work_date', todayStr)
+              .maybeSingle()
+
+            if (todayWd) {
+              currentWorkdayId = todayWd.id
+            }
           }
         }
 
         if (!currentWorkdayId) {
+          // Si no hay jornada creada todavía, preparar contexto preliminar del motorizado
+          if (targetCourierId) {
+            const foundCourier = couriers.find(c => c.id === targetCourierId)
+            if (foundCourier) {
+              setContextData({
+                id: '',
+                courier_id: foundCourier.id,
+                courier_name: foundCourier.display_name || foundCourier.full_name,
+                courier_phone: foundCourier.phone || null,
+                courier_avatar: foundCourier.avatar_url || null,
+                branch_id: branchId || undefined,
+                branch_name: 'Sucursal Principal',
+                work_date: todayStr,
+                start_time: null,
+                status: 'open',
+                initial_cash_nio: 0,
+                initial_cash_usd: 0,
+                previous_advances_nio: 0,
+                previous_advances_usd: 0,
+              })
+              setDeliveryHistory([])
+              setIsLoadingContext(false)
+              return
+            }
+          }
+
           setContextData(null)
           setDeliveryHistory([])
           setIsLoadingContext(false)
@@ -260,8 +308,40 @@ export function DeliverCashModal({
       let targetWorkdayId = contextData?.id || selectedWorkdayId || workdayId
       let targetCourierId = contextData?.courier_id || selectedCourierId
 
+      if (!targetCourierId) {
+        throw new Error('Selecciona un motorizado.')
+      }
+
+      // Si no existe jornada abierta para hoy, inicializarla automáticamente
       if (!targetWorkdayId) {
-        throw new Error('No se encontró una jornada activa para registrar la entrega de efectivo.')
+        let effBranchId = branchId || contextData?.branch_id
+        if (!effBranchId) {
+          const { data: ub } = await supabase.from('user_branches').select('branch_id').eq('user_id', targetCourierId).maybeSingle()
+          effBranchId = ub?.branch_id
+        }
+        if (!effBranchId) {
+          const { data: b } = await supabase.from('branches').select('id').limit(1).single()
+          effBranchId = b?.id
+        }
+
+        const { data: newWd, error: newWdErr } = await supabase
+          .from('workdays')
+          .insert({
+            courier_id: targetCourierId,
+            branch_id: effBranchId || '',
+            work_date: todayStr,
+            status: 'open',
+            opened_by: user?.id || targetCourierId,
+            initial_cash: deliveryType === 'initial_cash' && currency === 'NIO' ? numAmount : 0,
+            start_time: new Date().toLocaleTimeString('en-US', { hour12: false }),
+          })
+          .select('id')
+          .single()
+
+        if (newWdErr || !newWd) {
+          throw new Error(newWdErr?.message || 'No se pudo inicializar la jornada para el motorizado.')
+        }
+        targetWorkdayId = newWd.id
       }
 
       const adminName = profile?.display_name || profile?.full_name || user?.email || 'Administrador'
@@ -303,7 +383,7 @@ export function DeliverCashModal({
           p_entity_type: 'cash_movement',
           p_entity_id: movement.id,
           p_entity_code: contextData?.work_date || todayStr,
-          p_branch_id: branchId,
+          p_branch_id: contextData?.branch_id || branchId || undefined,
           p_changes: {
             admin_id: user?.id,
             admin_name: adminName,

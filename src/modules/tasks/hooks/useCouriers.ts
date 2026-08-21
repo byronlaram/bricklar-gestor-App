@@ -3,9 +3,8 @@ import { getCouriersForBranch } from '../services/tasksService'
 
 export function useCouriers(branchId?: string) {
   return useQuery({
-    queryKey: ['couriers', branchId],
-    queryFn: () => getCouriersForBranch(branchId!),
-    enabled: !!branchId,
+    queryKey: ['couriers', branchId || 'all'],
+    queryFn: () => getCouriersForBranch(branchId && branchId !== 'all' ? branchId : undefined),
     staleTime: 0,
   })
 }
