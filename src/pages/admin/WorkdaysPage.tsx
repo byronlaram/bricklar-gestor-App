@@ -36,6 +36,7 @@ import { DeliverCashModal } from '@/modules/settlements/components/DeliverCashMo
 import { AdminForceSettlementModal } from '@/modules/settlements/components/AdminForceSettlementModal'
 import { WorkdayMovementsModal } from '@/modules/workdays/components/WorkdayMovementsModal'
 import { VoidMovementModal } from '@/modules/workdays/components/VoidMovementModal'
+import { FinancialSummaryDetailModal, type FinancialCardType } from '@/modules/workdays/components/FinancialSummaryDetailModal'
 import type { DetailedCashMovement } from '@/modules/workdays/services/workdaysService'
 import {
   Card,
@@ -60,6 +61,7 @@ export default function AdminWorkdaysPage() {
     date: todayStr,
   })
 
+  const [selectedCardDetail, setSelectedCardDetail] = useState<FinancialCardType | null>(null)
   const [receiveCashWorkday, setReceiveCashWorkday] = useState<Workday | null>(null)
   const [forceSettlementWorkday, setForceSettlementWorkday] = useState<Workday | null>(null)
   const [viewMovementsWorkday, setViewMovementsWorkday] = useState<Workday | null>(null)
@@ -296,9 +298,19 @@ export default function AdminWorkdaysPage() {
         <MetricCard
           title="Fondos Entregados Admin"
           value={`C$ ${financialSummary.totalAdminFundsNIO.toFixed(2)}`}
-          subtitle={`Inicial: C$ ${financialSummary.totalInitialCashNIO.toFixed(2)} | Entregas: C$ ${financialSummary.totalAdvancesNIO.toFixed(2)}`}
+          subtitle={
+            <div className="space-y-1">
+              <div>Inicial: C$ {financialSummary.totalInitialCashNIO.toFixed(2)} | Entregas: C$ {financialSummary.totalAdvancesNIO.toFixed(2)}</div>
+              <span className="inline-flex items-center text-[10px] font-extrabold text-indigo-700 hover:underline">
+                Ver detalle ↗
+              </span>
+            </div>
+          }
           icon={<HandCoins className="h-4 w-4 text-indigo-600" />}
           accentColor="accent"
+          isHoverable
+          onClick={() => setSelectedCardDetail('funds')}
+          className="cursor-pointer group hover:scale-[1.01] hover:border-indigo-300 transition-all"
         />
 
         <MetricCard
@@ -309,12 +321,22 @@ export default function AdminWorkdaysPage() {
               : `+C$ ${financialSummary.completedCollectionsNIO.toFixed(2)}`
           }
           subtitle={
-            viewMode === 'projected'
-              ? `Ya cobrado: C$ ${financialSummary.completedCollectionsNIO.toFixed(2)} (${financialSummary.collectionProgressPct}%)`
-              : `De +C$ ${financialSummary.projectedCollectionsNIO.toFixed(2)} proyectados (${financialSummary.collectionProgressPct}%)`
+            <div className="space-y-1">
+              <div>
+                {viewMode === 'projected'
+                  ? `Ya cobrado: C$ ${financialSummary.completedCollectionsNIO.toFixed(2)} (${financialSummary.collectionProgressPct}%)`
+                  : `De +C$ ${financialSummary.projectedCollectionsNIO.toFixed(2)} proyectados (${financialSummary.collectionProgressPct}%)`}
+              </div>
+              <span className="inline-flex items-center text-[10px] font-extrabold text-emerald-700 hover:underline">
+                Ver detalle ↗
+              </span>
+            </div>
           }
           icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
           accentColor="success"
+          isHoverable
+          onClick={() => setSelectedCardDetail('collections')}
+          className="cursor-pointer group hover:scale-[1.01] hover:border-emerald-300 transition-all"
         />
 
         <MetricCard
@@ -325,12 +347,22 @@ export default function AdminWorkdaysPage() {
               : `-C$ ${financialSummary.completedPaymentsNIO.toFixed(2)}`
           }
           subtitle={
-            viewMode === 'projected'
-              ? `Ya desembolsado: -C$ ${financialSummary.completedPaymentsNIO.toFixed(2)}`
-              : `De -C$ ${financialSummary.projectedPaymentsNIO.toFixed(2)} presupuestados`
+            <div className="space-y-1">
+              <div>
+                {viewMode === 'projected'
+                  ? `Ya desembolsado: -C$ ${financialSummary.completedPaymentsNIO.toFixed(2)}`
+                  : `De -C$ ${financialSummary.projectedPaymentsNIO.toFixed(2)} presupuestados`}
+              </div>
+              <span className="inline-flex items-center text-[10px] font-extrabold text-rose-700 hover:underline">
+                Ver detalle ↗
+              </span>
+            </div>
           }
           icon={<Receipt className="h-4 w-4 text-rose-600" />}
           accentColor="destructive"
+          isHoverable
+          onClick={() => setSelectedCardDetail('payments')}
+          className="cursor-pointer group hover:scale-[1.01] hover:border-rose-300 transition-all"
         />
 
         <MetricCard
@@ -341,9 +373,21 @@ export default function AdminWorkdaysPage() {
               : `C$ ${financialSummary.liveCashInHandNIO.toFixed(2)}`
           }
           subtitle={
-            viewMode === 'projected'
-              ? `En mano en calle ahora: C$ ${financialSummary.liveCashInHandNIO.toFixed(2)}`
-              : `Neto proyectado al cierre: C$ ${financialSummary.netProjectedCashNIO.toFixed(2)}`
+            <div className="space-y-1">
+              <div>
+                {viewMode === 'projected'
+                  ? `En mano en calle ahora: C$ ${financialSummary.liveCashInHandNIO.toFixed(2)}`
+                  : `Neto proyectado al cierre: C$ ${financialSummary.netProjectedCashNIO.toFixed(2)}`}
+              </div>
+              <span
+                className={cn(
+                  'inline-flex items-center text-[10px] font-extrabold hover:underline',
+                  viewMode === 'projected' ? 'text-purple-700' : 'text-emerald-700'
+                )}
+              >
+                Ver arqueo ↗
+              </span>
+            </div>
           }
           icon={
             viewMode === 'projected' ? (
@@ -353,6 +397,9 @@ export default function AdminWorkdaysPage() {
             )
           }
           accentColor={viewMode === 'projected' ? 'primary' : 'success'}
+          isHoverable
+          onClick={() => setSelectedCardDetail('net')}
+          className="cursor-pointer group hover:scale-[1.01] hover:border-purple-300 transition-all"
         />
       </div>
 
@@ -942,6 +989,22 @@ export default function AdminWorkdaysPage() {
         workday={forceSettlementWorkday}
         isOpen={!!forceSettlementWorkday}
         onClose={() => setForceSettlementWorkday(null)}
+      />
+
+      {/* Modal para Desglose Financiero Dinámico de las 4 Tarjetas */}
+      <FinancialSummaryDetailModal
+        cardType={selectedCardDetail}
+        isOpen={!!selectedCardDetail}
+        onClose={() => setSelectedCardDetail(null)}
+        viewMode={viewMode}
+        workdays={workdays}
+        tasks={allTasks}
+        ledgerMovements={ledgerMovements}
+        financialSummary={financialSummary}
+        onSelectWorkdayMovements={(w) => {
+          setSelectedCardDetail(null)
+          setViewMovementsWorkday(w)
+        }}
       />
     </div>
   )
