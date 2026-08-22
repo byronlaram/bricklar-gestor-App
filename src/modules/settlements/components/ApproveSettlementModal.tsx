@@ -181,6 +181,16 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
 
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
           <ModalBody className="space-y-4 overflow-y-auto flex-1 p-6">
+            {/* Banner de Estado Aprobado / Cerrado */}
+            {settlement.status === 'approved' && (
+              <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-2.5 text-xs text-emerald-900 font-medium animate-fade-in shadow-2xs">
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                <span>
+                  Esta liquidación ya fue <strong>auditada, aprobada y cerrada</strong>. El turno del motorizado está cerrado. Consulta en modo solo lectura.
+                </span>
+              </div>
+            )}
+
             {/* Resumen de Arqueo Completo */}
             <div className="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2 text-xs">
               <div className="flex justify-between items-center text-slate-700">
@@ -319,6 +329,7 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
               type="number"
               step="0.01"
               required
+              disabled={settlement.status === 'approved'}
               value={actualCash}
               onChange={(e) => {
                 const val = e.target.value ? Number(e.target.value) : ''
@@ -360,7 +371,8 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
                     value={adjustmentReasonType}
                     onChange={(e) => setAdjustmentReasonType(e.target.value)}
                     required
-                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
+                    disabled={settlement.status === 'approved'}
+                    className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium disabled:bg-slate-100 disabled:text-slate-500"
                   >
                     <option value="">Selecciona el motivo del ajuste...</option>
                     {diff < 0 ? (
@@ -398,8 +410,9 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
                     type="text"
                     value={adjustmentNotes}
                     onChange={(e) => setAdjustmentNotes(e.target.value)}
+                    disabled={settlement.status === 'approved'}
                     placeholder="Ej. Error en cobro a cliente #123, acordado con motorizado..."
-                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs"
+                    className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs disabled:bg-slate-100 disabled:text-slate-500"
                   />
                 </div>
 
@@ -420,8 +433,9 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
+                disabled={settlement.status === 'approved'}
                 placeholder="Observaciones adicionales sobre la jornada o comprobantes..."
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs resize-none"
+                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs resize-none disabled:bg-slate-100 disabled:text-slate-500"
               />
             </div>
 
@@ -433,20 +447,34 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
           </ModalBody>
 
           <ModalFooter>
-            <Button variant="ghost" size="sm" type="button" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button
-              type="submit"
-              variant="primary"
-              size="sm"
-              isLoading={isApproving}
-              disabled={hasDiff && !adjustmentReasonType}
-              leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent"
-            >
-              {hasDiff ? 'Aprobar y Registrar Ajuste' : 'Aprobar y Cerrar Liquidación'}
-            </Button>
+            {settlement.status === 'approved' ? (
+              <Button
+                type="button"
+                variant="primary"
+                size="sm"
+                onClick={onClose}
+                className="bg-slate-900 hover:bg-slate-800 text-white font-bold"
+              >
+                Cerrar Consulta
+              </Button>
+            ) : (
+              <>
+                <Button variant="ghost" size="sm" type="button" onClick={onClose}>
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  size="sm"
+                  isLoading={isApproving}
+                  disabled={hasDiff && !adjustmentReasonType}
+                  leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent"
+                >
+                  {hasDiff ? 'Aprobar y Registrar Ajuste' : 'Aprobar y Cerrar Liquidación'}
+                </Button>
+              </>
+            )}
           </ModalFooter>
         </form>
       </ModalContent>

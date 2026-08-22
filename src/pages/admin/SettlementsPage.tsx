@@ -7,6 +7,7 @@ import {
   Receipt,
   AlertTriangle,
   PhoneOff,
+  Eye,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useSettlements } from '@/modules/settlements/hooks/useSettlements'
@@ -364,12 +365,22 @@ export default function AdminSettlementsPage() {
                       <td className="py-3 px-4 text-right">
                         <Button
                           onClick={() => setTargetSettlement(s)}
-                          variant="primary"
+                          variant={s.status === 'approved' ? 'outline' : 'primary'}
                           size="sm"
-                          leftIcon={<Calculator className="h-3.5 w-3.5" />}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent text-2xs font-bold"
+                          leftIcon={
+                            s.status === 'approved' ? (
+                              <Eye className="h-3.5 w-3.5 text-slate-600" />
+                            ) : (
+                              <Calculator className="h-3.5 w-3.5" />
+                            )
+                          }
+                          className={
+                            s.status === 'approved'
+                              ? 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-2xs font-bold shadow-2xs'
+                              : 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent text-2xs font-bold'
+                          }
                         >
-                          Revisar / Aprobar
+                          {s.status === 'approved' ? 'Ver Arqueo' : 'Revisar / Aprobar'}
                         </Button>
                       </td>
                     </tr>

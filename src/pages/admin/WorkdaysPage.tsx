@@ -673,16 +673,18 @@ export default function AdminWorkdaysPage() {
                               Movimientos
                             </Button>
 
-                            <Button
-                              onClick={() => setReceiveCashWorkday(w)}
-                              variant="primary"
-                              size="sm"
-                              leftIcon={<HandCoins className="h-3.5 w-3.5" />}
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent text-2xs font-bold"
-                            >
-                              Recibir Efectivo
-                            </Button>
-                            {(w.status === 'open' || w.status === 'pending_settlement') && (
+                            {w.status === 'open' && (
+                              <Button
+                                onClick={() => setReceiveCashWorkday(w)}
+                                variant="primary"
+                                size="sm"
+                                leftIcon={<HandCoins className="h-3.5 w-3.5" />}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent text-2xs font-bold"
+                              >
+                                Recibir Efectivo
+                              </Button>
+                            )}
+                            {w.status === 'pending_settlement' && (
                               <Button
                                 onClick={() => setForceSettlementWorkday(w)}
                                 variant="outline"
