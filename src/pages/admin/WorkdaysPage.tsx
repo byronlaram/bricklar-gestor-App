@@ -269,7 +269,7 @@ export default function AdminWorkdaysPage() {
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
               viewMode === 'projected'
-                ? 'bg-white text-indigo-700 shadow-xs'
+                ? 'bg-[#004594] text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-900'
             )}
           >
@@ -283,7 +283,7 @@ export default function AdminWorkdaysPage() {
             className={cn(
               'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer',
               viewMode === 'live'
-                ? 'bg-emerald-600 text-white shadow-xs'
+                ? 'bg-[#004594] text-white shadow-xs'
                 : 'text-slate-500 hover:text-slate-900'
             )}
           >
