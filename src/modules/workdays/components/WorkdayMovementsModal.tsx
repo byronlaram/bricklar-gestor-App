@@ -82,10 +82,10 @@ export function WorkdayMovementsModal({
         </div>
 
         {/* Tarjetas de Resumen de la Jornada */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5 pt-1">
           <div className="p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-tight block">
-              Fondo Inicial
+            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-tight block">
+              Fondo Inicial (+)
             </span>
             <span className="text-sm font-extrabold text-slate-900 font-mono">
               C$ {initialCash.toFixed(2)}
@@ -93,8 +93,8 @@ export function WorkdayMovementsModal({
           </div>
 
           <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-2xl">
-            <span className="text-[11px] font-bold text-indigo-700 uppercase tracking-tight block">
-              Entregas Admin
+            <span className="text-[10px] font-bold text-indigo-700 uppercase tracking-tight block">
+              Entregas Admon (+)
             </span>
             <span className="text-sm font-extrabold text-indigo-950 font-mono">
               +C$ {(cashSummary?.advancesNIO ?? 0).toFixed(2)}
@@ -102,17 +102,26 @@ export function WorkdayMovementsModal({
           </div>
 
           <div className="p-3 bg-emerald-50 border border-emerald-100 rounded-2xl">
-            <span className="text-[11px] font-bold text-emerald-700 uppercase tracking-tight block">
-              Cobrado / Ingresos
+            <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-tight block">
+              Cobrado / Ingresos (+)
             </span>
             <span className="text-sm font-extrabold text-emerald-950 font-mono">
               +C$ {(cashSummary?.collectionsNIO ?? 0).toFixed(2)}
             </span>
           </div>
 
-          <div className="p-3 bg-blue-50/90 border border-blue-200 rounded-2xl">
-            <span className="text-[11px] font-bold text-[#004594] uppercase tracking-tight block">
-              En Mano Ahora
+          <div className="p-3 bg-rose-50 border border-rose-100 rounded-2xl">
+            <span className="text-[10px] font-bold text-rose-700 uppercase tracking-tight block">
+              Pagado / Egresos (-)
+            </span>
+            <span className="text-sm font-extrabold text-rose-950 font-mono">
+              -C$ {((cashSummary?.expensesNIO ?? 0) + (cashSummary?.alreadyReceivedNIO ?? 0)).toFixed(2)}
+            </span>
+          </div>
+
+          <div className="p-3 bg-blue-50/90 border border-blue-200 rounded-2xl col-span-2 sm:col-span-1">
+            <span className="text-[10px] font-bold text-[#004594] uppercase tracking-tight block">
+              En Mano Ahora (=)
             </span>
             <span className="text-sm font-extrabold text-[#004594] font-mono">
               C$ {cashInHand.toFixed(2)}
