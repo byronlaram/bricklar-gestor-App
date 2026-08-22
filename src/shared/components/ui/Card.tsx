@@ -139,6 +139,8 @@ export interface MetricCardProps extends HTMLAttributes<HTMLDivElement> {
   subtitle?: ReactNode
   /** Color de borde de acento izquierdo */
   accentColor?: 'primary' | 'accent' | 'success' | 'warning' | 'destructive'
+  /** Añade elevación e interacción hover si la tarjeta es clickable */
+  isHoverable?: boolean
 }
 
 const accentBorderMap = {
@@ -150,9 +152,10 @@ const accentBorderMap = {
 }
 
 export const MetricCard = forwardRef<HTMLDivElement, MetricCardProps>(
-  ({ title, value, icon, subtitle, accentColor, className, ...props }, ref) => (
+  ({ title, value, icon, subtitle, accentColor, isHoverable, className, ...props }, ref) => (
     <Card
       ref={ref}
+      isHoverable={isHoverable}
       className={cn(
         'p-5 flex flex-col justify-between space-y-3',
         accentColor && accentBorderMap[accentColor],

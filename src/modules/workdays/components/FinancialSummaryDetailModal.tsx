@@ -14,10 +14,6 @@ import {
   Clock,
   User,
   ArrowRight,
-  TrendingUp,
-  AlertCircle,
-  Layers,
-  Banknote,
 } from 'lucide-react'
 import { cn } from '@/shared/utils/cn'
 import { Badge, Avatar, Button, EmptyState } from '@/shared/components/ui'
@@ -112,20 +108,23 @@ export function FinancialSummaryDetailModal({
   // Filtrado según la tarjeta seleccionada
   const filteredFunds = useMemo(() => {
     if (cardType !== 'funds') return []
-    const deliveryMovements = ledgerMovements.filter(
-      (m) =>
-        (m.movement_type === 'initial_delivery' || m.movement_type === 'advance_delivery') &&
-        !m.is_voided
-    )
+    const deliveryMovements = ledgerMovements.filter((m) => {
+      const isInitial = m.movement_type === 'initial_cash' || m.movement_type === 'initial_delivery'
+      const isAdvance = m.movement_type === 'cash_advance' || m.movement_type === 'advance_delivery'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const isVoided = !!(m as any).is_voided || m.description?.toLowerCase().includes('anulad')
+      return (isInitial || isAdvance) && !isVoided
+    })
     if (!searchTerm.trim()) return deliveryMovements
     const term = searchTerm.toLowerCase()
-    return deliveryMovements.filter(
-      (m) =>
-        m.courier_name?.toLowerCase().includes(term) ||
-        m.admin_name?.toLowerCase().includes(term) ||
-        m.notes?.toLowerCase().includes(term) ||
-        m.receipt_number?.toLowerCase().includes(term)
-    )
+    return deliveryMovements.filter((m) => {
+      const courierName = m.courier_profile?.display_name || m.courier_profile?.full_name || ''
+      return (
+        courierName.toLowerCase().includes(term) ||
+        m.description?.toLowerCase().includes(term) ||
+        m.movement_type?.toLowerCase().includes(term)
+      )
+    })
   }, [cardType, ledgerMovements, searchTerm])
 
   const filteredCollectionTasks = useMemo(() => {
@@ -189,8 +188,8 @@ export function FinancialSummaryDetailModal({
     funds: {
       title: 'Desglose de Fondos Entregados por Administración',
       subtitle: 'Entregas iniciales y adelantos registrados para las jornadas seleccionadas.',
-      icon: <HandCoins className="h-5 w-5 text-indigo-600" />,
-      badgeColor: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+      icon: <HandCoins className="h-5 w-5 text-[#004594]" />,
+      badgeColor: 'bg-blue-50 text-[#004594] border-blue-200',
       totalFormatted: `C$ ${financialSummary.totalAdminFundsNIO.toFixed(2)}`,
       totalLabel: 'Total Fondos Asignados',
     },
@@ -333,19 +332,24 @@ export function FinancialSummaryDetailModal({
               ) : (
                 <div className="space-y-2">
                   {filteredFunds.map((m) => {
-                    const isInitial = m.movement_type === 'initial_delivery'
+                    const isInitial = m.movement_type === 'initial_cash' || m.movement_type === 'initial_delivery'
+                    const courierName =
+                      m.courier_profile?.display_name ||
+                      m.courier_profile?.full_name ||
+                      'Motorizado'
+
                     return (
                       <div
                         key={m.id}
-                        className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-2xs hover:border-indigo-200 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-2xs hover:border-blue-200 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
                       >
                         <div className="flex items-start gap-3">
                           <div
                             className={cn(
                               'w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 mt-0.5',
                               isInitial
-                                ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
-                                : 'bg-blue-50 text-blue-700 border border-blue-100'
+                                ? 'bg-blue-50 text-[#004594] border border-blue-100'
+                                : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
                             )}
                           >
                             <HandCoins className="h-4 w-4" />
@@ -353,16 +357,11 @@ export function FinancialSummaryDetailModal({
                           <div>
                             <div className="flex items-center gap-2 flex-wrap">
                               <span className="text-xs font-bold text-slate-900">
-                                {m.courier_name || 'Motorizado'}
+                                {courierName}
                               </span>
-                              <Badge variant={isInitial ? 'accent' : 'primary'} size="sm">
+                              <Badge variant={isInitial ? 'assigned' : 'neutral'} size="sm">
                                 {isInitial ? 'Fondo Inicial' : 'Adelanto en Ruta'}
                               </Badge>
-                              {m.receipt_number && (
-                                <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
-                                  #{m.receipt_number}
-                                </span>
-                              )}
                             </div>
                             <p className="text-2xs text-slate-500 mt-0.5 flex items-center gap-2">
                               <span>
@@ -374,17 +373,12 @@ export function FinancialSummaryDetailModal({
                                     })
                                   : '—'}
                               </span>
-                              {m.admin_name && (
-                                <span>
-                                  • Entregado por: <strong>{m.admin_name}</strong>
+                              {m.description && (
+                                <span className="italic">
+                                  • {m.description}
                                 </span>
                               )}
                             </p>
-                            {m.notes && (
-                              <p className="text-2xs text-slate-600 bg-slate-50 px-2 py-1 rounded-md mt-1 italic border border-slate-100">
-                                &quot;{m.notes}&quot;
-                              </p>
-                            )}
                           </div>
                         </div>
 
@@ -392,8 +386,8 @@ export function FinancialSummaryDetailModal({
                           <span className="text-2xs text-slate-400 font-semibold sm:hidden">
                             Monto:
                           </span>
-                          <span className="text-sm font-extrabold font-mono text-indigo-700">
-                            +C$ {m.amount_nio.toFixed(2)}
+                          <span className="text-sm font-extrabold font-mono text-[#004594]">
+                            +C$ {Number(m.amount || 0).toFixed(2)}
                           </span>
                         </div>
                       </div>
@@ -457,9 +451,9 @@ export function FinancialSummaryDetailModal({
                               <Badge
                                 variant={
                                   isCompleted
-                                    ? 'success'
+                                    ? 'completed'
                                     : t.status === 'cancelled'
-                                    ? 'destructive'
+                                    ? 'urgent'
                                     : 'neutral'
                                 }
                                 size="sm"
@@ -559,10 +553,10 @@ export function FinancialSummaryDetailModal({
                               <Badge
                                 variant={
                                   isCompleted
-                                    ? 'destructive'
+                                    ? 'urgent'
                                     : t.status === 'cancelled'
                                     ? 'neutral'
-                                    : 'warning'
+                                    : 'pending'
                                 }
                                 size="sm"
                               >
@@ -699,8 +693,8 @@ export function FinancialSummaryDetailModal({
                       const initialNIO = summary?.initialCashNIO ?? w.initial_cash ?? 0
                       const advancesNIO = summary?.advancesNIO ?? 0
                       const totalAdmin = initialNIO + advancesNIO
-                      const collections = summary?.totalCollectionsNIO ?? 0
-                      const payments = summary?.totalPaymentsNIO ?? 0
+                      const collections = summary?.collectionsNIO ?? 0
+                      const payments = summary?.expensesNIO ?? 0
                       const alreadyDelivered = summary?.alreadyReceivedNIO ?? 0
                       const cashInHand = summary?.cashInHandNIO ?? initialNIO
 
@@ -745,7 +739,7 @@ export function FinancialSummaryDetailModal({
                           <div className="grid grid-cols-4 gap-1 bg-slate-50 p-2 rounded-xl text-center border border-slate-100 text-[10px]">
                             <div>
                               <span className="text-slate-400 block">Fondos:</span>
-                              <strong className="text-indigo-700 font-mono">
+                              <strong className="text-[#004594] font-mono">
                                 +{totalAdmin.toFixed(0)}
                               </strong>
                             </div>
