@@ -172,8 +172,9 @@ export default function CourierSettlementPage() {
 
   const liveCombinedExpenses = cashSummary.expensesNIO
   const liveManualExpenses = cashSummary.expensesNIO - liveTaskPayments
-  const initialCash = activeWorkday?.initial_cash || 0
-  const totalFundsReceived = initialCash
+  const initialCash = cashSummary.initialCashNIO
+  const totalAdvances = cashSummary.advancesNIO
+  const totalFundsReceived = initialCash + totalAdvances
   const alreadyReceivedByAdmin = cashSummary.alreadyReceivedNIO
 
   // Si la liquidación ya fue formalmente aprobada por el admin, tomamos el snapshot; de lo contrario, datos en vivo

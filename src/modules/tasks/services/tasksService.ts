@@ -731,7 +731,9 @@ export async function rejectTask(taskId: string, rejectionReason: string): Promi
 
 // ─── uploadTaskEvidence ───────────────────────────────────────────────────────
 export async function uploadTaskEvidence(file: File): Promise<string> {
-  const fileExt = file.name.split('.').pop() || 'jpg'
+  const rawExt = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const validExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf']
+  const fileExt = validExtensions.includes(rawExt) ? rawExt : 'jpg'
   const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`
   const filePath = `evidences/${fileName}`
 
@@ -740,8 +742,8 @@ export async function uploadTaskEvidence(file: File): Promise<string> {
     .upload(filePath, file, { cacheControl: '3600', upsert: true })
 
   if (uploadError) {
-    console.warn('[Tasks] uploadTaskEvidence storage error:', uploadError)
-    // Devolver DataURL o simulación si el bucket no existe en desarrollo local sin backend real
+    console.warn('[Tasks] uploadTaskEvidence storage upload warning (using fallback):', uploadError.message || uploadError)
+    // Devolver DataURL de respaldo en caso de desconexión o entorno local sin bucket
     return new Promise((resolve) => {
       const reader = new FileReader()
       reader.onloadend = () => resolve(reader.result as string)

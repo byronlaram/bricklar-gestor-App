@@ -73,8 +73,9 @@ export default function CourierFundsPage() {
 
   const cashCollections = cashSummary.collectionsNIO
   const totalExpenses = cashSummary.expensesNIO
-  const initialCash = activeWorkday?.initial_cash || 0
-  const totalFundsReceived = initialCash
+  const initialCash = cashSummary.initialCashNIO
+  const totalAdvances = cashSummary.advancesNIO
+  const totalFundsReceived = initialCash + totalAdvances
   const alreadyReceivedByAdmin = cashSummary.alreadyReceivedNIO
 
   // Saldo exclusivo del turno actual en mano
