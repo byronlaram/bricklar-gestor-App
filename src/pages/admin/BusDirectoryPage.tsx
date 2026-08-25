@@ -116,15 +116,39 @@ export default function BusDirectoryPage() {
                 {filtered.map((route) => (
                   <tr key={route.id} className={`hover:bg-muted/20 transition-colors ${!route.is_active ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3">
-                      <div className="space-y-0.5">
-                        <p className="font-semibold text-foreground flex items-center gap-1.5">
+                      <div className="space-y-1.5">
+                        {/* Destino */}
+                        <p className="font-bold text-foreground flex items-center gap-1.5 text-xs sm:text-sm">
                           <MapPin className="h-3.5 w-3.5 text-accent shrink-0" />
-                          {route.destination_city}
+                          <span>{route.destination_city}</span>
                         </p>
+
+                        {/* Cooperativa (Visible en móvil) */}
+                        <p className="text-xs font-semibold text-foreground-muted sm:hidden flex items-center gap-1.5">
+                          <Bus className="h-3 w-3 text-sky-600 dark:text-sky-400 shrink-0" />
+                          <span>{route.cooperative_name}</span>
+                        </p>
+
+                        {/* Horarios de Salida (Destacado y visible a simple vista en móvil) */}
+                        {route.departure_schedules && (
+                          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-800 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded-lg border border-sky-200/70 dark:border-sky-800/60 sm:hidden w-fit">
+                            <Clock className="h-3 w-3 text-sky-600 dark:text-sky-400 shrink-0" />
+                            <span>{route.departure_schedules}</span>
+                          </div>
+                        )}
+
+                        {/* Terminal Origen (Visible en móvil) */}
+                        <p className="text-[11px] text-foreground-muted sm:hidden">
+                          Origen: <span className="font-medium text-foreground">{route.origin_terminal}</span>
+                        </p>
+
+                        {/* Teléfono */}
                         {route.dispatch_phone && (
                           <p className="text-foreground-muted text-[11px] flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            {route.dispatch_phone}
+                            <Phone className="h-3 w-3 text-slate-400" />
+                            <a href={`tel:${route.dispatch_phone.replace(/[\s-]/g, '')}`} className="hover:underline">
+                              {route.dispatch_phone}
+                            </a>
                           </p>
                         )}
                       </div>
@@ -136,9 +160,11 @@ export default function BusDirectoryPage() {
                       {route.origin_terminal}
                     </td>
                     <td className="px-4 py-3 hidden lg:table-cell">
-                      <div className="flex items-center gap-1 text-foreground-muted">
-                        <Clock className="h-3.5 w-3.5 shrink-0" />
-                        <span className="text-[11px]">{route.departure_schedules}</span>
+                      <div className="flex items-center gap-1.5 text-foreground-muted">
+                        <Clock className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+                        <span className="text-[11px] font-medium bg-sky-50 dark:bg-sky-950/40 text-sky-800 dark:text-sky-300 px-2 py-0.5 rounded-md border border-sky-100 dark:border-sky-800/50">
+                          {route.departure_schedules || 'No especificado'}
+                        </span>
                       </div>
                     </td>
                     <td className="px-4 py-3 text-center">
