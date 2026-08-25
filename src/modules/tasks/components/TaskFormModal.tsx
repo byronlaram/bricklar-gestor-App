@@ -26,7 +26,8 @@ import { useTaskMutations } from '../hooks/useTaskMutations'
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS, type PaymentMethod, type TaskType } from '@/shared/types'
 import { ConfirmDialog, useToast } from '@/shared/components/ui'
 import { TASK_TYPE_CONFIGS } from '../config/taskTypeConfig'
-import { useBusRoutes } from '@/modules/buses/hooks/useBuses'
+import { BusRouteCombobox } from '@/modules/buses/components/BusRouteCombobox'
+import type { BusRoute } from '@/modules/buses/types/buses.types'
 import { useCouriers } from '../hooks/useCouriers'
 import { getLocalDateString } from '@/shared/utils/date'
 
@@ -41,7 +42,6 @@ interface TaskFormModalProps {
 export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onClose }: TaskFormModalProps) {
   const isEditing = !!taskToEdit
   const { createTask, updateTask, isCreating, isUpdating } = useTaskMutations()
-  const { data: busRoutes = [] } = useBusRoutes()
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>(branchId || branches[0]?.id || '')
 
@@ -462,25 +462,29 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                     <label className="block text-xs font-medium text-foreground-muted mb-1">
                       {config.institutionLabel}
                     </label>
-                    <input
-                      type="text"
-                      list="bus-cooperatives-list"
-                      placeholder={config.institutionPlaceholder}
-                      {...register('institution_name')}
-                      className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
-                    />
-                    {selectedTaskType === 'bus_shipment' && (
-                      <datalist id="bus-cooperatives-list">
-                        {Array.from(
-                          new Set(
-                            ((busRoutes || []) as Array<{ cooperative_name: string }>).map(
-                              (b: { cooperative_name: string }) => b.cooperative_name
-                            )
-                          )
-                        ).map((coop: string) => (
-                          <option key={coop} value={coop} />
-                        ))}
-                      </datalist>
+                    {selectedTaskType === 'bus_shipment' ? (
+                      <BusRouteCombobox
+                        value={watch('institution_name') || ''}
+                        onChange={(val) => {
+                          setValue('institution_name', val, { shouldDirty: true })
+                        }}
+                        onSelectRoute={(route: BusRoute) => {
+                          setValue('institution_name', route.cooperative_name, { shouldDirty: true })
+                          setValue('address', route.origin_terminal, { shouldDirty: true })
+                          setValue('address_reference', route.destination_city, { shouldDirty: true })
+                          if (route.dispatch_phone && !watch('phone')) {
+                            setValue('phone', route.dispatch_phone, { shouldDirty: true })
+                          }
+                        }}
+                        placeholder={config.institutionPlaceholder || 'Buscar destino o transporte...'}
+                      />
+                    ) : (
+                      <input
+                        type="text"
+                        placeholder={config.institutionPlaceholder}
+                        {...register('institution_name')}
+                        className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
+                      />
                     )}
                   </div>
                 )}
