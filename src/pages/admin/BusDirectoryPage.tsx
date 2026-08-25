@@ -136,19 +136,19 @@ export default function BusDirectoryPage() {
                           </span>
                         </div>
 
-                        {/* 2. Horarios de Salida (Limpio y destacado) */}
+                        {/* 2. Horarios de Salida (Recuadro azul con texto en color blanco) */}
                         {route.departure_schedules && (
-                          <div className="flex items-center gap-1.5 text-[11px] font-semibold text-sky-800 dark:text-sky-300 bg-sky-50 dark:bg-sky-950/60 px-2 py-0.5 rounded-lg border border-sky-200/70 dark:border-sky-800/60 w-fit">
-                            <Clock className="h-3 w-3 text-sky-600 dark:text-sky-400 shrink-0" />
-                            <span>{route.departure_schedules}</span>
+                          <div className="flex items-center gap-1.5 text-[11px] font-bold text-white bg-[#0284c7] dark:bg-sky-600 px-2.5 py-0.5 rounded-lg shadow-2xs w-fit">
+                            <Clock className="h-3 w-3 text-white shrink-0" />
+                            <span className="text-white font-bold">{route.departure_schedules}</span>
                           </div>
                         )}
 
-                        {/* 3. Teléfono */}
+                        {/* 3. Teléfono (Color gris oscuro para mayor legibilidad) */}
                         {route.dispatch_phone && (
-                          <p className="text-foreground-muted text-[11px] flex items-center gap-1">
-                            <Phone className="h-3 w-3 text-slate-400 shrink-0" />
-                            <span className="text-slate-600 dark:text-slate-300 font-medium">
+                          <p className="text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5">
+                            <Phone className="h-3.5 w-3.5 text-slate-700 dark:text-slate-300 shrink-0" />
+                            <span className="text-slate-800 dark:text-slate-200 font-semibold">
                               {route.dispatch_phone}
                             </span>
                           </p>
