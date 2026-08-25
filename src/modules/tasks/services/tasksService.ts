@@ -18,6 +18,7 @@ import type {
 } from '../types/task.types'
 import type { TaskStatus } from '@/shared/types'
 import { ALLOWED_TRANSITIONS } from '@/shared/types'
+import { compressImage } from '@/shared/utils/imageCompressor'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -170,7 +171,7 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
 
   let { data, error } = await supabase
     .from('tasks')
-    .insert(insert)
+    .insert(insert as any)
     .select()
     .single()
 
@@ -194,7 +195,7 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
 
     const retry = await supabase
       .from('tasks')
-      .insert(baseInsert)
+      .insert(baseInsert as any)
       .select()
       .single()
 
@@ -231,7 +232,7 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
 
   let { data, error } = await supabase
     .from('tasks')
-    .update({ ...payload, updated_by: userId, updated_at: new Date().toISOString() })
+    .update({ ...payload, updated_by: userId, updated_at: new Date().toISOString() } as any)
     .eq('id', id)
     .is('deleted_at', null)
     .select()
@@ -256,7 +257,7 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
 
     const retry = await supabase
       .from('tasks')
-      .update({ ...cleanPayload, updated_by: userId, updated_at: new Date().toISOString() })
+      .update({ ...cleanPayload, updated_by: userId, updated_at: new Date().toISOString() } as any)
       .eq('id', id)
       .is('deleted_at', null)
       .select()
@@ -731,7 +732,8 @@ export async function rejectTask(taskId: string, rejectionReason: string): Promi
 
 // ─── uploadTaskEvidence ───────────────────────────────────────────────────────
 export async function uploadTaskEvidence(file: File): Promise<string> {
-  const rawExt = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const optimizedFile = await compressImage(file, 1280, 1280, 0.82)
+  const rawExt = (optimizedFile.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
   const validExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf']
   const fileExt = validExtensions.includes(rawExt) ? rawExt : 'jpg'
   const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`
@@ -739,7 +741,7 @@ export async function uploadTaskEvidence(file: File): Promise<string> {
 
   const { error: uploadError } = await supabase.storage
     .from('task-evidences')
-    .upload(filePath, file, { cacheControl: '3600', upsert: true })
+    .upload(filePath, optimizedFile, { cacheControl: '3600', upsert: true })
 
   if (uploadError) {
     console.warn('[Tasks] uploadTaskEvidence storage upload warning (using fallback):', uploadError.message || uploadError)
@@ -747,7 +749,33 @@ export async function uploadTaskEvidence(file: File): Promise<string> {
     return new Promise((resolve) => {
       const reader = new FileReader()
       reader.onloadend = () => resolve(reader.result as string)
-      reader.readAsDataURL(file)
+      reader.readAsDataURL(optimizedFile)
+    })
+  }
+
+  const { data: urlData } = supabase.storage.from('task-evidences').getPublicUrl(filePath)
+  return urlData.publicUrl
+}
+
+// ─── uploadTaskReferenceImage ────────────────────────────────────────────────
+export async function uploadTaskReferenceImage(file: File): Promise<string> {
+  const optimizedFile = await compressImage(file, 1400, 1400, 0.85)
+  const rawExt = (optimizedFile.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const validExtensions = ['jpg', 'jpeg', 'png', 'webp']
+  const fileExt = validExtensions.includes(rawExt) ? rawExt : 'jpg'
+  const fileName = `ref_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`
+  const filePath = `references/${fileName}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('task-evidences')
+    .upload(filePath, optimizedFile, { cacheControl: '86400', upsert: true })
+
+  if (uploadError) {
+    console.warn('[Tasks] uploadTaskReferenceImage storage warning (using fallback):', uploadError.message || uploadError)
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.readAsDataURL(optimizedFile)
     })
   }
 

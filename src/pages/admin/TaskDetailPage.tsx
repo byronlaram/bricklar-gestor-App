@@ -6,7 +6,6 @@ import {
   RefreshCw,
   Edit3,
   Trash2,
-  MapPin,
   ExternalLink,
   Phone,
   MessageCircle,
@@ -16,6 +15,8 @@ import {
   User,
   AlertCircle,
   Clock,
+  Camera,
+  Eye,
 } from 'lucide-react'
 import { useTask } from '@/modules/tasks/hooks/useTask'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
@@ -34,6 +35,7 @@ import {
   Divider,
   Skeleton,
   ConfirmDialog,
+  ImageViewerModal,
   useToast,
 } from '@/shared/components/ui'
 
@@ -49,6 +51,18 @@ export default function TaskDetailPage() {
   const [isStatusOpen, setIsStatusOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
+  const [isViewerOpen, setIsViewerOpen] = useState(false)
+  const [viewerIndex, setViewerIndex] = useState(0)
+
+  const metadata = task?.metadata as { reference_photos?: string[] } | null
+  const referencePhotos = Array.isArray(metadata?.reference_photos) && metadata.reference_photos.length > 0
+    ? metadata.reference_photos
+    : (task?.evidence_url ? [task.evidence_url] : [])
+
+  const openViewer = (idx: number) => {
+    setViewerIndex(idx)
+    setIsViewerOpen(true)
+  }
 
   if (isLoading) {
     return (
@@ -248,27 +262,64 @@ export default function TaskDetailPage() {
                 {task.address || 'Sin dirección registrada'}
               </p>
               {task.address_reference && (
-                <p className="text-xs text-slate-500 italic pt-1">
-                  Referencia: {task.address_reference}
+                <p className="text-xs text-slate-500 italic pt-1 font-medium">
+                  Ref: {task.address_reference}
                 </p>
               )}
 
               {task.maps_url && (
-                <div className="pt-3">
+                <div className="pt-2">
                   <a
                     href={task.maps_url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-accent bg-sky-50 hover:bg-sky-100 border border-sky-200 rounded-lg transition"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-accent hover:underline bg-sky-50 px-3 py-1.5 rounded-lg border border-sky-100"
                   >
-                    <MapPin className="h-3.5 w-3.5" />
-                    Abrir en Google Maps / Waze
-                    <ExternalLink className="h-3 w-3" />
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Abrir ubicación en Google Maps / Waze
                   </a>
                 </div>
               )}
             </div>
           </Card>
+
+          {/* 📸 Fotos e Imágenes de Referencia */}
+          {referencePhotos.length > 0 && (
+            <Card className="p-6 bg-white border-slate-200 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <Camera className="h-4 w-4 text-accent" />
+                  Fotos de Referencia del Producto / Documentos
+                </h2>
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-sky-50 text-accent border border-sky-200">
+                  {referencePhotos.length} {referencePhotos.length === 1 ? 'Foto adjunta' : 'Fotos adjuntas'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {referencePhotos.map((photoUrl, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => openViewer(idx)}
+                    className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 shadow-2xs hover:shadow-md transition-all group bg-slate-50 cursor-pointer"
+                  >
+                    <img
+                      src={photoUrl}
+                      alt={`Referencia ${idx + 1}`}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                      <Eye className="h-5 w-5 drop-shadow" />
+                    </div>
+                    <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[10px] font-bold text-white">
+                      #{idx + 1}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </Card>
+          )}
 
           {/* Aspectos Financieros */}
           <Card className="p-6 bg-white border-slate-200 shadow-2xs space-y-4">
@@ -439,6 +490,15 @@ export default function TaskDetailPage() {
         confirmText={isDeleting ? 'Eliminando...' : 'Eliminar Definitivamente'}
         cancelText="Cancelar"
         variant="destructive"
+      />
+
+      {/* Visor de Fotos en Pantalla Completa */}
+      <ImageViewerModal
+        images={referencePhotos}
+        initialIndex={viewerIndex}
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        title={`Fotos de Referencia - ${task.code}`}
       />
     </div>
   )

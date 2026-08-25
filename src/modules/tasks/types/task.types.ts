@@ -135,6 +135,11 @@ export interface TaskStatusHistory {
   changed_by_profile?: { full_name: string }
 }
 
+export interface TaskMetadata {
+  reference_photos?: string[]
+  [key: string]: unknown
+}
+
 // ─── Payload para crear tarea ─────────────────────────────────────────────────
 
 export interface CreateTaskPayload {
@@ -172,6 +177,7 @@ export interface CreateTaskPayload {
   expected_payment_currency?: Currency | null
   notes?: string | null
   assigned_courier_id?: string | null
+  metadata?: TaskMetadata | Record<string, unknown> | null
 }
 
 // ─── Payload para actualizar tarea ───────────────────────────────────────────

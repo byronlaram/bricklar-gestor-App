@@ -11,6 +11,8 @@ import {
   AlertCircle,
   User,
   Clock,
+  Camera,
+  Eye,
 } from 'lucide-react'
 import { useTask } from '@/modules/tasks/hooks/useTask'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
@@ -28,6 +30,7 @@ import {
   Button,
   Badge,
   Skeleton,
+  ImageViewerModal,
   useToast,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
@@ -51,8 +54,20 @@ export default function CourierTaskDetailPage() {
 
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false)
   const [isStartWorkdayOpen, setIsStartWorkdayOpen] = useState(false)
+  const [isViewerOpen, setIsViewerOpen] = useState(false)
+  const [viewerIndex, setViewerIndex] = useState(0)
 
   const todayTasks = todayTasksData?.data || []
+
+  const metadata = task?.metadata as { reference_photos?: string[] } | null
+  const referencePhotos = Array.isArray(metadata?.reference_photos) && metadata.reference_photos.length > 0
+    ? metadata.reference_photos
+    : (task?.evidence_url ? [task.evidence_url] : [])
+
+  const openViewer = (idx: number) => {
+    setViewerIndex(idx)
+    setIsViewerOpen(true)
+  }
 
   if (isLoading) {
     return (
@@ -211,6 +226,53 @@ export default function CourierTaskDetailPage() {
         )}
       </div>
 
+      {/* 📸 Fotos de Referencia del Producto / Paquete a Retirar */}
+      {referencePhotos.length > 0 && (
+        <Card className="p-4 bg-gradient-to-r from-sky-50 to-indigo-50/50 border border-sky-200/80 rounded-2xl shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-xl bg-sky-600 text-white shadow-2xs">
+                <Camera className="h-4 w-4" />
+              </div>
+              <div>
+                <h2 className="text-xs font-black text-slate-900 uppercase tracking-wide">
+                  Fotos del Producto / Paquete
+                </h2>
+                <p className="text-[11px] text-sky-800 font-medium">
+                  Toca una foto para ampliarla y verificar qué retirar
+                </p>
+              </div>
+            </div>
+            <span className="text-2xs font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-200">
+              {referencePhotos.length} {referencePhotos.length === 1 ? 'Foto' : 'Fotos'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1">
+            {referencePhotos.map((photoUrl, idx) => (
+              <button
+                key={idx}
+                type="button"
+                onClick={() => openViewer(idx)}
+                className="relative aspect-4/3 rounded-xl overflow-hidden border border-sky-200/90 shadow-2xs active:scale-95 transition-all group bg-white cursor-pointer"
+              >
+                <img
+                  src={photoUrl}
+                  alt={`Producto ${idx + 1}`}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                />
+                <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                  <Eye className="h-5 w-5 drop-shadow" />
+                </div>
+                <span className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/60 text-[9px] font-bold text-white">
+                  Foto {idx + 1}
+                </span>
+              </button>
+            ))}
+          </div>
+        </Card>
+      )}
+
       {/* Detalles de la Entrega */}
       <Card className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-xs space-y-4">
         <h2 className="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">
@@ -334,6 +396,15 @@ export default function CourierTaskDetailPage() {
         branchId={branchId}
         isOpen={isStartWorkdayOpen}
         onClose={() => setIsStartWorkdayOpen(false)}
+      />
+
+      {/* Visor a Pantalla Completa con Zoom */}
+      <ImageViewerModal
+        images={referencePhotos}
+        initialIndex={viewerIndex}
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        title={`Producto - ${task.code}`}
       />
     </div>
   )

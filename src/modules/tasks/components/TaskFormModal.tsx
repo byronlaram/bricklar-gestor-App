@@ -18,17 +18,22 @@ import {
   ArrowDownLeft,
   ArrowUpRight,
   Ban,
+  Camera,
+  Trash2,
+  Eye,
+  UploadCloud,
 } from 'lucide-react'
 import { cn } from '@/shared/utils/cn'
 import { taskBaseSchema, type TaskBaseInput } from '@/shared/validations/schemas'
 import type { TaskWithCourier } from '../types/task.types'
 import { useTaskMutations } from '../hooks/useTaskMutations'
 import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS, type PaymentMethod, type TaskType } from '@/shared/types'
-import { ConfirmDialog, useToast } from '@/shared/components/ui'
+import { ConfirmDialog, useToast, ImageViewerModal } from '@/shared/components/ui'
 import { TASK_TYPE_CONFIGS } from '../config/taskTypeConfig'
 import { BusRouteCombobox } from '@/modules/buses/components/BusRouteCombobox'
 import type { BusRoute } from '@/modules/buses/types/buses.types'
 import { useCouriers } from '../hooks/useCouriers'
+import { uploadTaskReferenceImage } from '../services/tasksService'
 import { getLocalDateString } from '@/shared/utils/date'
 
 interface TaskFormModalProps {
@@ -62,6 +67,11 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
 
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
   const [showAllDetails, setShowAllDetails] = useState(false)
+  const [referencePhotos, setReferencePhotos] = useState<string[]>([])
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
+  const [viewerIndex, setViewerIndex] = useState(0)
+  const [isViewerOpen, setIsViewerOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const isTitleCustomized = useRef(false)
   const previousTypeRef = useRef<TaskType>('delivery')
@@ -183,6 +193,12 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
       isTitleCustomized.current = isEditing
 
       if (taskToEdit) {
+        const metadata = taskToEdit.metadata as { reference_photos?: string[] } | null
+        const photos = Array.isArray(metadata?.reference_photos)
+          ? metadata.reference_photos
+          : (taskToEdit.evidence_url ? [taskToEdit.evidence_url] : [])
+        setReferencePhotos(photos)
+
         reset({
           task_type: taskToEdit.task_type,
           title: taskToEdit.title,
@@ -212,6 +228,7 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
           notes: taskToEdit.notes || '',
         })
       } else {
+        setReferencePhotos([])
         const defaultConfig = TASK_TYPE_CONFIGS.delivery
         reset({
           task_type: 'delivery',
@@ -247,16 +264,50 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
 
   if (!isOpen) return null
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+
+    setIsUploadingPhoto(true)
+    try {
+      const uploadPromises = Array.from(files).map((file) => uploadTaskReferenceImage(file))
+      const urls = await Promise.all(uploadPromises)
+      setReferencePhotos((prev) => [...prev, ...urls])
+      toast.success(
+        urls.length === 1
+          ? 'Foto de referencia adjuntada'
+          : `${urls.length} fotos adjuntadas correctamente.`
+      )
+    } catch (err: unknown) {
+      console.error('Error al subir fotos de referencia:', err)
+      toast.error('No se pudieron subir las imágenes. Intenta nuevamente.')
+    } finally {
+      setIsUploadingPhoto(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRemovePhoto = (indexToRemove: number) => {
+    setReferencePhotos((prev) => prev.filter((_, idx) => idx !== indexToRemove))
+  }
+
+  const handlePreviewPhoto = (index: number) => {
+    setViewerIndex(index)
+    setIsViewerOpen(true)
+  }
+
   const forceClose = () => {
     setShowDiscardConfirm(false)
     setShowAllDetails(false)
     isTitleCustomized.current = false
+    setReferencePhotos([])
+    setIsViewerOpen(false)
     reset()
     onClose()
   }
 
   const handleRequestClose = () => {
-    if (isDirty) {
+    if (isDirty || referencePhotos.length > 0) {
       setShowDiscardConfirm(true)
     } else {
       forceClose()
@@ -275,8 +326,15 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
     }
 
     try {
+      const finalMetadata = {
+        ...((taskToEdit?.metadata as Record<string, unknown>) || {}),
+        reference_photos: referencePhotos,
+      }
+
       const sanitizedPayload = {
         ...data,
+        metadata: finalMetadata,
+        evidence_url: referencePhotos[0] || null,
         scheduled_start_time: data.scheduled_start_time || null,
         scheduled_deadline: data.scheduled_deadline || null,
         maps_url: data.maps_url || null,
@@ -548,6 +606,105 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                       />
                     </div>
                   )}
+                </div>
+              )}
+            </div>
+
+            {/* Sección Fotos de Referencia para el Motorizado */}
+            <div className="space-y-3 pt-3 border-t border-border/40">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
+                    <Camera className="h-4 w-4 text-accent" />
+                    Fotos de Referencia del Producto / Documentos
+                  </h3>
+                  <p className="text-[11px] text-foreground-muted mt-0.5">
+                    Permite al motorizado identificar qué producto o paquete retirar.
+                  </p>
+                </div>
+
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handlePhotoUpload}
+                  accept="image/*"
+                  multiple
+                  className="hidden"
+                />
+
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingPhoto}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/30 rounded-xl transition cursor-pointer disabled:opacity-50"
+                >
+                  {isUploadingPhoto ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Subiendo...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-3.5 w-3.5" />
+                      Adjuntar Fotos
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Galería de Fotos Subidas */}
+              {referencePhotos.length > 0 ? (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 bg-muted/20 border border-border/60 rounded-xl">
+                  {referencePhotos.map((photoUrl, idx) => (
+                    <div
+                      key={idx}
+                      className="relative group rounded-xl overflow-hidden border border-border bg-background aspect-square shadow-2xs"
+                    >
+                      <img
+                        src={photoUrl}
+                        alt={`Referencia ${idx + 1}`}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                      />
+
+                      {/* Overlay con acciones */}
+                      <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handlePreviewPhoto(idx)}
+                          className="p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg transition cursor-pointer"
+                          title="Ver en grande"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleRemovePhoto(idx)}
+                          className="p-1.5 bg-rose-600/80 hover:bg-rose-600 text-white rounded-lg transition cursor-pointer"
+                          title="Eliminar foto"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+
+                      {/* Badge con número */}
+                      <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[10px] font-bold text-white pointer-events-none">
+                        #{idx + 1}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="border-2 border-dashed border-border/80 hover:border-accent/60 rounded-xl p-4 text-center cursor-pointer transition bg-muted/10 hover:bg-accent/5 flex flex-col items-center justify-center gap-1.5"
+                >
+                  <UploadCloud className="h-6 w-6 text-foreground-muted" />
+                  <p className="text-xs font-semibold text-foreground">
+                    Haz clic para seleccionar o arrastrar fotos aquí
+                  </p>
+                  <p className="text-[11px] text-foreground-muted">
+                    Formatos JPG, PNG, WebP (Se comprimen automáticamente)
+                  </p>
                 </div>
               )}
             </div>
@@ -935,6 +1092,15 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
         confirmText="Descartar"
         cancelText="Continuar editando"
         variant="destructive"
+      />
+
+      {/* Visor de Fotos a Pantalla Completa */}
+      <ImageViewerModal
+        images={referencePhotos}
+        initialIndex={viewerIndex}
+        isOpen={isViewerOpen}
+        onClose={() => setIsViewerOpen(false)}
+        title="Foto de Referencia del Producto"
       />
     </>
   )
