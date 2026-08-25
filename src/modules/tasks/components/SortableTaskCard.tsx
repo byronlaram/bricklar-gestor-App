@@ -13,11 +13,13 @@ import {
   Bike,
   User,
   DollarSign,
+  Camera,
 } from 'lucide-react'
 import { TaskTypeBadge } from './TaskTypeBadge'
 import { TaskStatusBadge } from './TaskStatusBadge'
 import type { TaskWithCourier } from '../types/task.types'
 import { Button } from '@/shared/components/ui'
+import { getTaskPhotos } from '@/pages/courier/TasksPage'
 
 interface SortableTaskCardProps {
   task: TaskWithCourier
@@ -32,6 +34,7 @@ interface SortableTaskCardProps {
   onStartRoute: (task: TaskWithCourier) => void
   onStartManagement?: (task: TaskWithCourier) => void
   onOpenStatusModal: (task: TaskWithCourier) => void
+  onPreviewPhotos?: (photos: string[], title: string) => void
 }
 
 export function SortableTaskCard({
@@ -47,6 +50,7 @@ export function SortableTaskCard({
   onStartRoute,
   onStartManagement,
   onOpenStatusModal,
+  onPreviewPhotos,
 }: SortableTaskCardProps) {
   const {
     attributes,
@@ -72,6 +76,7 @@ export function SortableTaskCard({
     'bg-[#FCF5F7] border-rose-100/70',
   ]
   const cardStyle = cardStyles[index % cardStyles.length]
+  const photos = getTaskPhotos(task)
 
   return (
     <div ref={setNodeRef} style={style} className="touch-action-none">
@@ -80,16 +85,16 @@ export function SortableTaskCard({
           isDragging ? 'ring-2 ring-indigo-600 shadow-xl scale-[1.02] bg-indigo-50/60' : ''
         }`}
       >
-        {/* Header: Asa de Arrastre + Parada # + Controles + Badges Tipo y Estado sin desbordamiento */}
+        {/* Header: Asa de Arrastre + Parada # + Controles Táctiles + Badges Tipo, Foto y Estado */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5">
           <div className="flex items-center justify-between w-full gap-2 min-w-0">
-            <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+            <div className="flex items-center gap-2 min-w-0 flex-wrap">
               {/* Control Asa Táctil (Drag Handle) */}
               <button
                 type="button"
                 {...attributes}
                 {...listeners}
-                className="p-1 rounded-xl text-slate-400 hover:text-indigo-700 hover:bg-indigo-50 active:bg-indigo-100 cursor-grab active:cursor-grabbing touch-none shrink-0"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-indigo-700 hover:bg-indigo-50 active:bg-indigo-100 cursor-grab active:cursor-grabbing touch-none shrink-0"
                 title="Arrastrar para reordenar parada"
                 aria-label="Arrastrar para reordenar"
               >
@@ -97,12 +102,12 @@ export function SortableTaskCard({
               </button>
 
               {/* Número de Parada Ordinal */}
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-900 text-white font-extrabold text-xs shadow-xs shrink-0">
-                #{index + 1}
+              <span className="flex h-8 px-2.5 items-center justify-center rounded-full bg-indigo-900 text-white font-extrabold text-xs shadow-xs shrink-0 font-mono">
+                Parada #{index + 1}
               </span>
 
-              {/* Botones accesibles para Subir / Bajar */}
-              <div className="flex items-center gap-0.5 bg-white/90 p-0.5 rounded-xl border border-slate-200 shrink-0">
+              {/* ⬆️⬇️ Selectores Táctiles Grandes y Separados para Subir / Bajar */}
+              <div className="flex flex-col gap-1 bg-white/95 p-1 rounded-2xl border border-slate-200/90 shadow-2xs shrink-0">
                 <button
                   type="button"
                   disabled={isFirst}
@@ -110,11 +115,11 @@ export function SortableTaskCard({
                     e.stopPropagation()
                     onMoveUp()
                   }}
-                  className="p-1 text-slate-600 hover:text-indigo-700 disabled:opacity-30 transition cursor-pointer"
-                  title="Subir parada"
+                  className="h-7 w-7 sm:h-6 sm:w-6 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-indigo-50 active:bg-indigo-100 text-slate-700 hover:text-indigo-700 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                  title="Subir parada de posición"
                   aria-label="Subir una posición"
                 >
-                  <ChevronUp className="h-4 w-4" />
+                  <ChevronUp className="h-4.5 w-4.5 stroke-[2.5]" />
                 </button>
                 <button
                   type="button"
@@ -123,15 +128,35 @@ export function SortableTaskCard({
                     e.stopPropagation()
                     onMoveDown()
                   }}
-                  className="p-1 text-slate-600 hover:text-indigo-700 disabled:opacity-30 transition cursor-pointer"
-                  title="Bajar parada"
+                  className="h-7 w-7 sm:h-6 sm:w-6 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-indigo-50 active:bg-indigo-100 text-slate-700 hover:text-indigo-700 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                  title="Bajar parada de posición"
                   aria-label="Bajar una posición"
                 >
-                  <ChevronDown className="h-4 w-4" />
+                  <ChevronDown className="h-4.5 w-4.5 stroke-[2.5]" />
                 </button>
               </div>
 
               <TaskTypeBadge type={task.task_type} />
+
+              {/* 📸 Indicador Prominente de Fotos */}
+              {photos.length > 0 && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    if (onPreviewPhotos) {
+                      onPreviewPhotos(photos, task.title)
+                    } else {
+                      onNavigate(task)
+                    }
+                  }}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-100 hover:bg-sky-200 text-sky-900 border border-sky-300 font-extrabold text-xs shadow-2xs transition-all cursor-pointer active:scale-95 shrink-0"
+                  title="Esta tarea tiene fotos. Toca para verlas."
+                >
+                  <Camera className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                  <span>{photos.length > 1 ? `${photos.length} Fotos` : 'Tiene Foto'}</span>
+                </button>
+              )}
             </div>
 
             {/* Badge de Estado Ajustado Nítidamente a la Derecha */}

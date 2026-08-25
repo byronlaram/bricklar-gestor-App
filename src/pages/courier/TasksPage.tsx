@@ -34,12 +34,13 @@ import {
   DollarSign,
   Receipt,
   Clock,
+  Camera,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
-import type { TaskWithCourier } from '@/modules/tasks/types/task.types'
+import type { TaskWithCourier, Task } from '@/modules/tasks/types/task.types'
 import { TaskTypeBadge } from '@/modules/tasks/components/TaskTypeBadge'
 import { TaskStatusBadge } from '@/modules/tasks/components/TaskStatusBadge'
 import { CompleteTaskModal } from '@/modules/courier/components/CompleteTaskModal'
@@ -52,9 +53,26 @@ import {
   EmptyState,
   useToast,
   Card,
+  ImageViewerModal,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
 import { cn } from '@/shared/utils/cn'
+
+// ─── Utilidad para extraer fotos de una tarea ─────────────────────────────
+
+export function getTaskPhotos(task: Task | TaskWithCourier): string[] {
+  const metadata = task?.metadata as { reference_photos?: string[]; photos?: string[] } | null
+  if (Array.isArray(metadata?.reference_photos) && metadata.reference_photos.length > 0) {
+    return metadata.reference_photos.filter(Boolean)
+  }
+  if (Array.isArray(metadata?.photos) && metadata.photos.length > 0) {
+    return metadata.photos.filter(Boolean)
+  }
+  if (task?.evidence_url) {
+    return [task.evidence_url]
+  }
+  return []
+}
 
 // ─── Componente de Tarjeta de Tarea Ordenable (Drag & Drop + Calle) ─────────
 
@@ -71,6 +89,7 @@ interface TaskCardItemProps {
   onStartRoute: (task: TaskWithCourier) => void
   onStartManagement: (task: TaskWithCourier) => void
   onComplete: (task: TaskWithCourier) => void
+  onPreviewPhotos: (photos: string[], title: string) => void
   isChangingStatus: boolean
 }
 
@@ -87,6 +106,7 @@ function TaskCardItem({
   onStartRoute,
   onStartManagement,
   onComplete,
+  onPreviewPhotos,
   isChangingStatus,
 }: TaskCardItemProps) {
   const {
@@ -113,6 +133,7 @@ function TaskCardItem({
     'bg-[#FCF5F7] border-rose-100/80',
   ]
   const cardStyle = cardStyles[index % cardStyles.length]
+  const photos = getTaskPhotos(task)
 
   return (
     <div ref={setNodeRef} style={style} className="touch-action-none">
@@ -121,15 +142,15 @@ function TaskCardItem({
           isDragging ? 'ring-2 ring-indigo-600 shadow-xl scale-[1.02] bg-indigo-50/60' : ''
         }`}
       >
-        {/* Header: Asa de Arrastre + Parada # + Botones Subir/Bajar + Tipo + Estado */}
+        {/* Header: Asa de Arrastre + Parada # + Botones Táctiles Subir/Bajar + Tipo + Badge Fotos + Estado */}
         <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5">
-          <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
+          <div className="flex items-center gap-2 min-w-0 flex-wrap">
             {/* Control Asa Táctil (Drag Handle) */}
             <button
               type="button"
               {...attributes}
               {...listeners}
-              className="p-1 rounded-xl text-slate-400 hover:text-indigo-700 hover:bg-indigo-50 active:bg-indigo-100 cursor-grab active:cursor-grabbing touch-none shrink-0"
+              className="p-1.5 rounded-xl text-slate-400 hover:text-indigo-700 hover:bg-indigo-50 active:bg-indigo-100 cursor-grab active:cursor-grabbing touch-none shrink-0"
               title="Arrastrar para ordenar parada"
               aria-label="Arrastrar para ordenar"
             >
@@ -137,12 +158,12 @@ function TaskCardItem({
             </button>
 
             {/* Número de Parada Ordinal */}
-            <span className="flex h-7 px-2 items-center justify-center rounded-full bg-indigo-900 text-white font-extrabold text-xs shadow-xs shrink-0 font-mono">
+            <span className="flex h-8 px-2.5 items-center justify-center rounded-full bg-indigo-900 text-white font-extrabold text-xs shadow-xs shrink-0 font-mono">
               Parada #{index + 1}
             </span>
 
-            {/* Botones accesibles para Subir / Bajar de posición */}
-            <div className="flex items-center gap-0.5 bg-white/90 p-0.5 rounded-xl border border-slate-200 shrink-0">
+            {/* ⬆️⬇️ Selectores Táctiles Grandes y Separados para Subir / Bajar */}
+            <div className="flex flex-col gap-1 bg-white/95 p-1 rounded-2xl border border-slate-200/90 shadow-2xs shrink-0">
               <button
                 type="button"
                 disabled={isFirst}
@@ -150,11 +171,11 @@ function TaskCardItem({
                   e.stopPropagation()
                   onMoveUp()
                 }}
-                className="p-1 text-slate-600 hover:text-indigo-700 disabled:opacity-25 transition cursor-pointer"
-                title="Subir parada"
+                className="h-7 w-7 sm:h-6 sm:w-6 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-indigo-50 active:bg-indigo-100 text-slate-700 hover:text-indigo-700 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                title="Subir parada de posición"
                 aria-label="Subir una posición"
               >
-                <ChevronUp className="h-3.5 w-3.5" />
+                <ChevronUp className="h-4.5 w-4.5 stroke-[2.5]" />
               </button>
               <button
                 type="button"
@@ -163,15 +184,31 @@ function TaskCardItem({
                   e.stopPropagation()
                   onMoveDown()
                 }}
-                className="p-1 text-slate-600 hover:text-indigo-700 disabled:opacity-25 transition cursor-pointer"
-                title="Bajar parada"
+                className="h-7 w-7 sm:h-6 sm:w-6 flex items-center justify-center rounded-lg bg-slate-50 hover:bg-indigo-50 active:bg-indigo-100 text-slate-700 hover:text-indigo-700 active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed transition-all cursor-pointer shadow-2xs"
+                title="Bajar parada de posición"
                 aria-label="Bajar una posición"
               >
-                <ChevronDown className="h-3.5 w-3.5" />
+                <ChevronDown className="h-4.5 w-4.5 stroke-[2.5]" />
               </button>
             </div>
 
             <TaskTypeBadge type={task.task_type} />
+
+            {/* 📸 Indicador Prominente de Fotos / Imágenes */}
+            {photos.length > 0 && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPreviewPhotos(photos, task.title)
+                }}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sky-100 hover:bg-sky-200 text-sky-900 border border-sky-300 font-extrabold text-xs shadow-2xs transition-all cursor-pointer active:scale-95 shrink-0"
+                title="Esta tarea tiene fotos. Toca para verlas."
+              >
+                <Camera className="h-3.5 w-3.5 text-sky-700 shrink-0" />
+                <span>{photos.length > 1 ? `${photos.length} Fotos` : 'Tiene Foto'}</span>
+              </button>
+            )}
           </div>
 
           <div className="shrink-0">
@@ -179,31 +216,62 @@ function TaskCardItem({
           </div>
         </div>
 
-        {/* Título, Contacto/Institución y Dirección */}
+        {/* Título, Contacto/Institución, Dirección y Miniatura de Foto si existe */}
         <div
           onClick={() => onNavigate(task)}
-          className="space-y-1.5 cursor-pointer group"
+          className="space-y-2 cursor-pointer group"
         >
-          <div className="flex items-start justify-between gap-2">
-            <h3 className="text-base font-extrabold text-[#0A2540] group-hover:text-[#004594] transition-colors leading-snug">
-              {task.title}
-            </h3>
+          <div className="flex items-start justify-between gap-3">
+            <div className="space-y-1.5 flex-1 min-w-0">
+              <div className="flex items-start justify-between gap-2">
+                <h3 className="text-base font-extrabold text-[#0A2540] group-hover:text-[#004594] transition-colors leading-snug">
+                  {task.title}
+                </h3>
+              </div>
+
+              {(task.contact_name || task.institution_name || task.provider_name) && (
+                <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                  <span>{task.contact_name || task.institution_name || task.provider_name}</span>
+                </p>
+              )}
+
+              {task.address && (
+                <div className="p-2.5 rounded-2xl bg-white/90 border border-slate-200/80 text-xs font-medium text-slate-700 flex items-start gap-2 shadow-2xs">
+                  <MapPin className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
+                  <span className="leading-snug">{task.address}</span>
+                </div>
+              )}
+            </div>
+
+            {/* 📸 Miniatura Rápida de Foto si la tarea tiene imágenes */}
+            {photos.length > 0 && (
+              <div
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPreviewPhotos(photos, task.title)
+                }}
+                className="relative group/photo shrink-0 cursor-pointer self-start"
+                title="Toca para ampliar foto"
+              >
+                <img
+                  src={photos[0]}
+                  alt="Foto de referencia"
+                  className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-white shadow-xs ring-1 ring-sky-300 hover:ring-sky-500 hover:scale-105 transition-all"
+                />
+                <div className="absolute inset-0 bg-black/20 rounded-2xl flex items-center justify-center opacity-0 group-hover/photo:opacity-100 transition-opacity">
+                  <Camera className="h-4 w-4 text-white drop-shadow" />
+                </div>
+                {photos.length > 1 && (
+                  <span className="absolute -bottom-1 -right-1 bg-sky-700 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
+                    +{photos.length - 1}
+                  </span>
+                )}
+              </div>
+            )}
+
             <ChevronRight className="h-5 w-5 text-slate-400 group-hover:text-[#004594] transition-colors shrink-0 mt-0.5" />
           </div>
-
-          {(task.contact_name || task.institution_name || task.provider_name) && (
-            <p className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-              <User className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
-              <span>{task.contact_name || task.institution_name || task.provider_name}</span>
-            </p>
-          )}
-
-          {task.address && (
-            <div className="p-2.5 rounded-2xl bg-white/90 border border-slate-200/80 text-xs font-medium text-slate-700 flex items-start gap-2 shadow-2xs">
-              <MapPin className="h-4 w-4 text-indigo-600 shrink-0 mt-0.5" />
-              <span className="leading-snug">{task.address}</span>
-            </div>
-          )}
         </div>
 
         {/* 💵 CONTENEDORES DE MONTOS VISIBLES (Cobro a recibir / Pago a proveedor) */}
@@ -367,6 +435,15 @@ export default function CourierTasksPage() {
 
   const { changeStatus, isChangingStatus, reorderTasks } = useTaskMutations()
   const allTasks = tasksData?.data || []
+
+  // Visor de fotos de tareas
+  const [previewImages, setPreviewImages] = useState<string[]>([])
+  const [previewTitle, setPreviewTitle] = useState<string>('')
+
+  const handlePreviewPhotos = (photos: string[], title: string) => {
+    setPreviewImages(photos)
+    setPreviewTitle(title)
+  }
 
   // Sensores calibrados para móvil y escritorio
   const sensors = useSensors(
@@ -669,6 +746,7 @@ export default function CourierTasksPage() {
                           onStartRoute={handleStartRoute}
                           onStartManagement={handleStartManagement}
                           onComplete={handleOpenCompleteModal}
+                          onPreviewPhotos={handlePreviewPhotos}
                           isChangingStatus={isChangingStatus}
                         />
                       ))}
@@ -687,39 +765,66 @@ export default function CourierTasksPage() {
               </h2>
 
               <div className="space-y-2.5">
-                {completedTasks.map((task) => (
-                  <Card
-                    key={task.id}
-                    isHoverable
-                    onClick={() => navigate(`/motorizado/tareas/${task.id}`)}
-                    className="p-4 bg-white border border-emerald-100 rounded-2xl flex items-center justify-between text-xs cursor-pointer hover:bg-emerald-50/50 transition-all shadow-2xs"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-xl shrink-0">
-                        <CheckCircle2 className="h-4 w-4" />
-                      </div>
-                      <div>
-                        <p className="font-bold text-slate-800 line-through">
-                          {task.title}
-                        </p>
-                        <div className="flex items-center gap-2 text-2xs text-slate-400 font-mono mt-0.5">
-                          <span>{task.code}</span>
-                          {task.requires_collection && (
-                            <span className="text-emerald-700 font-bold font-sans">
-                              (Cobrado: C${task.expected_collection_amount})
-                            </span>
-                          )}
+                {completedTasks.map((task) => {
+                  const completedPhotos = getTaskPhotos(task)
+                  return (
+                    <Card
+                      key={task.id}
+                      isHoverable
+                      onClick={() => navigate(`/motorizado/tareas/${task.id}`)}
+                      className="p-4 bg-white border border-emerald-100 rounded-2xl flex items-center justify-between text-xs cursor-pointer hover:bg-emerald-50/50 transition-all shadow-2xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="p-1.5 bg-emerald-100 text-emerald-700 rounded-xl shrink-0">
+                          <CheckCircle2 className="h-4 w-4" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-slate-800 line-through">
+                              {task.title}
+                            </p>
+                            {completedPhotos.length > 0 && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handlePreviewPhotos(completedPhotos, task.title)
+                                }}
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-lg hover:bg-sky-100 transition-colors"
+                                title="Ver fotos adjuntas"
+                              >
+                                <Camera className="h-3 w-3 text-sky-600" />
+                                <span>{completedPhotos.length > 1 ? `${completedPhotos.length} fotos` : 'Foto'}</span>
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-2xs text-slate-400 font-mono mt-0.5">
+                            <span>{task.code}</span>
+                            {task.requires_collection && (
+                              <span className="text-emerald-700 font-bold font-sans">
+                                (Cobrado: C${task.expected_collection_amount})
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <ChevronRight className="h-4 w-4 text-slate-400" />
-                  </Card>
-                ))}
+                      <ChevronRight className="h-4 w-4 text-slate-400" />
+                    </Card>
+                  )
+                })}
               </div>
             </div>
           )}
         </div>
       )}
+
+      {/* Visor Flotante de Fotos */}
+      <ImageViewerModal
+        images={previewImages}
+        title={previewTitle}
+        isOpen={previewImages.length > 0}
+        onClose={() => setPreviewImages([])}
+      />
 
       {/* Modal de Finalizar y Cobrar Tarea */}
       <CompleteTaskModal

@@ -19,7 +19,9 @@ import {
   Calculator,
   Bus,
   ChevronRight,
+  Camera,
 } from 'lucide-react'
+import { getTaskPhotos } from '@/pages/courier/TasksPage'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday, useWorkdayMutations } from '@/modules/workdays/hooks/useWorkday'
 import { useCourierPendingBalances } from '@/modules/settlements/hooks/usePendingBalances'
@@ -507,6 +509,7 @@ export default function CourierHomePage() {
               const cardStyle = cardStyles[idx % cardStyles.length]
 
               const isOverdue = task.scheduled_date < todayStr && task.status !== 'completed'
+              const photos = getTaskPhotos(task)
 
               return (
                 <div
@@ -549,8 +552,14 @@ export default function CourierHomePage() {
                       </div>
                     </div>
 
-                    {/* Prioridad / Alerta de Atraso */}
+                    {/* Prioridad / Badge de Fotos / Alerta de Atraso */}
                     <div className="flex items-center gap-1.5 shrink-0 pt-0.5">
+                      {photos.length > 0 && (
+                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-800 bg-sky-100 border border-sky-300/80 px-2 py-0.5 rounded-lg shadow-2xs">
+                          <Camera size={12} className="text-sky-700" />
+                          <span>{photos.length > 1 ? `${photos.length} Fotos` : 'Foto'}</span>
+                        </span>
+                      )}
                       {isOverdue && (
                         <span className="text-2xs font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded-md flex items-center gap-0.5 border border-rose-200">
                           <AlertTriangle size={12} /> Atrasada
