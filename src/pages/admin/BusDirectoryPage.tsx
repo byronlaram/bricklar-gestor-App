@@ -144,11 +144,11 @@ export default function BusDirectoryPage() {
                           </div>
                         )}
 
-                        {/* 3. Teléfono (Color gris oscuro para mayor legibilidad) */}
+                        {/* 3. Teléfono (Gris oscuro visible a juego con los iconos de acciones) */}
                         {route.dispatch_phone && (
-                          <p className="text-slate-800 dark:text-slate-200 text-xs font-semibold flex items-center gap-1.5">
-                            <Phone className="h-3.5 w-3.5 text-slate-700 dark:text-slate-300 shrink-0" />
-                            <span className="text-slate-800 dark:text-slate-200 font-semibold">
+                          <p className="text-foreground-muted font-bold text-xs flex items-center gap-1.5 pt-0.5">
+                            <Phone className="h-3.5 w-3.5 text-foreground-muted shrink-0" />
+                            <span className="text-foreground-muted font-bold tracking-wide">
                               {route.dispatch_phone}
                             </span>
                           </p>
