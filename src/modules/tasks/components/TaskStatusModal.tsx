@@ -69,8 +69,8 @@ export function TaskStatusModal({ task, isOpen, onClose }: TaskStatusModalProps)
           <ModalDescription>Tarea {task.code}: {task.title}</ModalDescription>
         </ModalHeader>
 
-        <form onSubmit={handleSubmit}>
-          <ModalBody className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <ModalBody className="space-y-4 overflow-y-auto flex-1 min-h-0">
             {/* Banner de Estado Actual */}
             <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-200">
               <span className="text-xs font-semibold text-slate-600">Estado actual:</span>

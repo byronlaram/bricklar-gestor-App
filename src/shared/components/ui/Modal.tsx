@@ -198,7 +198,7 @@ export const ModalBody = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElemen
   ({ className, children, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn('p-6 space-y-4 overflow-y-auto flex-1', className)}
+      className={cn('p-6 space-y-4 overflow-y-auto flex-1 min-h-0', className)}
       {...props}
     >
       {children}

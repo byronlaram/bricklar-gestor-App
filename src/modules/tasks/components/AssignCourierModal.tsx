@@ -60,8 +60,8 @@ export function AssignCourierModal({ task, isOpen, onClose }: AssignCourierModal
           <ModalDescription>Tarea {task.code}: {task.title}</ModalDescription>
         </ModalHeader>
 
-        <form onSubmit={handleSubmit}>
-          <ModalBody className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <ModalBody className="space-y-4 overflow-y-auto flex-1 min-h-0">
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-slate-700">
                 Seleccionar Motorizado

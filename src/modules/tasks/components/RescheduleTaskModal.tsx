@@ -104,8 +104,8 @@ export function RescheduleTaskModal({
           </div>
         </ModalHeader>
 
-        <form onSubmit={handleSubmit}>
-          <ModalBody className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <ModalBody className="space-y-4 overflow-y-auto flex-1 min-h-0 p-4 sm:p-5">
             {/* Tarjeta Resumen de la Tarea Original */}
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
               <div className="flex items-center justify-between text-slate-500 font-medium">
