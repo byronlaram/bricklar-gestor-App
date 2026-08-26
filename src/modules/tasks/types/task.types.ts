@@ -221,6 +221,15 @@ export interface ChangeStatusPayload {
   metadata?: Record<string, unknown>
 }
 
+// ─── Payload para reprogramar tarea ──────────────────────────────────────────
+
+export interface RescheduleTaskPayload {
+  original_task_id: string
+  new_date: string
+  assigned_courier_id?: string | null
+  reason: string
+}
+
 // ─── Resultado paginado ───────────────────────────────────────────────────────
 
 export interface PaginatedTasks {
@@ -230,3 +239,4 @@ export interface PaginatedTasks {
   page_size: number
   total_pages: number
 }
+

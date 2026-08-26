@@ -18,6 +18,7 @@ import {
   Check,
   X,
   Building2,
+  CalendarClock,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
@@ -32,6 +33,7 @@ import { TaskFilters } from '@/modules/tasks/components/TaskFilters'
 import { TaskFormModal } from '@/modules/tasks/components/TaskFormModal'
 import { AssignCourierModal } from '@/modules/tasks/components/AssignCourierModal'
 import { TaskStatusModal } from '@/modules/tasks/components/TaskStatusModal'
+import { RescheduleTaskModal } from '@/modules/tasks/components/RescheduleTaskModal'
 import { RejectTaskModal } from '@/modules/tasks/components/RejectTaskModal'
 import {
   Card,
@@ -78,6 +80,7 @@ export default function TasksPage() {
   const [taskToEdit, setTaskToEdit] = useState<TaskWithCourier | null>(null)
   const [assignTaskTarget, setAssignTaskTarget] = useState<TaskWithCourier | null>(null)
   const [statusTaskTarget, setStatusTaskTarget] = useState<TaskWithCourier | null>(null)
+  const [rescheduleTaskTarget, setRescheduleTaskTarget] = useState<TaskWithCourier | null>(null)
   const [taskToDelete, setTaskToDelete] = useState<{ id: string; code: string } | null>(null)
   const [rejectTaskTarget, setRejectTaskTarget] = useState<TaskWithCourier | null>(null)
   const [previewEvidenceUrl, setPreviewEvidenceUrl] = useState<string | null>(null)
@@ -483,6 +486,17 @@ export default function TasksPage() {
                             >
                               <UserPlus className="h-4 w-4" />
                             </Button>
+
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setRescheduleTaskTarget(task)}
+                              className="h-8 w-8 text-slate-500 hover:text-orange-600 hover:bg-orange-50"
+                              title="Reprogramar tarea"
+                              aria-label="Reprogramar tarea"
+                            >
+                              <CalendarClock className="h-4 w-4 text-orange-600" />
+                            </Button>
                           </>
                         )}
 
@@ -570,6 +584,12 @@ export default function TasksPage() {
         isOpen={!!statusTaskTarget}
         onClose={() => setStatusTaskTarget(null)}
         task={statusTaskTarget}
+      />
+
+      <RescheduleTaskModal
+        isOpen={!!rescheduleTaskTarget}
+        onClose={() => setRescheduleTaskTarget(null)}
+        task={rescheduleTaskTarget}
       />
 
       <RejectTaskModal

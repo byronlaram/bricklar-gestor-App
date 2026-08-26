@@ -101,6 +101,15 @@ export function TaskStatusModal({ task, isOpen, onClose }: TaskStatusModalProps)
                   </select>
                 </div>
 
+                {newStatus === 'rescheduled' && (
+                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-900 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+                    <span>
+                      <strong>Recomendación:</strong> Para clonar los datos hacia una nueva fecha y crear de inmediato la nueva tarea para el motorizado, puedes usar directamente el botón <strong>«Reprogramar Tarea»</strong> en la vista principal o de detalle.
+                    </span>
+                  </div>
+                )}
+
                 {newStatus === 'cancelled' && (
                   <Input
                     label="Motivo de Cancelación"

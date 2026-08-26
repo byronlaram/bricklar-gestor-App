@@ -8,12 +8,14 @@ import {
   updateTaskRouteOrders,
   approveTask,
   rejectTask,
+  rescheduleTask,
 } from '../services/tasksService'
 import type {
   CreateTaskPayload,
   UpdateTaskPayload,
   AssignCourierPayload,
   ChangeStatusPayload,
+  RescheduleTaskPayload,
 } from '../types/task.types'
 import { broadcastSyncEvent } from '@/shared/lib/realtimeSync'
 
@@ -180,6 +182,25 @@ export function useTaskMutations() {
     },
   })
 
+  const rescheduleTaskMutation = useMutation({
+    mutationFn: (payload: RescheduleTaskPayload) => rescheduleTask(payload),
+    onSuccess: (data) => {
+      invalidateTaskQueries(data.newTask.id)
+      invalidateTaskQueries(data.original.id)
+      broadcastSyncEvent('tasks', 'create', {
+        entityId: data.newTask.id,
+        taskCode: data.newTask.code,
+        taskTitle: data.newTask.title,
+        assignedCourierId: data.newTask.assigned_courier_id,
+      })
+      broadcastSyncEvent('tasks', 'update', {
+        entityId: data.original.id,
+        taskCode: data.original.code,
+        taskTitle: data.original.title,
+      })
+    },
+  })
+
   return {
     createTask: createTaskMutation.mutateAsync,
     isCreating: createTaskMutation.isPending,
@@ -200,6 +221,10 @@ export function useTaskMutations() {
     isChangingStatus: changeStatusMutation.isPending,
     statusError: changeStatusMutation.error,
 
+    rescheduleTask: rescheduleTaskMutation.mutateAsync,
+    isRescheduling: rescheduleTaskMutation.isPending,
+    rescheduleError: rescheduleTaskMutation.error,
+
     approveTask: approveTaskMutation.mutateAsync,
     isApproving: approveTaskMutation.isPending,
     approveError: approveTaskMutation.error,
@@ -213,4 +238,5 @@ export function useTaskMutations() {
     reorderError: reorderTasksMutation.error,
   }
 }
+
 

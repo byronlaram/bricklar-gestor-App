@@ -12,6 +12,7 @@ import type {
   UpdateTaskPayload,
   AssignCourierPayload,
   ChangeStatusPayload,
+  RescheduleTaskPayload,
   TaskAssignment,
   TaskStatusHistory,
   PaginatedTasks,
@@ -782,3 +783,113 @@ export async function uploadTaskReferenceImage(file: File): Promise<string> {
   const { data: urlData } = supabase.storage.from('task-evidences').getPublicUrl(filePath)
   return urlData.publicUrl
 }
+
+// ─── rescheduleTask ───────────────────────────────────────────────────────────
+// Clona la tarea hacia una nueva fecha con motorizado asignado, preservando
+// la tarea original en el histórico con estado 'rescheduled'.
+
+export async function rescheduleTask(
+  payload: RescheduleTaskPayload
+): Promise<{ original: Task; newTask: Task }> {
+  const { original_task_id, new_date, assigned_courier_id, reason } = payload
+  const { data: session } = await supabase.auth.getSession()
+  const userId = session?.session?.user?.id
+  if (!userId) throw new Error('No hay sesión activa para reprogramar la tarea.')
+
+  // 1. Obtener la tarea original completa
+  const original = await getTaskById(original_task_id)
+  if (!original) throw new Error('No se encontró la tarea original a reprogramar.')
+
+  // 2. Determinar motorizado para la nueva tarea
+  const courierToAssign =
+    assigned_courier_id !== undefined ? assigned_courier_id : original.assigned_courier_id
+
+  // 3. Crear la nueva tarea para la nueva fecha con los datos completos
+  const newTaskPayload: CreateTaskPayload = {
+    branch_id: original.branch_id,
+    task_type: original.task_type,
+    title: original.title,
+    description: original.description || '',
+    scheduled_date: new_date,
+    scheduled_start_time: original.scheduled_start_time,
+    scheduled_deadline: original.scheduled_deadline,
+    priority: original.priority,
+    approval_status: 'approved',
+    creation_origin: 'admin',
+    evidence_url: original.evidence_url,
+    contact_name: original.contact_name,
+    company_name: original.company_name,
+    phone: original.phone,
+    whatsapp: original.whatsapp,
+    address: original.address,
+    address_reference: original.address_reference,
+    maps_url: original.maps_url,
+    latitude: original.latitude,
+    longitude: original.longitude,
+    provider_name: original.provider_name,
+    institution_name: original.institution_name,
+    destination_contact: original.destination_contact,
+    management_description: original.management_description,
+    requires_collection: original.requires_collection,
+    expected_collection_amount: original.expected_collection_amount,
+    expected_collection_currency: original.expected_collection_currency,
+    expected_payment_method: original.expected_payment_method,
+    requires_payment: original.requires_payment,
+    expected_payment_amount: original.expected_payment_amount,
+    expected_payment_currency: original.expected_payment_currency,
+    notes: reason ? `[Reprogramada desde ${original.code}]: ${reason}` : original.notes,
+    assigned_courier_id: courierToAssign,
+    metadata: {
+      ...(original.metadata || {}),
+      rescheduled_from_task_id: original.id,
+      rescheduled_from_code: original.code,
+      reschedule_reason: reason,
+    },
+  }
+
+  const newTask = await createTask(newTaskPayload)
+
+  // 4. Actualizar la tarea original a estado 'rescheduled'
+  const originalNotes = original.notes ? `${original.notes}\n` : ''
+  const updatedOriginalNotes = `${originalNotes}[Reprogramada hacia ${newTask.code} para ${new_date}]: ${reason}`
+
+  const { data: updatedOriginal, error: updateOriginalError } = await supabase
+    .from('tasks')
+    .update({
+      status: 'rescheduled',
+      notes: updatedOriginalNotes,
+      updated_by: userId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', original.id)
+    .select()
+    .single()
+
+  if (updateOriginalError) {
+    console.error('[Tasks] Error actualizando estado de tarea original:', updateOriginalError)
+  }
+
+  // 5. Registrar entrada en historial de la tarea original
+  await supabase.from('task_status_history').insert({
+    task_id: original.id,
+    from_status: original.status,
+    to_status: 'rescheduled',
+    changed_by: userId,
+    notes: `Reprogramada hacia nueva tarea ${newTask.code} para la fecha ${new_date}. Motivo: ${reason}`,
+  })
+
+  // 6. Registrar entrada en historial de la nueva tarea
+  await supabase.from('task_status_history').insert({
+    task_id: newTask.id,
+    from_status: 'pending',
+    to_status: newTask.status,
+    changed_by: userId,
+    notes: `Creada por reprogramación desde la tarea ${original.code} (${original.scheduled_date}). Motivo: ${reason}`,
+  })
+
+  return {
+    original: (updatedOriginal || original) as unknown as Task,
+    newTask,
+  }
+}
+

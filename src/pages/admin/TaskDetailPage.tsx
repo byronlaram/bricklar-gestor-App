@@ -17,6 +17,7 @@ import {
   Clock,
   Camera,
   Eye,
+  CalendarClock,
 } from 'lucide-react'
 import { useTask } from '@/modules/tasks/hooks/useTask'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
@@ -26,6 +27,7 @@ import { TaskTypeBadge } from '@/modules/tasks/components/TaskTypeBadge'
 import { TaskHistoryPanel } from '@/modules/tasks/components/TaskHistoryPanel'
 import { AssignCourierModal } from '@/modules/tasks/components/AssignCourierModal'
 import { TaskStatusModal } from '@/modules/tasks/components/TaskStatusModal'
+import { RescheduleTaskModal } from '@/modules/tasks/components/RescheduleTaskModal'
 import { TaskFormModal } from '@/modules/tasks/components/TaskFormModal'
 import {
   Card,
@@ -49,6 +51,7 @@ export default function TaskDetailPage() {
 
   const [isAssignOpen, setIsAssignOpen] = useState(false)
   const [isStatusOpen, setIsStatusOpen] = useState(false)
+  const [isRescheduleOpen, setIsRescheduleOpen] = useState(false)
   const [isEditOpen, setIsEditOpen] = useState(false)
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
   const [isViewerOpen, setIsViewerOpen] = useState(false)
@@ -160,6 +163,16 @@ export default function TaskDetailPage() {
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setIsRescheduleOpen(true)}
+            leftIcon={<CalendarClock className="h-4 w-4 text-orange-600" />}
+            className="border-orange-200 text-orange-700 hover:bg-orange-50 font-bold"
+          >
+            Reprogramar Tarea
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
             onClick={() => setIsAssignOpen(true)}
             leftIcon={<UserPlus className="h-4 w-4 text-sky-600" />}
             className="border-sky-200 text-sky-700 hover:bg-sky-50"
@@ -198,6 +211,31 @@ export default function TaskDetailPage() {
           </Button>
         </div>
       </Card>
+
+      {/* Banner Informativo de Reprogramación si aplica */}
+      {task.status === 'rescheduled' && (
+        <div className="p-4 bg-orange-50 border border-orange-200 rounded-2xl flex items-start gap-3 text-xs text-orange-950 shadow-2xs">
+          <CalendarClock className="h-5 w-5 text-orange-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-extrabold text-sm text-orange-900">Esta tarea fue Reprogramada</p>
+            <p className="mt-0.5 text-orange-800">
+              {task.notes || 'Se generó una nueva orden para continuar con la entrega en una nueva fecha.'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {task.rescheduled_from_task_id && (
+        <div className="p-4 bg-sky-50 border border-sky-200 rounded-2xl flex items-start gap-3 text-xs text-sky-950 shadow-2xs">
+          <CalendarClock className="h-5 w-5 text-sky-600 shrink-0 mt-0.5" />
+          <div>
+            <p className="font-extrabold text-sm text-sky-900">Tarea Creada por Reprogramación</p>
+            <p className="mt-0.5 text-sky-800">
+              Esta gestión proviene de una reprogramación de fecha anterior.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Grid Principal de 2 Columnas */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -469,6 +507,15 @@ export default function TaskDetailPage() {
         isOpen={isStatusOpen}
         onClose={() => setIsStatusOpen(false)}
         task={task}
+      />
+
+      <RescheduleTaskModal
+        isOpen={isRescheduleOpen}
+        onClose={() => setIsRescheduleOpen(false)}
+        task={task}
+        onSuccess={(newTaskId) => {
+          navigate(`/admin/tareas/${newTaskId}`)
+        }}
       />
 
       <TaskFormModal
