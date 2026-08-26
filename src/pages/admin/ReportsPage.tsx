@@ -168,62 +168,133 @@ async function fetchReportData(
   }
 
   if (type === 'adjustments') {
-    const { data, error } = await supabase
-      .from('settlement_adjustments')
-      .select(`
-        id,
-        created_at,
-        adjustment_amount,
-        reason,
-        settlement:settlements!settlement_adjustments_settlement_id_fkey (
-          id,
-          settlement_date,
-          expected_cash,
-          actual_cash,
-          branch_id,
-          courier:profiles!settlements_courier_id_fkey (
-            full_name,
-            display_name
-          ),
-          branch:branches!settlements_branch_id_fkey (
-            name
-          )
-        ),
-        adjuster:profiles!settlement_adjustments_adjusted_by_fkey (
-          full_name,
-          display_name
-        )
-      `)
-      .order('created_at', { ascending: false })
-
-    if (error) {
-      console.error('[Reports] Error fetching adjustments:', error)
-      return []
-    }
-
-    const filtered = (data ?? []).filter((row: any) => {
-      const rowDate = row.settlement?.settlement_date || row.created_at?.split('T')[0]
-      const dateMatch = (!from || rowDate >= from) && (!to || rowDate <= to)
-      const branchMatch = !branchId || row.settlement?.branch_id === branchId
-      return dateMatch && branchMatch
+    // 1. Obtener liquidaciones en el rango solicitado
+    const settlementsList = await getSettlements({
+      date_from: from,
+      date_to: to,
+      branch_id: branchId || undefined,
     })
 
-    const formatted = filtered.map((row: any) => {
-      const amount = Number(row.adjustment_amount || 0)
+    // 2. Intentar consultar registros detallados en settlement_adjustments
+    let adjustmentsData: any[] = []
+    try {
+      const { data, error } = await supabase
+        .from('settlement_adjustments')
+        .select(`
+          id,
+          settlement_id,
+          created_at,
+          adjustment_amount,
+          reason,
+          settlement:settlements!settlement_adjustments_settlement_id_fkey (
+            id,
+            settlement_date,
+            expected_cash,
+            actual_cash,
+            branch_id,
+            courier:profiles!settlements_courier_id_fkey (
+              full_name,
+              display_name
+            ),
+            branch:branches!settlements_branch_id_fkey (
+              name
+            )
+          ),
+          adjuster:profiles!settlement_adjustments_adjusted_by_fkey (
+            full_name,
+            display_name
+          )
+        `)
+        .order('created_at', { ascending: false })
+
+      if (!error && data) {
+        adjustmentsData = data
+      }
+    } catch (e) {
+      console.warn('[Reports] Notice: settlement_adjustments query error:', e)
+    }
+
+    const adjustmentsBySettlementId = new Map<string, any>()
+    adjustmentsData.forEach((adj) => {
+      if (adj.settlement_id) {
+        adjustmentsBySettlementId.set(adj.settlement_id, adj)
+      }
+    })
+
+    const formatted: Record<string, unknown>[] = []
+    const processedSettlementIds = new Set<string>()
+
+    // 3. Filtrar liquidaciones que presenten discrepancia (faltante o sobrante)
+    const settlementsWithDiff = settlementsList.filter(
+      (s) => Math.abs(s.difference || 0) > 0.001
+    )
+
+    for (const s of settlementsWithDiff) {
+      processedSettlementIds.add(s.id)
+      const adj = adjustmentsBySettlementId.get(s.id)
+      const amount =
+        adj?.adjustment_amount !== undefined
+          ? Number(adj.adjustment_amount)
+          : Number(s.difference || 0)
       const isShortage = amount < 0
 
-      return {
-        id: row.id,
-        fecha_liquidacion: row.settlement?.settlement_date || row.created_at?.split('T')[0],
-        motorizado: row.settlement?.courier?.display_name || row.settlement?.courier?.full_name || 'N/A',
-        sucursal: row.settlement?.branch?.name || 'N/A',
+      formatted.push({
+        id: adj?.id || s.id,
+        fecha_liquidacion: s.settlement_date,
+        motorizado:
+          s.courier_profile?.display_name || s.courier_profile?.full_name || 'N/A',
+        sucursal: s.branch?.name || 'N/A',
         tipo_ajuste: isShortage ? 'FALTANTE' : 'SOBRANTE',
         monto_ajuste: `${amount > 0 ? '+' : ''}C$ ${amount.toFixed(2)}`,
         monto_numerico: amount,
-        motivo_justificacion: row.reason || 'Sin motivo especificado',
-        autorizado_por: row.adjuster?.display_name || row.adjuster?.full_name || 'Admin',
+        motivo_justificacion:
+          adj?.reason ||
+          s.notes ||
+          (isShortage ? 'Faltante en arqueo físico' : 'Sobrante en arqueo físico'),
+        autorizado_por:
+          adj?.adjuster?.display_name ||
+          adj?.adjuster?.full_name ||
+          s.reviewer_profile?.display_name ||
+          s.reviewer_profile?.full_name ||
+          'Administrador',
+      })
+    }
+
+    // 4. Incluir ajustes independientes o históricos en settlement_adjustments no capturados previamente
+    for (const adj of adjustmentsData) {
+      if (adj.settlement_id && processedSettlementIds.has(adj.settlement_id)) continue
+
+      const rowDate = adj.settlement?.settlement_date || adj.created_at?.split('T')[0]
+      const dateMatch = (!from || rowDate >= from) && (!to || rowDate <= to)
+      const branchMatch = !branchId || adj.settlement?.branch_id === branchId
+
+      if (dateMatch && branchMatch) {
+        const amount = Number(adj.adjustment_amount || 0)
+        const isShortage = amount < 0
+
+        formatted.push({
+          id: adj.id,
+          fecha_liquidacion: rowDate,
+          motorizado:
+            adj.settlement?.courier?.display_name ||
+            adj.settlement?.courier?.full_name ||
+            'N/A',
+          sucursal: adj.settlement?.branch?.name || 'N/A',
+          tipo_ajuste: isShortage ? 'FALTANTE' : 'SOBRANTE',
+          monto_ajuste: `${amount > 0 ? '+' : ''}C$ ${amount.toFixed(2)}`,
+          monto_numerico: amount,
+          motivo_justificacion:
+            adj.reason || (isShortage ? 'Faltante registrado' : 'Sobrante registrado'),
+          autorizado_por:
+            adj.adjuster?.display_name || adj.adjuster?.full_name || 'Administrador',
+        })
       }
-    })
+    }
+
+    // Ordenar por fecha de liquidación descendente
+    formatted.sort((a, b) =>
+      String(b.fecha_liquidacion).localeCompare(String(a.fecha_liquidacion))
+    )
 
     return formatted as unknown as Record<string, unknown>[]
   }

@@ -37,6 +37,11 @@ export interface Settlement {
     name: string
     code: string
   } | null
+  reviewer_profile?: {
+    id: string
+    full_name: string
+    display_name: string | null
+  } | null
   cash_summary?: WorkdayCashSummary
 }
 

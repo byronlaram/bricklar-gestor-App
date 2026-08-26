@@ -18,6 +18,9 @@ const SETTLEMENT_SELECT = `
   ),
   branch:branches!settlements_branch_id_fkey (
     id, name, code
+  ),
+  reviewer_profile:profiles!settlements_reviewed_by_fkey (
+    id, full_name, display_name
   )
 `
 
