@@ -115,12 +115,13 @@ export default function AdminWorkdaysPage() {
       const isCompleted = t.status === 'completed'
 
       if (isCompleted) {
-        const cashAmt =
-          pb && typeof pb.cash_amount === 'number'
+        const cashAmt = pb
+          ? typeof pb.cash_amount === 'number'
             ? pb.cash_amount
-            : (!t.expected_payment_method || t.expected_payment_method === 'cash')
-            ? t.expected_collection_amount || 0
             : 0
+          : !t.expected_payment_method || t.expected_payment_method === 'cash'
+          ? t.expected_collection_amount || 0
+          : 0
         completedCollectionsNIO += cashAmt
         projectedCollectionsNIO += cashAmt
       } else {
@@ -145,9 +146,15 @@ export default function AdminWorkdaysPage() {
       if (isCompleted) {
         const isCash = !pb?.paid_method || pb?.paid_method === 'cash'
         const paidAmt = isCash
-          ? pb && typeof pb.actual_paid_amount === 'number'
-            ? pb.actual_paid_amount
-            : t.expected_payment_amount || 0
+          ? pb
+            ? typeof pb.actual_paid_amount === 'number'
+              ? pb.actual_paid_amount
+              : typeof pb.cash_amount === 'number'
+              ? pb.cash_amount
+              : 0
+            : !t.expected_payment_method || t.expected_payment_method === 'cash'
+            ? t.expected_payment_amount || 0
+            : 0
           : 0
         completedPaymentsNIO += paidAmt
         projectedPaymentsNIO += paidAmt

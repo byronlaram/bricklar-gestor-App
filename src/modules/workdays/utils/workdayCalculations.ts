@@ -62,13 +62,15 @@ export function calculateWorkdayCashSummary(
 
       // Cobros a favor de la empresa
       if (t.requires_collection) {
-        if (pb && typeof pb.cash_amount === 'number') {
-          // Si hubo desglose explícito, solo el efectivo entra a la billetera
+        if (pb) {
+          // Si hubo desglose explícito al completar la tarea, solo el efectivo físico entra a la billetera
+          const cashAmt = typeof pb.cash_amount === 'number' ? pb.cash_amount : 0
           const curr = t.expected_collection_currency || 'NIO'
-          if (curr === 'USD') collectionsUSD += pb.cash_amount
-          else collectionsNIO += pb.cash_amount
-        } else if (t.expected_collection_amount) {
-          const amt = t.expected_collection_amount
+          if (curr === 'USD') collectionsUSD += cashAmt
+          else collectionsNIO += cashAmt
+        } else if (!t.expected_payment_method || t.expected_payment_method === 'cash') {
+          // Si no hubo desglose registrado pero la tarea estaba configurada para cobro en efectivo
+          const amt = t.expected_collection_amount || 0
           const curr = t.expected_collection_currency || 'NIO'
           if (curr === 'USD') collectionsUSD += amt
           else collectionsNIO += amt
@@ -77,16 +79,22 @@ export function calculateWorkdayCashSummary(
 
       // Pagos a proveedores / compras realizadas en ruta
       if (t.requires_payment) {
-        if (pb && typeof pb.actual_paid_amount === 'number') {
+        if (pb) {
           // Si se pagó en efectivo (o no se especificó método distinto), descuenta de la billetera
           const isCash = !pb.paid_method || pb.paid_method === 'cash'
           if (isCash) {
+            const paidAmt =
+              typeof pb.actual_paid_amount === 'number'
+                ? pb.actual_paid_amount
+                : typeof pb.cash_amount === 'number'
+                ? pb.cash_amount
+                : 0
             const curr = t.expected_payment_currency || 'NIO'
-            if (curr === 'USD') expensesUSD += pb.actual_paid_amount
-            else expensesNIO += pb.actual_paid_amount
+            if (curr === 'USD') expensesUSD += paidAmt
+            else expensesNIO += paidAmt
           }
-        } else if (t.expected_payment_amount) {
-          const amt = t.expected_payment_amount
+        } else if (!t.expected_payment_method || t.expected_payment_method === 'cash') {
+          const amt = t.expected_payment_amount || 0
           const curr = t.expected_payment_currency || 'NIO'
           if (curr === 'USD') expensesUSD += amt
           else expensesNIO += amt

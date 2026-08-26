@@ -156,9 +156,19 @@ export default function CourierSettlementPage() {
   const liveCashCollections = cashSummary.collectionsNIO
   const liveTransferCollections = useMemo(
     () =>
-      completedTasks
-        .filter((t) => (t.expected_payment_method || 'cash') !== 'cash' && t.requires_collection)
-        .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0),
+      completedTasks.reduce((acc, t) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pb = (t as any).metadata?.payment_breakdown
+        if (pb?.transfer_amount && pb.transfer_amount > 0) return acc + pb.transfer_amount
+        if (
+          t.requires_collection &&
+          (t.expected_payment_method === 'bank_transfer' || t.expected_payment_method === 'mobile_wallet') &&
+          (!pb || !pb.cash_amount)
+        ) {
+          return acc + (t.expected_collection_amount || 0)
+        }
+        return acc
+      }, 0),
     [completedTasks]
   )
 

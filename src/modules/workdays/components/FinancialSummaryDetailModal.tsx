@@ -53,9 +53,11 @@ function getTaskCashCollectionAmount(t: Task): number {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const pb = (t as any).metadata?.payment_breakdown
   if (t.status === 'completed') {
-    return pb && typeof pb.cash_amount === 'number'
-      ? pb.cash_amount
-      : (!t.expected_payment_method || t.expected_payment_method === 'cash')
+    return pb
+      ? typeof pb.cash_amount === 'number'
+        ? pb.cash_amount
+        : 0
+      : !t.expected_payment_method || t.expected_payment_method === 'cash'
       ? t.expected_collection_amount || 0
       : 0
   }
@@ -71,9 +73,15 @@ function getTaskCashPaymentAmount(t: Task): number {
   if (t.status === 'completed') {
     const isCash = !pb?.paid_method || pb?.paid_method === 'cash'
     return isCash
-      ? pb && typeof pb.actual_paid_amount === 'number'
-        ? pb.actual_paid_amount
-        : t.expected_payment_amount || 0
+      ? pb
+        ? typeof pb.actual_paid_amount === 'number'
+          ? pb.actual_paid_amount
+          : typeof pb.cash_amount === 'number'
+          ? pb.cash_amount
+          : 0
+        : !t.expected_payment_method || t.expected_payment_method === 'cash'
+        ? t.expected_payment_amount || 0
+        : 0
       : 0
   }
   return !t.expected_payment_method || t.expected_payment_method === 'cash'
@@ -460,6 +468,27 @@ export function FinancialSummaryDetailModal({
                               >
                                 {TASK_STATUS_LABELS[t.status] || t.status}
                               </Badge>
+                              {(() => {
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                const pb = (t as any).metadata?.payment_breakdown
+                                if (isCompleted && pb) {
+                                  if (pb.transfer_amount && !pb.cash_amount) {
+                                    return (
+                                      <span className="text-[10px] bg-sky-50 text-sky-700 font-bold border border-sky-200 px-2 py-0.5 rounded-full">
+                                        Transferencia {pb.transfer_bank ? `(${pb.transfer_bank})` : ''}: C$ {pb.transfer_amount.toFixed(2)}
+                                      </span>
+                                    )
+                                  }
+                                  if (pb.cheque_amount && !pb.cash_amount) {
+                                    return (
+                                      <span className="text-[10px] bg-purple-50 text-purple-700 font-bold border border-purple-200 px-2 py-0.5 rounded-full">
+                                        Cheque {pb.cheque_bank ? `(${pb.cheque_bank})` : ''}: C$ {pb.cheque_amount.toFixed(2)}
+                                      </span>
+                                    )
+                                  }
+                                }
+                                return null
+                              })()}
                             </div>
                             <p className="text-2xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
                               <span>
