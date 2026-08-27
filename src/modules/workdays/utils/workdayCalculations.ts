@@ -32,7 +32,9 @@ export function calculateWorkdayCashSummary(
     expected_payment_amount?: number | null
     expected_payment_currency?: string | null
     requires_payment?: boolean
+    expected_payment_method?: string | null
     status?: string
+    metadata?: any
   }> = [],
   movements: Array<{
     amount: number
