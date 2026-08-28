@@ -23,6 +23,18 @@ interface TaskStatusModalProps {
   onClose: () => void
 }
 
+const ALL_SYSTEM_STATUSES: TaskStatus[] = [
+  'pending',
+  'assigned',
+  'en_route',
+  'in_progress',
+  'completed',
+  'not_completed',
+  'rescheduled',
+  'cancelled',
+  'archived',
+]
+
 export function TaskStatusModal({ task, isOpen, onClose }: TaskStatusModalProps) {
   const [newStatus, setNewStatus] = useState<TaskStatus | ''>('')
   const [notes, setNotes] = useState<string>('')
@@ -30,18 +42,19 @@ export function TaskStatusModal({ task, isOpen, onClose }: TaskStatusModalProps)
 
   const { changeStatus, isChangingStatus, statusError } = useTaskMutations()
 
+  const availableStatuses = task
+    ? ALL_SYSTEM_STATUSES.filter((st) => st !== task.status)
+    : []
+
   useEffect(() => {
-    if (task) {
-      const allowed = ALLOWED_TRANSITIONS[task.status] || []
-      setNewStatus(allowed[0] || '')
+    if (task && availableStatuses.length > 0) {
+      setNewStatus(availableStatuses[0])
       setNotes('')
       setCancellationReason('')
     }
   }, [task])
 
   if (!task) return null
-
-  const allowedStatuses = ALLOWED_TRANSITIONS[task.status] || []
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -77,87 +90,79 @@ export function TaskStatusModal({ task, isOpen, onClose }: TaskStatusModalProps)
               <TaskStatusBadge status={task.status} />
             </div>
 
-            {allowedStatuses.length === 0 ? (
-              <div className="p-4 bg-amber-50 text-amber-800 rounded-xl border border-amber-200 text-xs flex items-center gap-2.5">
-                <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
-                <span>Esta tarea ha alcanzado un estado final y no admite más cambios en su ciclo operativo.</span>
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Nuevo Estado
+                </label>
+                <select
+                  value={newStatus}
+                  onChange={(e) => setNewStatus(e.target.value as TaskStatus)}
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
+                >
+                  {availableStatuses.map((st) => (
+                    <option key={st} value={st}>
+                      {TASK_STATUS_LABELS[st]}
+                    </option>
+                  ))}
+                </select>
               </div>
-            ) : (
-              <div className="space-y-4">
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Nuevo Estado Permitido
-                  </label>
-                  <select
-                    value={newStatus}
-                    onChange={(e) => setNewStatus(e.target.value as TaskStatus)}
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
-                  >
-                    {allowedStatuses.map((st) => (
-                      <option key={st} value={st}>
-                        {TASK_STATUS_LABELS[st]}
-                      </option>
-                    ))}
-                  </select>
+
+              {newStatus === 'rescheduled' && (
+                <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-900 flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Recomendación:</strong> Para clonar los datos hacia una nueva fecha y crear de inmediato la nueva tarea para el motorizado, puedes usar directamente el botón <strong>«Reprogramar Tarea»</strong> en la vista principal o de detalle.
+                  </span>
                 </div>
+              )}
 
-                {newStatus === 'rescheduled' && (
-                  <div className="p-3 bg-orange-50 border border-orange-200 rounded-xl text-xs text-orange-900 flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
-                    <span>
-                      <strong>Recomendación:</strong> Para clonar los datos hacia una nueva fecha y crear de inmediato la nueva tarea para el motorizado, puedes usar directamente el botón <strong>«Reprogramar Tarea»</strong> en la vista principal o de detalle.
-                    </span>
-                  </div>
-                )}
+              {newStatus === 'cancelled' && (
+                <Input
+                  label="Motivo de Cancelación"
+                  type="text"
+                  required
+                  value={cancellationReason}
+                  onChange={(e) => setCancellationReason(e.target.value)}
+                  placeholder="Ej: Cliente canceló el pedido por demora..."
+                />
+              )}
 
-                {newStatus === 'cancelled' && (
-                  <Input
-                    label="Motivo de Cancelación"
-                    type="text"
-                    required
-                    value={cancellationReason}
-                    onChange={(e) => setCancellationReason(e.target.value)}
-                    placeholder="Ej: Cliente canceló el pedido por demora..."
-                  />
-                )}
-
-                <div className="space-y-1.5">
-                  <label className="block text-xs font-semibold text-slate-700">
-                    Observaciones / Notas (Opcional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    placeholder="Detalles adicionales sobre este cambio de estado..."
-                    className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs resize-none"
-                  />
-                </div>
-
-                {statusError && (
-                  <p className="text-xs text-rose-600 font-medium bg-rose-50 p-2.5 rounded-lg border border-rose-200">
-                    {(statusError as Error).message}
-                  </p>
-                )}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-slate-700">
+                  Observaciones / Motivo de la corrección {['completed', 'cancelled'].includes(task.status) ? '(Requerido)' : '(Opcional)'}
+                </label>
+                <textarea
+                  rows={2}
+                  required={['completed', 'cancelled'].includes(task.status)}
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Justifique el motivo del cambio de estado para la auditoría..."
+                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs resize-none"
+                />
               </div>
-            )}
+
+              {statusError && (
+                <p className="text-xs text-rose-600 font-medium bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                  {(statusError as Error).message}
+                </p>
+              )}
+            </div>
           </ModalBody>
 
-          {allowedStatuses.length > 0 && (
-            <ModalFooter>
-              <Button variant="ghost" size="sm" type="button" onClick={onClose}>
-                Cancelar
-              </Button>
-              <Button
-                type="submit"
-                variant="primary"
-                size="sm"
-                isLoading={isChangingStatus}
-              >
-                Actualizar Estado
-              </Button>
-            </ModalFooter>
-          )}
+          <ModalFooter>
+            <Button variant="ghost" size="sm" type="button" onClick={onClose}>
+              Cancelar
+            </Button>
+            <Button
+              type="submit"
+              variant="primary"
+              size="sm"
+              isLoading={isChangingStatus}
+            >
+              Actualizar Estado
+            </Button>
+          </ModalFooter>
         </form>
       </ModalContent>
     </Modal>

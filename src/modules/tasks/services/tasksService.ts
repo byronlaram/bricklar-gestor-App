@@ -436,12 +436,23 @@ export async function changeTaskStatus(payload: ChangeStatusPayload): Promise<Ta
   const currentStatus = (taskData as { status: TaskStatus }).status
   const existingMetadata = (taskData as { metadata?: Record<string, unknown> })?.metadata || {}
 
-  // Validar transición
-  const allowed = ALLOWED_TRANSITIONS[currentStatus] ?? []
-  if (!allowed.includes(new_status)) {
-    throw new Error(
-      `Transición inválida: ${currentStatus} → ${new_status}`
-    )
+  // Obtener rol del usuario actual
+  const { data: profileData } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', userId)
+    .single()
+
+  const isAdmin = ['general_admin', 'junior_admin'].includes(profileData?.role || '')
+
+  // Validar transición solo para motorizados (no administradores)
+  if (!isAdmin) {
+    const allowed = COURIER_ALLOWED_TRANSITIONS[currentStatus] ?? ALLOWED_TRANSITIONS[currentStatus] ?? []
+    if (!allowed.includes(new_status)) {
+      throw new Error(
+        `Transición inválida: ${currentStatus} → ${new_status}`
+      )
+    }
   }
 
   // Preparar actualización con metadata combinada
