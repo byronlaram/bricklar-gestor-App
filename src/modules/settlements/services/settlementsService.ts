@@ -369,6 +369,40 @@ export async function approveSettlement(payload: ApproveSettlementPayload): Prom
     if (wdErr) {
       console.warn('[Settlements] Warning: could not close workday on settlement approval:', wdErr.message)
     }
+
+    // 2. Registrar en Libro Diario de Movimientos (cash_movements) la entrega final de liquidación
+    if (payload.actual_cash > 0) {
+      const { data: adminProfile } = await supabase
+        .from('profiles')
+        .select('full_name, display_name')
+        .eq('id', adminId)
+        .maybeSingle()
+
+      const adminName = adminProfile?.display_name || adminProfile?.full_name || 'Administrador'
+      const settlementDesc = `Entrega Final de Cierre (Liquidación aprobada)${payload.notes ? `: ${payload.notes.trim()}` : ''} | Reg. por: ${adminName}`
+
+      // Limpiar movimiento de liquidación previo si existía (en caso de re-aprobación)
+      await supabase
+        .from('cash_movements')
+        .delete()
+        .eq('workday_id', workdayId)
+        .eq('movement_type', 'settlement_payment')
+
+      const { error: movErr } = await supabase.from('cash_movements').insert({
+        workday_id: workdayId,
+        courier_id: (data as any).courier_id,
+        movement_type: 'settlement_payment',
+        direction: 'income',
+        amount: payload.actual_cash,
+        currency: 'NIO',
+        payment_method: 'cash',
+        description: settlementDesc,
+      })
+
+      if (movErr) {
+        console.warn('[Settlements] Warning: could not insert cash_movement for settlement:', movErr.message)
+      }
+    }
   }
 
   // Si existe una diferencia contable, registrar formalmente el ajuste en settlement_adjustments
@@ -550,6 +584,39 @@ export async function adminForceSettlement(payload: AdminForceSettlementPayload)
       updated_at: new Date().toISOString(),
     })
     .eq('id', workday.id)
+
+  // 6. Registrar en Libro Diario de Movimientos (cash_movements)
+  if (payload.actual_cash > 0) {
+    const { data: adminProfile } = await supabase
+      .from('profiles')
+      .select('full_name, display_name')
+      .eq('id', adminId)
+      .maybeSingle()
+
+    const adminName = adminProfile?.display_name || adminProfile?.full_name || 'Administrador'
+    const contingencyDesc = `Entrega Final de Cierre (Liquidación Contingencia: ${reasonLabel})${payload.contingency_notes ? `: ${payload.contingency_notes.trim()}` : ''} | Reg. por: ${adminName}`
+
+    await supabase
+      .from('cash_movements')
+      .delete()
+      .eq('workday_id', workday.id)
+      .eq('movement_type', 'settlement_payment')
+
+    const { error: movErr } = await supabase.from('cash_movements').insert({
+      workday_id: workday.id,
+      courier_id: workday.courier_id,
+      movement_type: 'settlement_payment',
+      direction: 'income',
+      amount: payload.actual_cash,
+      currency: 'NIO',
+      payment_method: 'cash',
+      description: contingencyDesc,
+    })
+
+    if (movErr) {
+      console.warn('[Settlements] Warning: could not insert cash_movement for force settlement:', movErr.message)
+    }
+  }
 
   return settlement as unknown as Settlement
 }

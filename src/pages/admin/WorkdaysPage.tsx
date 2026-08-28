@@ -838,14 +838,19 @@ export default function AdminWorkdaysPage() {
                       opLabel = 'Entrega / Adelanto (Admin)'
                       opBadgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200'
                     } else if (isReception) {
-                      if (m.description?.toLowerCase().includes('parcial') || m.movement_type === 'cash_return') {
+                      if (m.movement_type === 'settlement_payment' || m.description?.toLowerCase().includes('liquidación')) {
+                        opLabel = 'Entrega Final (Liquidación)'
+                        opBadgeClass = 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                      } else if (m.description?.toLowerCase().includes('parcial') || m.movement_type === 'cash_return') {
                         opLabel = 'Entrega Parcial (Motorizado)'
+                        opBadgeClass = 'bg-sky-50 text-sky-700 border-sky-200'
                       } else if (m.description?.toLowerCase().includes('final') || m.movement_type === 'deposit') {
                         opLabel = 'Entrega Final (Cierre)'
+                        opBadgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       } else {
                         opLabel = 'Recepción Oficina'
+                        opBadgeClass = 'bg-sky-50 text-sky-700 border-sky-200'
                       }
-                      opBadgeClass = 'bg-sky-50 text-sky-700 border-sky-200'
                     } else if (isExpense) {
                       opLabel = m.movement_type === 'fuel' ? 'Combustible (Ruta)' : m.movement_type === 'purchase' ? 'Compra (Ruta)' : 'Gasto (Ruta)'
                       opBadgeClass = 'bg-rose-50 text-rose-700 border-rose-200'
