@@ -35,6 +35,8 @@ import {
   Receipt,
   Clock,
   Camera,
+  RotateCcw,
+  Undo2,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
@@ -87,6 +89,7 @@ interface TaskCardItemProps {
   onOpenMap: (task: TaskWithCourier) => void
   onOpenWhatsApp: (phone?: string | null) => void
   onStartRoute: (task: TaskWithCourier) => void
+  onCancelRoute: (task: TaskWithCourier) => void
   onStartManagement: (task: TaskWithCourier) => void
   onComplete: (task: TaskWithCourier) => void
   onPreviewPhotos: (photos: string[], title: string) => void
@@ -104,6 +107,7 @@ function TaskCardItem({
   onOpenMap,
   onOpenWhatsApp,
   onStartRoute,
+  onCancelRoute,
   onStartManagement,
   onComplete,
   onPreviewPhotos,
@@ -134,6 +138,7 @@ function TaskCardItem({
   ]
   const cardStyle = cardStyles[index % cardStyles.length]
   const photos = getTaskPhotos(task)
+  const retryCount = (task.metadata as { retry_count?: number } | null)?.retry_count || 0
 
   return (
     <div ref={setNodeRef} style={style} className="touch-action-none">
@@ -142,7 +147,7 @@ function TaskCardItem({
           isDragging ? 'ring-2 ring-indigo-600 shadow-xl scale-[1.02] bg-indigo-50/60' : ''
         }`}
       >
-        {/* Header: Asa de Arrastre + Parada # + Botones Táctiles Subir/Bajar + Tipo + Badge Fotos + Estado */}
+        {/* Header: Asa de Arrastre + Parada # + Botones Táctiles Subir/Bajar + Tipo + Badge Fotos + Reintento + Estado */}
         <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 pb-2.5">
           <div className="flex items-center gap-2 min-w-0 flex-wrap">
             {/* Control Asa Táctil (Drag Handle) */}
@@ -193,6 +198,14 @@ function TaskCardItem({
             </div>
 
             <TaskTypeBadge type={task.task_type} />
+
+            {/* 🔄 Badge de Reintento si fue pausada previamente */}
+            {retryCount > 0 && (
+              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-xs shadow-2xs shrink-0">
+                <RotateCcw className="h-3 w-3 text-amber-700" />
+                <span>Reintento #{retryCount}</span>
+              </span>
+            )}
 
             {/* 📸 Indicador Prominente de Fotos / Imágenes */}
             {photos.length > 0 && (
@@ -374,19 +387,34 @@ function TaskCardItem({
             )}
 
             {task.status === 'en_route' && (
-              <Button
-                size="sm"
-                variant="warning"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onStartManagement(task)
-                }}
-                isLoading={isChangingStatus}
-                leftIcon={<MapPin className="h-3.5 w-3.5" />}
-                className="text-xs font-extrabold rounded-xl bg-purple-600 hover:bg-purple-700 text-white shadow-xs"
-              >
-                Llegué al Lugar
-              </Button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onCancelRoute(task)
+                  }}
+                  disabled={isChangingStatus}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-slate-700 hover:text-slate-900 bg-white hover:bg-slate-100 border border-slate-300 rounded-xl transition cursor-pointer shadow-2xs disabled:opacity-50"
+                  title="Deshacer inicio de ruta y regresar a la lista de hoy"
+                >
+                  <Undo2 className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Deshacer</span>
+                </button>
+                <Button
+                  size="sm"
+                  variant="warning"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onStartManagement(task)
+                  }}
+                  isLoading={isChangingStatus}
+                  leftIcon={<MapPin className="h-3.5 w-3.5" />}
+                  className="text-xs font-extrabold rounded-xl bg-purple-600 hover:bg-purple-700 text-white shadow-xs"
+                >
+                  Llegué al Lugar
+                </Button>
+              </div>
             )}
 
             {task.status === 'in_progress' && (
@@ -400,7 +428,7 @@ function TaskCardItem({
                 leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />}
                 className="text-xs font-extrabold rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
               >
-                Finalizar y Cobrar
+                Finalizar / Opciones
               </Button>
             )}
           </div>
@@ -511,6 +539,19 @@ export default function CourierTasksPage() {
       toast.success('Ruta iniciada', `Parada ${task.code} en camino.`)
     } catch (err: unknown) {
       toast.error('Error al iniciar ruta', (err as Error)?.message || 'No se pudo iniciar la ruta.')
+    }
+  }
+
+  const handleCancelRoute = async (task: TaskWithCourier) => {
+    try {
+      await changeStatus({
+        task_id: task.id,
+        new_status: 'assigned',
+        notes: 'Inicio de ruta cancelado / revertido por el motorizado',
+      })
+      toast.info('Ruta cancelada', `Parada ${task.code} volvió a tu cola de asignadas.`)
+    } catch (err: unknown) {
+      toast.error('Error al cancelar ruta', (err as Error)?.message || 'No se pudo cancelar la ruta.')
     }
   }
 
@@ -744,6 +785,7 @@ export default function CourierTasksPage() {
                           onOpenMap={openNavigation}
                           onOpenWhatsApp={openWhatsApp}
                           onStartRoute={handleStartRoute}
+                          onCancelRoute={handleCancelRoute}
                           onStartManagement={handleStartManagement}
                           onComplete={handleOpenCompleteModal}
                           onPreviewPhotos={handlePreviewPhotos}

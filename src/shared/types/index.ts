@@ -141,8 +141,8 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
 export const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
   pending: ['assigned', 'cancelled', 'rescheduled'],
   assigned: ['en_route', 'cancelled', 'rescheduled'],
-  en_route: ['in_progress', 'not_completed'],
-  in_progress: ['completed', 'not_completed'],
+  en_route: ['in_progress', 'assigned', 'not_completed'],
+  in_progress: ['completed', 'assigned', 'not_completed'],
   completed: ['archived'],
   not_completed: ['pending', 'rescheduled', 'cancelled'],
   rescheduled: ['pending', 'cancelled'],
@@ -153,8 +153,8 @@ export const ALLOWED_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
 // Transiciones permitidas por rol
 export const COURIER_ALLOWED_TRANSITIONS: Partial<Record<TaskStatus, TaskStatus[]>> = {
   assigned: ['en_route'],
-  en_route: ['in_progress', 'not_completed'],
-  in_progress: ['completed', 'not_completed'],
+  en_route: ['in_progress', 'assigned', 'not_completed'],
+  in_progress: ['completed', 'assigned', 'not_completed'],
 };
 
 export const WORKDAY_STATUS_LABELS: Record<WorkdayStatus, string> = {

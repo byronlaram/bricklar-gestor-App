@@ -13,6 +13,8 @@ import {
   Clock,
   Camera,
   Eye,
+  Undo2,
+  RotateCcw,
 } from 'lucide-react'
 import { useTask } from '@/modules/tasks/hooks/useTask'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
@@ -132,6 +134,19 @@ export default function CourierTaskDetailPage() {
     }
   }
 
+  const handleCancelRoute = async () => {
+    try {
+      await changeStatus({
+        task_id: task.id,
+        new_status: 'assigned',
+        notes: 'Inicio de ruta cancelado / revertido por el motorizado',
+      })
+      toast.info('Ruta cancelada', `Parada ${task.code} regresó a la lista de asignadas.`)
+    } catch (err: unknown) {
+      toast.error('Error al cancelar ruta', (err as Error)?.message || 'No se pudo cancelar la ruta.')
+    }
+  }
+
   const handleStartManagement = async () => {
     if (!requireActiveWorkday('gestionar esta entrega')) return
     try {
@@ -146,6 +161,8 @@ export default function CourierTaskDetailPage() {
     if (!requireActiveWorkday('finalizar o cobrar esta tarea')) return
     setIsCompleteModalOpen(true)
   }
+
+  const retryCount = (task.metadata as { retry_count?: number } | null)?.retry_count || 0
 
   return (
     <div className="space-y-5 animate-fade-in pb-28 max-w-2xl mx-auto">
@@ -167,6 +184,12 @@ export default function CourierTaskDetailPage() {
             {task.code}
           </span>
           <TaskStatusBadge status={task.status} />
+          {retryCount > 0 && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-extrabold text-xs">
+              <RotateCcw className="h-3 w-3 text-amber-700" />
+              Reintento #{retryCount}
+            </span>
+          )}
           <TaskPriorityBadge priority={task.priority} />
           <TaskTypeBadge type={task.task_type} />
         </div>
@@ -348,16 +371,28 @@ export default function CourierTaskDetailPage() {
           )}
 
           {task.status === 'en_route' && (
-            <Button
-              size="lg"
-              variant="primary"
-              onClick={handleStartManagement}
-              isLoading={isChangingStatus}
-              leftIcon={<Play className="h-4 w-4" />}
-              className="w-full justify-center bg-purple-600 hover:bg-purple-700 text-white border-transparent text-sm font-bold shadow-xs py-3"
-            >
-              Llegué al Lugar (En Gestión)
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="lg"
+                variant="outline"
+                onClick={handleCancelRoute}
+                disabled={isChangingStatus}
+                leftIcon={<Undo2 className="h-4 w-4" />}
+                className="shrink-0 px-3.5 text-xs font-bold text-slate-700 hover:text-slate-900 border-slate-300 py-3 shadow-2xs"
+              >
+                Deshacer
+              </Button>
+              <Button
+                size="lg"
+                variant="primary"
+                onClick={handleStartManagement}
+                isLoading={isChangingStatus}
+                leftIcon={<Play className="h-4 w-4" />}
+                className="flex-1 justify-center bg-purple-600 hover:bg-purple-700 text-white border-transparent text-sm font-bold shadow-xs py-3"
+              >
+                Llegué al Lugar (En Gestión)
+              </Button>
+            </div>
           )}
 
           {task.status === 'in_progress' && (
@@ -368,7 +403,7 @@ export default function CourierTaskDetailPage() {
               leftIcon={<CheckCircle2 className="h-4 w-4" />}
               className="w-full justify-center text-sm font-bold shadow-xs py-3"
             >
-              Finalizar Gestión / Registrar Resultado
+              Finalizar / Registrar Resultado / Reintentar
             </Button>
           )}
 
