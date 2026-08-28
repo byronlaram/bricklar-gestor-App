@@ -352,8 +352,9 @@ export async function getCashMovements(filters: {
   // Filtrado en memoria por fecha y sucursal
   if (filters.date) {
     list = list.filter((m) => {
-      const wDate = m.workday?.work_date || m.created_at.slice(0, 10)
-      return wDate === filters.date
+      const createdLocalDate = new Date(m.created_at).toLocaleDateString('en-CA')
+      const wDate = m.workday?.work_date || createdLocalDate
+      return wDate === filters.date || createdLocalDate === filters.date
     })
   }
 

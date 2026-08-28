@@ -300,8 +300,8 @@ export default function AdminWorkdaysPage() {
         </div>
       </div>
 
-      {/* 📊 Tarjetas de Flujo Financiero Dinámicas (Proyectado vs Real en Vivo) */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* 📊 Tarjetas de Flujo Financiero Dinámicas (5 Tarjetas con balance exacto) */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <MetricCard
           title="Fondos Entregados Admin"
           value={`C$ ${financialSummary.totalAdminFundsNIO.toFixed(2)}`}
@@ -373,6 +373,24 @@ export default function AdminWorkdaysPage() {
         />
 
         <MetricCard
+          title="Efectivos Parciales Entregados"
+          value={`-C$ ${financialSummary.totalAlreadyReceivedNIO.toFixed(2)}`}
+          subtitle={
+            <div className="space-y-1">
+              <div>Recibido en ventanilla previo al cierre</div>
+              <span className="inline-flex items-center text-[10px] font-extrabold text-sky-700 hover:underline">
+                Ver detalle ↗
+              </span>
+            </div>
+          }
+          icon={<Building2 className="h-4 w-4 text-sky-600" />}
+          accentColor="primary"
+          isHoverable
+          onClick={() => setSelectedCardDetail('received')}
+          className="cursor-pointer group hover:scale-[1.01] hover:border-sky-300 transition-all"
+        />
+
+        <MetricCard
           title={viewMode === 'projected' ? 'Neto Proyectado al Cierre' : 'Efectivo Real en Mano Ahora'}
           value={
             viewMode === 'projected'
@@ -406,7 +424,7 @@ export default function AdminWorkdaysPage() {
           accentColor={viewMode === 'projected' ? 'primary' : 'success'}
           isHoverable
           onClick={() => setSelectedCardDetail('net')}
-          className="cursor-pointer group hover:scale-[1.01] hover:border-purple-300 transition-all"
+          className="cursor-pointer group hover:scale-[1.01] hover:border-purple-300 transition-all col-span-2 sm:col-span-1"
         />
       </div>
 
@@ -795,15 +813,46 @@ export default function AdminWorkdaysPage() {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {ledgerMovements.map((m) => {
-                    const isIncome = m.direction === 'income'
+                    const isReception = ['cash_return', 'deposit', 'reception', 'settlement_payment'].includes(m.movement_type) ||
+                      m.description?.toLowerCase().includes('recepción de efectivo') ||
+                      m.description?.toLowerCase().includes('entrega parcial')
+                    const isDelivery = ['initial_cash', 'cash_advance', 'initial_delivery', 'advance_delivery'].includes(m.movement_type)
+                    const isExpense = ['expense', 'fuel', 'purchase'].includes(m.movement_type)
                     const isVoided = (m.description || '').includes('[ANULADO]')
+
                     const dateObj = new Date(m.created_at)
                     const timeStr = dateObj.toLocaleTimeString([], {
                       hour: '2-digit',
                       minute: '2-digit',
                       second: '2-digit',
                     })
-                    const dateStr = dateObj.toISOString().slice(0, 10)
+                    const dateStr = dateObj.toLocaleDateString('en-CA')
+
+                    let opLabel = m.movement_type
+                    let opBadgeClass = 'bg-slate-100 text-slate-700 border-slate-200'
+
+                    if (m.movement_type === 'initial_cash' || m.movement_type === 'initial_delivery') {
+                      opLabel = 'Fondo Inicial (Admin)'
+                      opBadgeClass = 'bg-blue-50 text-[#004594] border-blue-200'
+                    } else if (m.movement_type === 'cash_advance' || m.movement_type === 'advance_delivery') {
+                      opLabel = 'Entrega / Adelanto (Admin)'
+                      opBadgeClass = 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                    } else if (isReception) {
+                      if (m.description?.toLowerCase().includes('parcial') || m.movement_type === 'cash_return') {
+                        opLabel = 'Entrega Parcial (Motorizado)'
+                      } else if (m.description?.toLowerCase().includes('final') || m.movement_type === 'deposit') {
+                        opLabel = 'Entrega Final (Cierre)'
+                      } else {
+                        opLabel = 'Recepción Oficina'
+                      }
+                      opBadgeClass = 'bg-sky-50 text-sky-700 border-sky-200'
+                    } else if (isExpense) {
+                      opLabel = m.movement_type === 'fuel' ? 'Combustible (Ruta)' : m.movement_type === 'purchase' ? 'Compra (Ruta)' : 'Gasto (Ruta)'
+                      opBadgeClass = 'bg-rose-50 text-rose-700 border-rose-200'
+                    } else if (m.movement_type === 'adjustment') {
+                      opLabel = 'Ajuste de Caja'
+                      opBadgeClass = 'bg-amber-50 text-amber-700 border-amber-200'
+                    }
 
                     return (
                       <tr
@@ -850,27 +899,13 @@ export default function AdminWorkdaysPage() {
                         <td className="py-3 px-3">
                           <div className="flex items-center gap-1.5 flex-wrap">
                             <span
-                              className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold capitalize ${
+                              className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-extrabold border ${
                                 isVoided
-                                  ? 'bg-slate-100 text-slate-500 line-through'
-                                  : m.movement_type === 'initial_cash' || m.movement_type === 'cash_advance'
-                                  ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
-                                  : m.movement_type === 'reception'
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : m.movement_type === 'expense'
-                                  ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                  ? 'bg-slate-100 text-slate-500 line-through border-slate-200'
+                                  : opBadgeClass
                               }`}
                             >
-                              {m.movement_type === 'initial_cash'
-                                ? 'Fondo Inicial'
-                                : m.movement_type === 'cash_advance'
-                                ? 'Entrega / Adelanto'
-                                : m.movement_type === 'reception'
-                                ? 'Recepción Oficina'
-                                : m.movement_type === 'expense'
-                                ? 'Gasto / Compra'
-                                : m.movement_type}
+                              {opLabel}
                             </span>
                             {isVoided && (
                               <span className="px-2 py-0.5 rounded-full text-[9px] font-extrabold bg-rose-100 text-rose-700 border border-rose-200">
@@ -910,18 +945,20 @@ export default function AdminWorkdaysPage() {
                             className={`font-mono text-sm font-extrabold flex items-center justify-end gap-1 ${
                               isVoided
                                 ? 'text-slate-400 line-through'
-                                : isIncome
-                                ? 'text-emerald-600'
+                                : isDelivery
+                                ? 'text-[#004594]'
+                                : isReception
+                                ? 'text-sky-700'
                                 : 'text-rose-600'
                             }`}
                           >
-                            {isIncome ? (
+                            {isDelivery ? (
                               <ArrowDownLeft className="h-3.5 w-3.5" />
                             ) : (
                               <ArrowUpRight className="h-3.5 w-3.5" />
                             )}
                             <span>
-                              {isIncome ? '+' : '-'}C$ {Number(m.amount).toFixed(2)}
+                              {isDelivery ? '+' : '-'}C$ {Number(m.amount).toFixed(2)}
                             </span>
                           </div>
                           <span className="text-[10px] text-slate-400 font-semibold uppercase">
@@ -932,7 +969,7 @@ export default function AdminWorkdaysPage() {
                         {/* Acción Anular */}
                         <td className="py-3 px-4 text-right">
                           {!isVoided &&
-                          ['cash_advance', 'initial_cash', 'reception', 'deposit', 'cash_return'].includes(
+                          ['cash_advance', 'initial_cash', 'reception', 'deposit', 'cash_return', 'adjustment'].includes(
                             m.movement_type
                           ) ? (
                             <button

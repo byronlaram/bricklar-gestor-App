@@ -22,7 +22,7 @@ import type { DetailedCashMovement } from '../services/workdaysService'
 import type { Task } from '@/modules/tasks/types/task.types'
 import { TASK_STATUS_LABELS } from '@/shared/types'
 
-export type FinancialCardType = 'funds' | 'collections' | 'payments' | 'net'
+export type FinancialCardType = 'funds' | 'collections' | 'payments' | 'received' | 'net'
 
 interface FinancialSummaryDetailModalProps {
   cardType: FinancialCardType | null
@@ -177,6 +177,31 @@ export function FinancialSummaryDetailModal({
     )
   }, [cardType, tasks, viewMode, searchTerm, courierMap])
 
+  const filteredReceived = useMemo(() => {
+    if (cardType !== 'received') return []
+    const receivedMovements = ledgerMovements.filter((m) => {
+      const isReception =
+        ['cash_return', 'deposit', 'adjustment', 'reception', 'settlement_payment'].includes(
+          m.movement_type
+        ) ||
+        m.description?.toLowerCase().includes('recepción de efectivo') ||
+        m.description?.toLowerCase().includes('entrega parcial')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const isVoided = !!(m as any).is_voided || m.description?.toLowerCase().includes('anulad')
+      return isReception && !isVoided
+    })
+    if (!searchTerm.trim()) return receivedMovements
+    const term = searchTerm.toLowerCase()
+    return receivedMovements.filter((m) => {
+      const courierName = m.courier_profile?.display_name || m.courier_profile?.full_name || ''
+      return (
+        courierName.toLowerCase().includes(term) ||
+        m.description?.toLowerCase().includes(term) ||
+        m.movement_type?.toLowerCase().includes(term)
+      )
+    })
+  }, [cardType, ledgerMovements, searchTerm])
+
   const filteredWorkdays = useMemo(() => {
     if (cardType !== 'net') return []
     if (!searchTerm.trim()) return workdays
@@ -234,6 +259,14 @@ export function FinancialSummaryDetailModal({
           ? `-C$ ${financialSummary.projectedPaymentsNIO.toFixed(2)}`
           : `-C$ ${financialSummary.completedPaymentsNIO.toFixed(2)}`,
       totalLabel: viewMode === 'projected' ? 'Total Pagos Presupuestados' : 'Total Pagado Efectivo',
+    },
+    received: {
+      title: 'Desglose de Efectivo Parcial Entregado a Oficina',
+      subtitle: 'Entregas de dinero parciales en ventanilla recibidas de los motorizados durante la jornada.',
+      icon: <Building2 className="h-5 w-5 text-sky-600" />,
+      badgeColor: 'bg-sky-50 text-sky-700 border-sky-200',
+      totalFormatted: `-C$ ${financialSummary.totalAlreadyReceivedNIO.toFixed(2)}`,
+      totalLabel: 'Total Recibido en Ventanilla',
     },
     net: {
       title:
@@ -635,7 +668,80 @@ export function FinancialSummaryDetailModal({
             </>
           )}
 
-          {/* CASO 4: NETO PROYECTADO / REAL EN MANO AHORA (ARQUEO POR MOTORIZADO) */}
+          {/* CASO 4: EFECTIVOS PARCIALES ENTREGADOS A OFICINA */}
+          {cardType === 'received' && (
+            <>
+              {filteredReceived.length === 0 ? (
+                <EmptyState
+                  title="No hay entregas parciales a oficina registradas"
+                  description="Las recepciones de dinero entregadas en ventanilla por los motorizados durante la jornada aparecerán aquí."
+                  icon={<Building2 className="h-8 w-8 text-slate-400" />}
+                />
+              ) : (
+                <div className="space-y-2">
+                  {filteredReceived.map((m) => {
+                    const courierName =
+                      m.courier_profile?.display_name ||
+                      m.courier_profile?.full_name ||
+                      'Motorizado'
+
+                    const isPartial = m.description?.toLowerCase().includes('parcial') || m.movement_type === 'cash_return'
+                    const isFinal = m.description?.toLowerCase().includes('final') || m.movement_type === 'deposit'
+
+                    return (
+                      <div
+                        key={m.id}
+                        className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-2xs hover:border-sky-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 mt-0.5 bg-sky-50 text-sky-700 border border-sky-200">
+                            <Building2 className="h-4 w-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-slate-900">
+                                {courierName}
+                              </span>
+                              <Badge variant="completed" size="sm" className="bg-sky-50 text-sky-800 border-sky-200">
+                                {isPartial ? 'Entrega Parcial en Ventanilla' : isFinal ? 'Entrega Final' : 'Recepción Oficina'}
+                              </Badge>
+                            </div>
+                            <p className="text-2xs text-slate-500 mt-0.5 flex items-center gap-2">
+                              <span>
+                                Hora:{' '}
+                                {m.created_at
+                                  ? new Date(m.created_at).toLocaleTimeString([], {
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })
+                                  : '—'}
+                              </span>
+                              {m.description && (
+                                <span className="italic">
+                                  • {m.description}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="text-right shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 flex sm:flex-col items-center sm:items-end justify-between">
+                          <span className="text-2xs text-slate-400 font-semibold sm:hidden">
+                            Monto:
+                          </span>
+                          <span className="text-sm font-extrabold font-mono text-sky-700">
+                            -C$ {Number(m.amount || 0).toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* CASO 5: NETO PROYECTADO / REAL EN MANO AHORA (ARQUEO POR MOTORIZADO) */}
           {cardType === 'net' && (
             <div className="space-y-4">
               {/* Tarjeta de Fórmula Consolidada */}

@@ -750,10 +750,20 @@ export async function getDailyClosure(
     (acc, w) => acc + (w.cash_summary?.collectionsNIO ?? 0),
     0
   )
-  const totalCollectionsTransfer = enrichedWorkdays.reduce(
-    (acc, w) => acc + (w.cash_summary?.collectionsUSD ?? 0),
-    0
-  )
+  const totalCollectionsTransfer = (batchTasks || []).reduce((acc, t) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pb = (t as any).metadata?.payment_breakdown
+    if (pb?.transfer_amount && pb.transfer_amount > 0) return acc + pb.transfer_amount
+    if (
+      t.requires_collection &&
+      t.expected_payment_method &&
+      t.expected_payment_method !== 'cash' &&
+      (!pb || !pb.cash_amount)
+    ) {
+      return acc + (t.expected_collection_amount || 0)
+    }
+    return acc
+  }, 0)
   const totalExpenses = enrichedWorkdays.reduce(
     (acc, w) => acc + (w.cash_summary?.expensesNIO ?? 0),
     0
