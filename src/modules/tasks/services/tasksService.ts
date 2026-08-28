@@ -18,7 +18,7 @@ import type {
   PaginatedTasks,
 } from '../types/task.types'
 import type { TaskStatus } from '@/shared/types'
-import { ALLOWED_TRANSITIONS } from '@/shared/types'
+import { ALLOWED_TRANSITIONS, COURIER_ALLOWED_TRANSITIONS } from '@/shared/types'
 import { compressImage } from '@/shared/utils/imageCompressor'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────

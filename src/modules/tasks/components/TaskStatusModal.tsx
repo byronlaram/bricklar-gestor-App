@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { AlertTriangle } from 'lucide-react'
 import type { TaskWithCourier } from '../types/task.types'
 import type { TaskStatus } from '@/shared/types'
-import { ALLOWED_TRANSITIONS, TASK_STATUS_LABELS } from '@/shared/types'
+import { TASK_STATUS_LABELS } from '@/shared/types'
 import { useTaskMutations } from '../hooks/useTaskMutations'
 import { TaskStatusBadge } from './TaskStatusBadge'
 import {
