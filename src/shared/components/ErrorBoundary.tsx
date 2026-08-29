@@ -72,7 +72,7 @@ export class ErrorBoundary extends Component<Props, State> {
                 size="sm"
                 onClick={() => {
                   this.setState({ hasError: false, error: null })
-                  window.location.href = '/admin'
+                  window.location.href = '/'
                 }}
                 leftIcon={<Home className="h-4 w-4" />}
               >

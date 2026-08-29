@@ -44,6 +44,21 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
 }
 
 /**
+ * Resetea y destruye limpiamente el canal global de Supabase para evitar suscripciones huérfanas
+ * o colisiones de callbacks al cerrar o alternar sesión de usuario.
+ */
+export function resetGlobalRealtimeChannel(): void {
+  if (globalChannel) {
+    try {
+      supabase.removeChannel(globalChannel)
+    } catch (err) {
+      console.warn('[RealtimeSync] Error al remover canal global:', err)
+    }
+    globalChannel = null
+  }
+}
+
+/**
  * Obtiene o inicializa el canal global de Supabase con capacidades de Broadcast activadas.
  */
 export function getGlobalRealtimeChannel(): RealtimeChannel {

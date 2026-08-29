@@ -1,6 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { User, Session } from '@supabase/supabase-js'
 import { supabase } from '@/shared/lib/supabaseClient'
+import { resetGlobalRealtimeChannel } from '@/shared/lib/realtimeSync'
+import { queryClient } from '@/shared/lib/queryClient'
 import type { UserRole } from '@/shared/types'
 import {
   AuthContext,
@@ -78,6 +80,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (event === 'SIGNED_IN' && s?.user) {
           await loadProfile(s.user.id)
         } else if (event === 'SIGNED_OUT') {
+          resetGlobalRealtimeChannel()
+          queryClient.clear()
           setProfile(null)
         } else if (event === 'TOKEN_REFRESHED' && s?.user) {
           // Refrescar perfil en refresh de token por si cambió el rol
@@ -109,6 +113,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const signOut = async (): Promise<void> => {
+    resetGlobalRealtimeChannel()
+    queryClient.clear()
     await supabase.auth.signOut()
     setProfile(null)
     setUser(null)

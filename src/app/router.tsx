@@ -1,45 +1,46 @@
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { RouteGuard, PublicOnlyGuard } from '@/modules/auth/RouteGuard'
+import { lazyWithRetry } from '@/shared/utils/lazyWithRetry'
 import { Loader2 } from 'lucide-react'
 
-// ─── Lazy imports ────────────────────────────────────────────────────────────────
+// ─── Lazy imports con Resiliencia de Reintentos (lazyWithRetry) ───────────────
 // Auth
-const LoginPage = lazy(() => import('@/pages/auth/LoginPage'))
-const RecoverPasswordPage = lazy(() => import('@/pages/auth/RecoverPasswordPage'))
-const ResetPasswordPage = lazy(() => import('@/pages/auth/ResetPasswordPage'))
-const SuspendedPage = lazy(() => import('@/pages/auth/SuspendedPage'))
+const LoginPage = lazyWithRetry(() => import('@/pages/auth/LoginPage'))
+const RecoverPasswordPage = lazyWithRetry(() => import('@/pages/auth/RecoverPasswordPage'))
+const ResetPasswordPage = lazyWithRetry(() => import('@/pages/auth/ResetPasswordPage'))
+const SuspendedPage = lazyWithRetry(() => import('@/pages/auth/SuspendedPage'))
 
 // Admin
-const AdminLayout = lazy(() => import('@/layouts/AdminLayout'))
-const AdminDashboardPage = lazy(() => import('@/pages/admin/DashboardPage'))
-const AdminTasksPage = lazy(() => import('@/pages/admin/TasksPage'))
-const AdminTaskDetailPage = lazy(() => import('@/pages/admin/TaskDetailPage'))
-const AdminUsersPage = lazy(() => import('@/pages/admin/UsersPage'))
-const AdminBranchesPage = lazy(() => import('@/pages/admin/BranchesPage'))
-const AdminWorkdaysPage = lazy(() => import('@/pages/admin/WorkdaysPage'))
-const AdminSettlementsPage = lazy(() => import('@/pages/admin/SettlementsPage'))
-const AdminDailyClosurePage = lazy(() => import('@/pages/admin/DailyClosurePage'))
-const AdminBusDirectoryPage = lazy(() => import('@/pages/admin/BusDirectoryPage'))
-const AdminReportsPage = lazy(() => import('@/pages/admin/ReportsPage'))
-const AdminAuditPage = lazy(() => import('@/pages/admin/AuditPage'))
-const AdminSettingsPage = lazy(() => import('@/pages/admin/SettingsPage'))
-const AdminMaintenancePage = lazy(() => import('@/pages/admin/MaintenancePage'))
+const AdminLayout = lazyWithRetry(() => import('@/layouts/AdminLayout'))
+const AdminDashboardPage = lazyWithRetry(() => import('@/pages/admin/DashboardPage'))
+const AdminTasksPage = lazyWithRetry(() => import('@/pages/admin/TasksPage'))
+const AdminTaskDetailPage = lazyWithRetry(() => import('@/pages/admin/TaskDetailPage'))
+const AdminUsersPage = lazyWithRetry(() => import('@/pages/admin/UsersPage'))
+const AdminBranchesPage = lazyWithRetry(() => import('@/pages/admin/BranchesPage'))
+const AdminWorkdaysPage = lazyWithRetry(() => import('@/pages/admin/WorkdaysPage'))
+const AdminSettlementsPage = lazyWithRetry(() => import('@/pages/admin/SettlementsPage'))
+const AdminDailyClosurePage = lazyWithRetry(() => import('@/pages/admin/DailyClosurePage'))
+const AdminBusDirectoryPage = lazyWithRetry(() => import('@/pages/admin/BusDirectoryPage'))
+const AdminReportsPage = lazyWithRetry(() => import('@/pages/admin/ReportsPage'))
+const AdminAuditPage = lazyWithRetry(() => import('@/pages/admin/AuditPage'))
+const AdminSettingsPage = lazyWithRetry(() => import('@/pages/admin/SettingsPage'))
+const AdminMaintenancePage = lazyWithRetry(() => import('@/pages/admin/MaintenancePage'))
 
 // Motorizado
-const CourierLayout = lazy(() => import('@/layouts/CourierLayout'))
-const CourierHomePage = lazy(() => import('@/pages/courier/HomePage'))
-const CourierTasksPage = lazy(() => import('@/pages/courier/TasksPage'))
-const CourierTaskDetailPage = lazy(() => import('@/pages/courier/TaskDetailPage'))
-const CourierFundsPage = lazy(() => import('@/pages/courier/FundsPage'))
-const CourierSettlementPage = lazy(() => import('@/pages/courier/SettlementPage'))
-const CourierBusesPage = lazy(() => import('@/pages/courier/BusesPage'))
-const CourierNotificationsPage = lazy(() => import('@/pages/courier/NotificationsPage'))
+const CourierLayout = lazyWithRetry(() => import('@/layouts/CourierLayout'))
+const CourierHomePage = lazyWithRetry(() => import('@/pages/courier/HomePage'))
+const CourierTasksPage = lazyWithRetry(() => import('@/pages/courier/TasksPage'))
+const CourierTaskDetailPage = lazyWithRetry(() => import('@/pages/courier/TaskDetailPage'))
+const CourierFundsPage = lazyWithRetry(() => import('@/pages/courier/FundsPage'))
+const CourierSettlementPage = lazyWithRetry(() => import('@/pages/courier/SettlementPage'))
+const CourierBusesPage = lazyWithRetry(() => import('@/pages/courier/BusesPage'))
+const CourierNotificationsPage = lazyWithRetry(() => import('@/pages/courier/NotificationsPage'))
 
 // Dev / Catálogo (Solo Desarrollo)
 import { ToastProvider } from '@/shared/components/ui'
 const UiKitCatalogPage = import.meta.env.DEV
-  ? lazy(() => import('@/pages/dev/UiKitCatalogPage'))
+  ? lazyWithRetry(() => import('@/pages/dev/UiKitCatalogPage'))
   : null
 
 

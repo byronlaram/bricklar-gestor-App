@@ -84,7 +84,8 @@ export default function CourierHomePage() {
         (t) =>
           t.scheduled_date < todayStr &&
           t.status !== 'completed' &&
-          t.status !== 'cancelled'
+          t.status !== 'cancelled' &&
+          t.status !== 'rescheduled'
       ),
     [allTasks, todayStr]
   )
@@ -508,7 +509,11 @@ export default function CourierHomePage() {
               ]
               const cardStyle = cardStyles[idx % cardStyles.length]
 
-              const isOverdue = task.scheduled_date < todayStr && task.status !== 'completed'
+              const isOverdue =
+                task.scheduled_date < todayStr &&
+                task.status !== 'completed' &&
+                task.status !== 'cancelled' &&
+                task.status !== 'rescheduled'
               const photos = getTaskPhotos(task)
 
               return (
