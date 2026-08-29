@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Play,
@@ -48,6 +48,7 @@ export default function CourierHomePage() {
   const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
 
   const todayStr = getLocalDateString()
+  const tasksSectionRef = useRef<HTMLDivElement>(null)
 
   const [searchQuery, setSearchQuery] = useState('')
   const [timeFilter, setTimeFilter] = useState<'today' | 'delayed'>('today')
@@ -55,6 +56,24 @@ export default function CourierHomePage() {
   const [isStartModalOpen, setIsStartModalOpen] = useState(false)
   const [endKm, setEndKm] = useState<number | ''>('')
   const [isEndOpen, setIsEndOpen] = useState(false)
+
+  const handleFilterClick = (type: 'pending' | 'en_route' | 'completed' | 'delayed') => {
+    if (type === 'delayed') {
+      if (timeFilter === 'delayed') {
+        setTimeFilter('today')
+        setStatusFilter('all')
+      } else {
+        setTimeFilter('delayed')
+        setStatusFilter('all')
+      }
+    } else {
+      setTimeFilter('today')
+      setStatusFilter((prev) => (prev === type ? 'all' : type))
+    }
+    setTimeout(() => {
+      tasksSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }, 60)
+  }
 
   const { data: activeWorkday } = useActiveWorkday(profile?.id)
   const { data: pendingBalances } = useCourierPendingBalances(profile?.id, todayStr)
@@ -156,7 +175,7 @@ export default function CourierHomePage() {
   }, [timeFilter])
 
   return (
-    <div className="space-y-3.5 animate-fade-in pb-20 max-w-2xl mx-auto">
+    <div className="space-y-2.5 sm:space-y-3.5 animate-fade-in pb-20 max-w-2xl mx-auto">
       {/* 0. Saludo y Fecha (Debajo de la franja azul, encima de todo) */}
       <div className="flex items-center justify-between px-0.5 pt-0.5 pb-1">
         <div>
@@ -223,12 +242,12 @@ export default function CourierHomePage() {
       )}
 
       {/* 2. Resumen de Estados (Filtros Circulares Interactivos) */}
-      <div className="bg-white rounded-2xl p-3.5 border border-slate-100 shadow-2xs space-y-2.5">
+      <div className="bg-white rounded-2xl p-3 border border-slate-100 shadow-2xs space-y-2">
         <div className="flex items-center justify-between">
           <h2 className="text-xs font-bold text-[#0A2540]">
             Resumen ({sectionTitle})
           </h2>
-          {statusFilter !== 'all' && (
+          {(statusFilter !== 'all' || timeFilter === 'delayed') && (
             <button
               onClick={() => {
                 setStatusFilter('all')
@@ -245,18 +264,18 @@ export default function CourierHomePage() {
           {/* Pendientes — Círculo Azul */}
           <div
             className="flex flex-col items-center gap-1 cursor-pointer group"
-            onClick={() => setStatusFilter((prev) => (prev === 'pending' ? 'all' : 'pending'))}
+            onClick={() => handleFilterClick('pending')}
           >
             <div
-              className={`w-10 h-10 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-xs transition-all ${
+              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-blue-500 text-white flex items-center justify-center shadow-xs transition-all ${
                 statusFilter === 'pending'
                   ? 'ring-3 ring-blue-500/40 scale-105'
                   : 'group-hover:scale-105'
               }`}
             >
-              <Calendar size={17} />
+              <Calendar size={16} />
             </div>
-            <span className="text-sm font-extrabold text-[#0A2540] font-mono leading-none mt-0.5">
+            <span className="text-xs sm:text-sm font-extrabold text-[#0A2540] font-mono leading-none mt-0.5">
               {pendingCount}
             </span>
             <span
@@ -271,18 +290,18 @@ export default function CourierHomePage() {
           {/* En progreso — Círculo Naranja */}
           <div
             className="flex flex-col items-center gap-1 cursor-pointer group"
-            onClick={() => setStatusFilter((prev) => (prev === 'en_route' ? 'all' : 'en_route'))}
+            onClick={() => handleFilterClick('en_route')}
           >
             <div
-              className={`w-10 h-10 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs transition-all ${
+              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-amber-500 text-white flex items-center justify-center shadow-xs transition-all ${
                 statusFilter === 'en_route'
                   ? 'ring-3 ring-amber-500/40 scale-105'
                   : 'group-hover:scale-105'
               }`}
             >
-              <Play size={17} className="fill-current ml-0.5" />
+              <Play size={16} className="fill-current ml-0.5" />
             </div>
-            <span className="text-sm font-extrabold text-[#0A2540] font-mono leading-none mt-0.5">
+            <span className="text-xs sm:text-sm font-extrabold text-[#0A2540] font-mono leading-none mt-0.5">
               {enRouteCount}
             </span>
             <span
@@ -297,18 +316,18 @@ export default function CourierHomePage() {
           {/* Completadas — Círculo Verde */}
           <div
             className="flex flex-col items-center gap-1 cursor-pointer group"
-            onClick={() => setStatusFilter((prev) => (prev === 'completed' ? 'all' : 'completed'))}
+            onClick={() => handleFilterClick('completed')}
           >
             <div
-              className={`w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs transition-all ${
+              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-xs transition-all ${
                 statusFilter === 'completed'
                   ? 'ring-3 ring-emerald-500/40 scale-105'
                   : 'group-hover:scale-105'
               }`}
             >
-              <Check size={17} strokeWidth={2.8} />
+              <Check size={16} strokeWidth={2.8} />
             </div>
-            <span className="text-sm font-extrabold text-[#0A2540] font-mono leading-none mt-0.5">
+            <span className="text-xs sm:text-sm font-extrabold text-[#0A2540] font-mono leading-none mt-0.5">
               {completedCount}
             </span>
             <span
@@ -323,21 +342,18 @@ export default function CourierHomePage() {
           {/* Retrasadas — Círculo Rojo */}
           <div
             className="flex flex-col items-center gap-1 cursor-pointer group"
-            onClick={() => {
-              setTimeFilter('delayed')
-              setStatusFilter('all')
-            }}
+            onClick={() => handleFilterClick('delayed')}
           >
             <div
-              className={`w-10 h-10 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-xs transition-all ${
+              className={`w-9 h-9 sm:w-10 sm:h-10 rounded-full bg-rose-500 text-white flex items-center justify-center shadow-xs transition-all ${
                 timeFilter === 'delayed'
                   ? 'ring-3 ring-rose-500/40 scale-105'
                   : 'group-hover:scale-105'
               }`}
             >
-              <Flag size={17} />
+              <Flag size={16} />
             </div>
-            <span className="text-sm font-extrabold text-[#0A2540] font-mono leading-none mt-0.5">
+            <span className="text-xs sm:text-sm font-extrabold text-[#0A2540] font-mono leading-none mt-0.5">
               {delayedTasks.length}
             </span>
             <span
@@ -355,135 +371,136 @@ export default function CourierHomePage() {
       {!activeWorkday ? (
         <button
           onClick={() => setIsStartModalOpen(true)}
-          className="w-full h-11 rounded-2xl bg-[#004594] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-[#083570] active:scale-[0.99] transition cursor-pointer"
+          className="w-full h-10 sm:h-11 rounded-xl sm:rounded-2xl bg-[#004594] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-[#083570] active:scale-[0.99] transition cursor-pointer"
         >
-          <Plus size={18} strokeWidth={2.5} />
+          <Plus size={16} strokeWidth={2.5} />
           <span>Iniciar Jornada de Hoy</span>
         </button>
       ) : (
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/motorizado/tareas')}
-            className="flex-1 h-11 rounded-2xl bg-[#004594] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-[#083570] active:scale-[0.99] transition cursor-pointer"
+            className="flex-1 h-10 sm:h-11 rounded-xl sm:rounded-2xl bg-[#004594] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-[#083570] active:scale-[0.99] transition cursor-pointer"
           >
-            <Navigation size={16} />
+            <Navigation size={15} />
             <span>Ver Mis Tareas / Ruta</span>
           </button>
 
           <button
             onClick={() => setIsEndOpen(true)}
-            className="h-11 px-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-rose-100 transition cursor-pointer shrink-0"
+            className="h-10 sm:h-11 px-3.5 rounded-xl sm:rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-rose-100 transition cursor-pointer shrink-0"
           >
-            <StopCircle size={15} />
+            <StopCircle size={14} />
             <span>Cierre</span>
           </button>
         </div>
       )}
 
-      {/* 3. Accesos Rápidos a Módulos (Mis Tareas, Fondos, Liquidación, Buses) */}
-      <div className="space-y-2.5">
+      {/* 3. Accesos Rápidos a Módulos (Compactos horizontales) */}
+      <div className="space-y-1.5">
         <div className="flex items-center justify-between px-0.5">
           <h2 className="text-xs font-bold text-[#0A2540]">Accesos Rápidos</h2>
-          <span className="text-[10px] text-slate-500 font-medium">Módulos de trabajo</span>
+          <span className="text-[10px] text-slate-400 font-medium">Módulos de trabajo</span>
         </div>
 
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-2 gap-2">
           {/* Card 1: Mis Tareas */}
           <div
             onClick={() => navigate('/motorizado/tareas')}
-            className="rounded-2xl p-3 flex flex-col justify-between min-h-[82px] sm:min-h-[88px] border bg-[#F5F8FE] border-blue-200/80 hover:border-[#004594] transition cursor-pointer group shadow-2xs"
+            className="rounded-xl p-2.5 flex items-center gap-2.5 border bg-[#F5F8FE] border-blue-200/70 hover:border-[#004594] transition cursor-pointer group shadow-2xs"
           >
-            <div className="flex items-center justify-between">
-              <div className="w-8 h-8 rounded-xl bg-[#004594]/10 text-[#004594] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <ClipboardList size={16} />
-              </div>
-              <ChevronRight size={14} className="text-slate-400 group-hover:text-[#004594] group-hover:translate-x-0.5 transition-all shrink-0" />
+            <div className="w-8 h-8 rounded-lg bg-[#004594]/10 text-[#004594] flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <ClipboardList size={16} />
             </div>
-            <div className="mt-2">
-              <span className="text-xs font-extrabold text-[#0A2540] block leading-tight">
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-bold text-[#0A2540] block truncate leading-tight">
                 Mis Tareas
               </span>
-              <span className="text-[10px] font-semibold text-blue-700/90 block mt-0.5 leading-tight">
+              <span className="text-[10px] font-medium text-blue-700/90 block truncate leading-tight mt-0.5">
                 {todayTasks.length} {todayTasks.length === 1 ? 'tarea' : 'tareas'} hoy
               </span>
             </div>
+            <ChevronRight size={13} className="text-slate-400 group-hover:text-[#004594] group-hover:translate-x-0.5 transition-all shrink-0" />
           </div>
 
           {/* Card 2: Fondos */}
           <div
             onClick={() => navigate('/motorizado/fondos')}
-            className="rounded-2xl p-3 flex flex-col justify-between min-h-[82px] sm:min-h-[88px] border bg-[#F3F9F6] border-emerald-200/80 hover:border-emerald-500 transition cursor-pointer group shadow-2xs"
+            className="rounded-xl p-2.5 flex items-center gap-2.5 border bg-[#F3F9F6] border-emerald-200/70 hover:border-emerald-500 transition cursor-pointer group shadow-2xs"
           >
-            <div className="flex items-center justify-between">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <Banknote size={16} />
-              </div>
-              <ChevronRight size={14} className="text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all shrink-0" />
+            <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Banknote size={16} />
             </div>
-            <div className="mt-2">
-              <span className="text-xs font-extrabold text-[#0A2540] block leading-tight">
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-bold text-[#0A2540] block truncate leading-tight">
                 Fondos & Caja
               </span>
-              <span className="text-[10px] font-semibold text-emerald-700/90 block mt-0.5 leading-tight">
+              <span className="text-[10px] font-medium text-emerald-700/90 block truncate leading-tight mt-0.5">
                 Viáticos y gastos
               </span>
             </div>
+            <ChevronRight size={13} className="text-slate-400 group-hover:text-emerald-600 group-hover:translate-x-0.5 transition-all shrink-0" />
           </div>
 
           {/* Card 3: Liquidación */}
           <div
             onClick={() => navigate('/motorizado/liquidacion')}
-            className="rounded-2xl p-3 flex flex-col justify-between min-h-[82px] sm:min-h-[88px] border bg-[#FAF8FE] border-purple-200/80 hover:border-purple-500 transition cursor-pointer group shadow-2xs"
+            className="rounded-xl p-2.5 flex items-center gap-2.5 border bg-[#FAF8FE] border-purple-200/70 hover:border-purple-500 transition cursor-pointer group shadow-2xs"
           >
-            <div className="flex items-center justify-between">
-              <div className="w-8 h-8 rounded-xl bg-purple-500/10 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <Calculator size={16} />
-              </div>
-              <ChevronRight size={14} className="text-slate-400 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all shrink-0" />
+            <div className="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Calculator size={16} />
             </div>
-            <div className="mt-2">
-              <span className="text-xs font-extrabold text-[#0A2540] block leading-tight">
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-bold text-[#0A2540] block truncate leading-tight">
                 Liquidación
               </span>
-              <span className="text-[10px] font-semibold text-purple-700/90 block mt-0.5 leading-tight">
+              <span className="text-[10px] font-medium text-purple-700/90 block truncate leading-tight mt-0.5">
                 Arqueo y balance
               </span>
             </div>
+            <ChevronRight size={13} className="text-slate-400 group-hover:text-purple-600 group-hover:translate-x-0.5 transition-all shrink-0" />
           </div>
 
           {/* Card 4: Directorio Buses */}
           <div
             onClick={() => navigate('/motorizado/buses')}
-            className="rounded-2xl p-3 flex flex-col justify-between min-h-[82px] sm:min-h-[88px] border bg-[#FCFAF4] border-amber-200/80 hover:border-amber-500 transition cursor-pointer group shadow-2xs"
+            className="rounded-xl p-2.5 flex items-center gap-2.5 border bg-[#FCFAF4] border-amber-200/70 hover:border-amber-500 transition cursor-pointer group shadow-2xs"
           >
-            <div className="flex items-center justify-between">
-              <div className="w-9 h-8 rounded-xl bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                <Bus size={16} />
-              </div>
-              <ChevronRight size={14} className="text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all shrink-0" />
+            <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-600 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <Bus size={16} />
             </div>
-            <div className="mt-2">
-              <span className="text-xs font-extrabold text-[#0A2540] block leading-tight">
+            <div className="min-w-0 flex-1">
+              <span className="text-xs font-bold text-[#0A2540] block truncate leading-tight">
                 Directorio Buses
               </span>
-              <span className="text-[10px] font-semibold text-amber-700/90 block mt-0.5 leading-tight">
+              <span className="text-[10px] font-medium text-amber-700/90 block truncate leading-tight mt-0.5">
                 Terminales y rutas
               </span>
             </div>
+            <ChevronRight size={13} className="text-slate-400 group-hover:text-amber-600 group-hover:translate-x-0.5 transition-all shrink-0" />
           </div>
         </div>
       </div>
 
       {/* 5. Lista de Entregas del Día */}
-      <div className="space-y-3 pt-2">
-        <div className="flex items-center justify-between">
+      <div ref={tasksSectionRef} className="space-y-2.5 pt-1 scroll-mt-3">
+        <div className="flex items-center justify-between gap-2">
           <h2 className="text-sm font-bold text-[#0A2540]">
             {sectionTitle} ({filteredTasks.length})
           </h2>
-          {statusFilter !== 'all' && (
-            <span className="text-2xs font-bold text-slate-600 bg-slate-100 px-2.5 py-0.5 rounded-full">
-              Filtrado: {statusFilter === 'pending' ? 'Pendientes' : statusFilter === 'en_route' ? 'En ruta' : 'Completadas'}
-            </span>
+          {(statusFilter !== 'all' || timeFilter === 'delayed') && (
+            <button
+              onClick={() => {
+                setStatusFilter('all')
+                setTimeFilter('today')
+              }}
+              className="inline-flex items-center gap-1.5 text-2xs font-bold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 px-2.5 py-1 rounded-full transition cursor-pointer"
+            >
+              <span>
+                Filtro: {timeFilter === 'delayed' ? 'Atrasadas' : statusFilter === 'pending' ? 'Pendientes' : statusFilter === 'en_route' ? 'En ruta' : 'Listas'}
+              </span>
+              <span className="text-rose-500 font-black">✕</span>
+            </button>
           )}
         </div>
 
