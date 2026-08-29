@@ -180,8 +180,8 @@ export default function AdminSettlementsPage() {
           title="Neto Esperado en Caja"
           value={`C$ ${totalNetExpected.toFixed(2)}`}
           subtitle={`${pendingCount} pendiente(s) de revisión`}
-          icon={<Calculator className="h-4 w-4 text-purple-600" />}
-          accentColor="purple"
+          icon={<Calculator className="h-4 w-4 text-[#004594]" />}
+          accentColor="primary"
         />
       </div>
 

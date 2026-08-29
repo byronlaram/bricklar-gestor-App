@@ -404,27 +404,22 @@ export default function AdminWorkdaysPage() {
                   ? `En mano en calle ahora: C$ ${financialSummary.liveCashInHandNIO.toFixed(2)}`
                   : `Neto proyectado al cierre: C$ ${financialSummary.netProjectedCashNIO.toFixed(2)}`}
               </div>
-              <span
-                className={cn(
-                  'inline-flex items-center text-[10px] font-extrabold hover:underline',
-                  viewMode === 'projected' ? 'text-purple-700' : 'text-emerald-700'
-                )}
-              >
+              <span className="inline-flex items-center text-[10px] font-extrabold text-blue-700 hover:underline">
                 Ver arqueo ↗
               </span>
             </div>
           }
           icon={
             viewMode === 'projected' ? (
-              <Calculator className="h-4 w-4 text-purple-600" />
+              <Calculator className="h-4 w-4 text-[#004594]" />
             ) : (
-              <Wallet className="h-4 w-4 text-emerald-600" />
+              <Wallet className="h-4 w-4 text-[#004594]" />
             )
           }
-          accentColor={viewMode === 'projected' ? 'primary' : 'success'}
+          accentColor="primary"
           isHoverable
           onClick={() => setSelectedCardDetail('net')}
-          className="cursor-pointer group hover:scale-[1.01] hover:border-purple-300 transition-all col-span-2 sm:col-span-1"
+          className="cursor-pointer group hover:scale-[1.01] hover:border-blue-300 transition-all col-span-2 sm:col-span-1"
         />
       </div>
 
