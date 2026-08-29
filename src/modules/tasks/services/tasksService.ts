@@ -508,24 +508,6 @@ export async function changeTaskStatus(payload: ChangeStatusPayload): Promise<Ta
 
   if (new_status === 'completed') {
     updatePayload.completed_at = new Date().toISOString()
-
-    // Sincronizar montos reales finales en las columnas financieras de la tarea
-    if (payment_breakdown) {
-      if (typeof payment_breakdown.actual_paid_amount === 'number') {
-        updatePayload.expected_payment_amount = payment_breakdown.actual_paid_amount
-      }
-      if (
-        typeof payment_breakdown.cash_amount === 'number' ||
-        typeof payment_breakdown.transfer_amount === 'number' ||
-        typeof payment_breakdown.cheque_amount === 'number'
-      ) {
-        const totalCol =
-          (payment_breakdown.cash_amount || 0) +
-          (payment_breakdown.transfer_amount || 0) +
-          (payment_breakdown.cheque_amount || 0)
-        updatePayload.expected_collection_amount = totalCol
-      }
-    }
   }
 
   if (new_status === 'cancelled') {
