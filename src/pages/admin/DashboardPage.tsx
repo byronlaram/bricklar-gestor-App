@@ -178,16 +178,28 @@ export default function DashboardPage() {
   const { data: branches = [] } = useBranches()
   const todayStr = getLocalDateString()
 
-  const [selectedBranchId, setSelectedBranchId] = useState<string>('all')
+  const defaultBranch = profile?.primary_branch_id || (profile?.branch_ids && profile.branch_ids.length === 1 ? profile.branch_ids[0] : 'all')
+
+  const [selectedBranchId, setSelectedBranchId] = useState<string>(defaultBranch)
   const [selectedDate, setSelectedDate] = useState<string>(todayStr)
 
   const isToday = selectedDate === todayStr
 
+  // Sucursales permitidas para el usuario según su rol
+  const userBranches = useMemo(() => {
+    if (!profile?.branch_ids || profile.branch_ids.length === 0 || profile.role === 'general_admin') {
+      return branches
+    }
+    return branches.filter((b) => profile.branch_ids.includes(b.id))
+  }, [branches, profile?.branch_ids, profile?.role])
+
   const effectiveBranchIds = useMemo(() => {
     if (selectedBranchId !== 'all') return [selectedBranchId]
-    if (profile?.branch_ids && profile.branch_ids.length > 0) return profile.branch_ids
+    if (profile?.branch_ids && profile.branch_ids.length > 0 && profile.role === 'junior_admin') {
+      return profile.branch_ids
+    }
     return []
-  }, [selectedBranchId, profile?.branch_ids])
+  }, [selectedBranchId, profile?.branch_ids, profile?.role])
 
   const { data, isLoading } = useDashboard(effectiveBranchIds, selectedDate)
 
@@ -287,7 +299,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Selector de Sucursal */}
-            {branches.length > 0 && (
+            {userBranches.length > 0 && (
               <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs">
                 <Building2 className="h-4 w-4 text-accent shrink-0" />
                 <span className="text-xs font-bold text-slate-500 hidden sm:inline">Sucursal:</span>
@@ -297,8 +309,8 @@ export default function DashboardPage() {
                   className="text-xs font-bold text-slate-900 bg-transparent focus:outline-none cursor-pointer pr-1"
                   aria-label="Filtrar métricas por sucursal"
                 >
-                  <option value="all">Todas las sucursales</option>
-                  {branches.map((b) => (
+                  {userBranches.length > 1 && <option value="all">Todas mis sucursales</option>}
+                  {userBranches.map((b) => (
                     <option key={b.id} value={b.id}>
                       {b.name}
                     </option>

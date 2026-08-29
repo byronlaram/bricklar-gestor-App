@@ -205,8 +205,10 @@ function Sidebar({
           <div className="flex items-center gap-2.5 rounded-lg bg-slate-900/80 px-3 py-2 border border-slate-800/80">
             <Avatar name={profile?.full_name ?? 'Administrador'} size="sm" src={profile?.avatar_url} />
             <div className="min-w-0 flex-1">
-              <p className="truncate text-xs font-semibold text-white">{profile?.full_name ?? 'Administrador'}</p>
-              <p className="truncate text-2xs text-slate-400">{profile?.email}</p>
+              <p className="truncate text-xs font-semibold text-white">{profile?.display_name || profile?.full_name || 'Administrador'}</p>
+              <span className="inline-block mt-0.5 px-2 py-0.5 text-[10px] font-bold rounded-md bg-blue-500/20 text-blue-200 border border-blue-400/30">
+                {role === 'general_admin' ? 'Administrador General' : role === 'junior_admin' ? 'Administrador Junior' : 'Administrador'}
+              </span>
             </div>
           </div>
 
@@ -248,8 +250,14 @@ export default function AdminLayout() {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
-  const { profile, signOut } = useAuth()
+  const { profile, role, isGeneralAdmin, signOut } = useAuth()
   const toast = useToast()
+
+  const roleLabel = role === 'general_admin'
+    ? 'Administrador General'
+    : role === 'junior_admin'
+    ? 'Administrador Junior'
+    : 'Administrador'
 
   // Generación dinámica de Breadcrumb
   const pathSegments = location.pathname.split('/').filter(Boolean)
@@ -303,6 +311,14 @@ export default function AdminLayout() {
   })
 
   const unreadCount = unreadNotifications.length
+
+  const handleNotificationBellClick = () => {
+    if (isGeneralAdmin) {
+      navigate('/admin/auditoria')
+    } else {
+      navigate('/admin/tareas')
+    }
+  }
 
   // Ejecución segura de Logout
   const handleConfirmLogout = async () => {
@@ -369,10 +385,10 @@ export default function AdminLayout() {
             {/* Campana de Notificaciones / Auditoría con Badge numérico */}
             <button
               type="button"
-              onClick={() => navigate('/admin/auditoria')}
+              onClick={handleNotificationBellClick}
               className="relative w-10 h-10 rounded-2xl bg-white/15 border border-white/20 shadow-2xs flex items-center justify-center text-white hover:bg-white/25 transition cursor-pointer backdrop-blur-xs"
-              aria-label="Auditoría y notificaciones"
-              title="Notificaciones y Registro de Auditoría"
+              aria-label={isGeneralAdmin ? 'Auditoría y notificaciones' : 'Notificaciones y tareas pendientes'}
+              title={isGeneralAdmin ? 'Notificaciones y Registro de Auditoría' : 'Notificaciones y Tareas'}
             >
               <Bell size={18} className="text-white" />
               {unreadCount > 0 && (
@@ -394,11 +410,11 @@ export default function AdminLayout() {
               >
                 <Avatar name={profile?.full_name ?? 'Admin'} size="sm" src={profile?.avatar_url} />
                 <div className="hidden md:block text-left pr-1">
-                  <p className="text-xs font-bold text-white leading-tight truncate max-w-[120px]">
+                  <p className="text-xs font-bold text-white leading-tight truncate max-w-[130px]">
                     {profile?.display_name || profile?.full_name || 'Administrador'}
                   </p>
                   <p className="text-[10px] text-blue-200/90 font-medium capitalize leading-none mt-0.5">
-                    {profile?.role?.replace('_', ' ') ?? 'General Admin'}
+                    {roleLabel}
                   </p>
                 </div>
                 <ChevronDown size={14} className={cn('text-blue-200 transition-transform duration-200 hidden sm:block', userMenuOpen ? 'rotate-180' : '')} />
@@ -414,8 +430,8 @@ export default function AdminLayout() {
                   <div className="px-4 py-2.5 border-b border-slate-100 space-y-0.5">
                     <p className="text-xs font-bold text-[#004594] truncate">{profile?.display_name || profile?.full_name || 'Administrador'}</p>
                     <p className="text-2xs text-slate-400 truncate">{profile?.email}</p>
-                    <span className="inline-block mt-1 px-2 py-0.5 text-2xs font-semibold text-[#004594] bg-blue-50 border border-blue-100 rounded-full capitalize">
-                      {profile?.role?.replace('_', ' ') ?? 'Administrador'}
+                    <span className="inline-block mt-1 px-2 py-0.5 text-2xs font-semibold text-[#004594] bg-blue-50 border border-blue-100 rounded-full">
+                      {roleLabel}
                     </span>
                   </div>
 
@@ -432,18 +448,20 @@ export default function AdminLayout() {
                       <Settings size={16} className="text-[#004594]" />
                       Configuración de cuenta
                     </button>
-                    <button
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        setUserMenuOpen(false)
-                        navigate('/admin/auditoria')
-                      }}
-                      className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#004594] transition cursor-pointer"
-                    >
-                      <UserCheck size={16} className="text-[#004594]" />
-                      Log de Actividad / Auditoría
-                    </button>
+                    {isGeneralAdmin && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => {
+                          setUserMenuOpen(false)
+                          navigate('/admin/auditoria')
+                        }}
+                        className="w-full flex items-center gap-2.5 px-4 py-2.5 text-xs font-semibold text-slate-700 hover:bg-blue-50 hover:text-[#004594] transition cursor-pointer"
+                      >
+                        <UserCheck size={16} className="text-[#004594]" />
+                        Log de Actividad / Auditoría
+                      </button>
+                    )}
                   </div>
 
                   <div className="border-t border-slate-100 pt-1">
