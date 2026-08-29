@@ -158,8 +158,8 @@ export default function AdminDailyClosurePage() {
               title="Entregas Previas a Caja"
               value={`C$ ${(closure?.total_already_received ?? 0).toFixed(2)}`}
               subtitle="Efectivo entregado en oficina"
-              icon={<HandCoins className="h-4 w-4 text-sky-600" />}
-              accentColor="accent"
+              icon={<HandCoins className="h-4 w-4 text-purple-600" />}
+              accentColor="purple"
             />
           </div>
 

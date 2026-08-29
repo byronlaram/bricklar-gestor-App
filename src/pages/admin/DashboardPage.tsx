@@ -380,8 +380,8 @@ export default function DashboardPage() {
                   title="En Ruta / Gestión"
                   value={kpis.inRoute}
                   subtitle="Motorizados en tránsito"
-                  icon={<Clock className="h-5 w-5 text-sky-600" />}
-                  accentColor="primary"
+                  icon={<Clock className="h-5 w-5 text-purple-600" />}
+                  accentColor="purple"
                   className="hover:shadow-card-hover cursor-pointer"
                 />
               </Link>
@@ -414,7 +414,7 @@ export default function DashboardPage() {
                   value={kpis.activeCouriers}
                   subtitle="Jornadas abiertas en la fecha"
                   icon={<Bike className="h-5 w-5 text-purple-600" />}
-                  accentColor="accent"
+                  accentColor="purple"
                   className="hover:shadow-card-hover cursor-pointer"
                 />
               </Link>

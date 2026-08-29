@@ -173,7 +173,7 @@ export default function AdminSettlementsPage() {
           value={`-C$ ${totalAlreadyReceived.toFixed(2)}`}
           subtitle="Efectivo ya en administración"
           icon={<CheckCircle2 className="h-4 w-4 text-sky-600" />}
-          accentColor="accent"
+          accentColor="primary"
         />
 
         <MetricCard
@@ -181,7 +181,7 @@ export default function AdminSettlementsPage() {
           value={`C$ ${totalNetExpected.toFixed(2)}`}
           subtitle={`${pendingCount} pendiente(s) de revisión`}
           icon={<Calculator className="h-4 w-4 text-purple-600" />}
-          accentColor="primary"
+          accentColor="purple"
         />
       </div>
 

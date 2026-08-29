@@ -128,6 +128,19 @@ BentoCard.displayName = 'BentoCard'
 
 // ─── Metric Card Especializada (KPI) ───────────────────────────────────────────
 
+export type MetricCardAccent =
+  | 'primary'
+  | 'accent'
+  | 'success'
+  | 'warning'
+  | 'destructive'
+  | 'purple'
+  | 'violet'
+  | 'blue'
+  | 'amber'
+  | 'emerald'
+  | 'rose'
+
 export interface MetricCardProps extends HTMLAttributes<HTMLDivElement> {
   /** Título del indicador */
   title: string
@@ -137,45 +150,126 @@ export interface MetricCardProps extends HTMLAttributes<HTMLDivElement> {
   icon?: ReactNode
   /** Texto descriptivo o tendencia */
   subtitle?: ReactNode
-  /** Color de borde de acento izquierdo */
-  accentColor?: 'primary' | 'accent' | 'success' | 'warning' | 'destructive'
+  /** Color de fondo y borde pastel */
+  accentColor?: MetricCardAccent
   /** Añade elevación e interacción hover si la tarjeta es clickable */
   isHoverable?: boolean
 }
 
-const accentBorderMap = {
-  primary: 'border-l-4 border-l-[#1c2d5e]',
-  accent: 'border-l-4 border-l-indigo-600',
-  success: 'border-l-4 border-l-emerald-600',
-  warning: 'border-l-4 border-l-amber-500',
-  destructive: 'border-l-4 border-l-rose-600',
+const PASTEL_THEMES: Record<
+  string,
+  {
+    card: string
+    iconBg: string
+    title: string
+    subtitle: string
+  }
+> = {
+  primary: {
+    card: 'bg-[#F5F8FE] border-blue-200/80 hover:border-blue-400/80 shadow-2xs',
+    iconBg: 'bg-[#004594]/10 text-[#004594]',
+    title: 'text-[#0A2540]/80',
+    subtitle: 'text-blue-700/90',
+  },
+  blue: {
+    card: 'bg-[#F5F8FE] border-blue-200/80 hover:border-blue-400/80 shadow-2xs',
+    iconBg: 'bg-[#004594]/10 text-[#004594]',
+    title: 'text-[#0A2540]/80',
+    subtitle: 'text-blue-700/90',
+  },
+  accent: {
+    card: 'bg-[#F5F8FE] border-blue-200/80 hover:border-blue-400/80 shadow-2xs',
+    iconBg: 'bg-blue-600/10 text-blue-600',
+    title: 'text-[#0A2540]/80',
+    subtitle: 'text-blue-700/90',
+  },
+  success: {
+    card: 'bg-[#F3F9F6] border-emerald-200/80 hover:border-emerald-400/80 shadow-2xs',
+    iconBg: 'bg-emerald-500/10 text-emerald-600',
+    title: 'text-[#0A2540]/80',
+    subtitle: 'text-emerald-700/90',
+  },
+  emerald: {
+    card: 'bg-[#F3F9F6] border-emerald-200/80 hover:border-emerald-400/80 shadow-2xs',
+    iconBg: 'bg-emerald-500/10 text-emerald-600',
+    title: 'text-[#0A2540]/80',
+    subtitle: 'text-emerald-700/90',
+  },
+  warning: {
+    card: 'bg-[#FCFAF4] border-amber-200/80 hover:border-amber-400/80 shadow-2xs',
+    iconBg: 'bg-amber-500/10 text-amber-600',
+    title: 'text-[#0A2540]/80',
+    subtitle: 'text-amber-700/90',
+  },
+  amber: {
+    card: 'bg-[#FCFAF4] border-amber-200/80 hover:border-amber-400/80 shadow-2xs',
+    iconBg: 'bg-amber-500/10 text-amber-600',
+    title: 'text-[#0A2540]/80',
+    subtitle: 'text-amber-700/90',
+  },
+  destructive: {
+    card: 'bg-[#FFF5F5] border-rose-200/80 hover:border-rose-400/80 shadow-2xs',
+    iconBg: 'bg-rose-500/10 text-rose-600',
+    title: 'text-[#0A2540]/80',
+    subtitle: 'text-rose-700/90',
+  },
+  rose: {
+    card: 'bg-[#FFF5F5] border-rose-200/80 hover:border-rose-400/80 shadow-2xs',
+    iconBg: 'bg-rose-500/10 text-rose-600',
+    title: 'text-[#0A2540]/80',
+    subtitle: 'text-rose-700/90',
+  },
+  purple: {
+    card: 'bg-[#FAF8FE] border-purple-200/80 hover:border-purple-400/80 shadow-2xs',
+    iconBg: 'bg-purple-500/10 text-purple-600',
+    title: 'text-[#0A2540]/80',
+    subtitle: 'text-purple-700/90',
+  },
+  violet: {
+    card: 'bg-[#FAF8FE] border-purple-200/80 hover:border-purple-400/80 shadow-2xs',
+    iconBg: 'bg-purple-500/10 text-purple-600',
+    title: 'text-[#0A2540]/80',
+    subtitle: 'text-purple-700/90',
+  },
 }
 
 export const MetricCard = forwardRef<HTMLDivElement, MetricCardProps>(
-  ({ title, value, icon, subtitle, accentColor, isHoverable, className, ...props }, ref) => (
-    <Card
-      ref={ref}
-      isHoverable={isHoverable}
-      className={cn(
-        'p-5 flex flex-col justify-between space-y-3',
-        accentColor && accentBorderMap[accentColor],
-        className
-      )}
-      {...props}
-    >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wider text-foreground-muted">
-          {title}
-        </span>
-        {icon && <div className="text-foreground-subtle shrink-0">{icon}</div>}
-      </div>
-      <div>
-        <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
-          {value}
+  ({ title, value, icon, subtitle, accentColor = 'primary', isHoverable, className, ...props }, ref) => {
+    const theme = PASTEL_THEMES[accentColor] || PASTEL_THEMES.primary
+
+    return (
+      <div
+        ref={ref}
+        className={cn(
+          'p-4 sm:p-5 rounded-2xl border transition-all duration-200 flex flex-col justify-between space-y-3 group',
+          theme.card,
+          isHoverable && 'hover:shadow-card-hover cursor-pointer hover:scale-[1.01]',
+          className
+        )}
+        {...props}
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className={cn('text-xs font-extrabold uppercase tracking-wider', theme.title)}>
+            {title}
+          </span>
+          {icon && (
+            <div className={cn('w-8 h-8 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center shrink-0 transition-transform group-hover:scale-105', theme.iconBg)}>
+              {icon}
+            </div>
+          )}
         </div>
-        {subtitle && <div className="mt-1 text-xs text-foreground-muted">{subtitle}</div>}
+        <div>
+          <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-[#0A2540]">
+            {value}
+          </div>
+          {subtitle && (
+            <div className={cn('mt-1 text-xs font-semibold leading-tight', theme.subtitle)}>
+              {subtitle}
+            </div>
+          )}
+        </div>
       </div>
-    </Card>
-  )
+    )
+  }
 )
 MetricCard.displayName = 'MetricCard'

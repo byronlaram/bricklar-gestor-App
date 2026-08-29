@@ -701,56 +701,62 @@ export default function ReportsPage() {
       {/* Tarjetas KPI resumen para Reporte de Ajustes */}
       {enabled && adjustmentKpis && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 animate-fade-in">
-          <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-1">
+          <div className="p-4 rounded-2xl bg-[#FFF5F5] border border-rose-200/80 shadow-2xs space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-rose-800 flex items-center gap-1.5">
-                <TrendingDown className="h-4 w-4 text-rose-600" />
+              <span className="text-xs font-bold text-rose-900 flex items-center gap-1.5">
+                <div className="w-7 h-7 rounded-lg bg-rose-500/10 text-rose-600 flex items-center justify-center">
+                  <TrendingDown className="h-4 w-4" />
+                </div>
                 Total Faltantes
               </span>
-              <span className="text-[11px] font-semibold text-rose-600 bg-rose-100 px-2 py-0.5 rounded-full">
+              <span className="text-[11px] font-bold text-rose-700 bg-rose-100/70 px-2 py-0.5 rounded-full">
                 {adjustmentKpis.countShortages} caso(s)
               </span>
             </div>
-            <p className="text-xl font-black text-rose-700">
+            <p className="text-xl font-black font-mono text-rose-700">
               -C$ {adjustmentKpis.totalShortages.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
-            <p className="text-[11px] text-rose-600">Ajustes por cobros pendientes o faltantes en caja</p>
+            <p className="text-[11px] font-medium text-rose-600/90">Ajustes por cobros pendientes o faltantes en caja</p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-sky-50 border border-sky-200 space-y-1">
+          <div className="p-4 rounded-2xl bg-[#F3F9F6] border border-emerald-200/80 shadow-2xs space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-sky-800 flex items-center gap-1.5">
-                <TrendingUp className="h-4 w-4 text-sky-600" />
+              <span className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
+                  <TrendingUp className="h-4 w-4" />
+                </div>
                 Total Sobrantes
               </span>
-              <span className="text-[11px] font-semibold text-sky-600 bg-sky-100 px-2 py-0.5 rounded-full">
+              <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/70 px-2 py-0.5 rounded-full">
                 {adjustmentKpis.countSurpluses} caso(s)
               </span>
             </div>
-            <p className="text-xl font-black text-sky-700">
+            <p className="text-xl font-black font-mono text-emerald-700">
               +C$ {adjustmentKpis.totalSurpluses.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
-            <p className="text-[11px] text-sky-600">Ajustes por propinas o redondeo a favor</p>
+            <p className="text-[11px] font-medium text-emerald-600/90">Ajustes por propinas o redondeo a favor</p>
           </div>
 
-          <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+          <div className="p-4 rounded-2xl bg-[#F5F8FE] border border-blue-200/80 shadow-2xs space-y-1.5">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                <Scale className="h-4 w-4 text-slate-600" />
+              <span className="text-xs font-bold text-blue-900 flex items-center gap-1.5">
+                <div className="w-7 h-7 rounded-lg bg-[#004594]/10 text-[#004594] flex items-center justify-center">
+                  <Scale className="h-4 w-4" />
+                </div>
                 Balance Neto de Ajustes
               </span>
-              <span className="text-[11px] font-semibold text-slate-600 bg-slate-200/80 px-2 py-0.5 rounded-full">
+              <span className="text-[11px] font-bold text-blue-700 bg-blue-100/70 px-2 py-0.5 rounded-full">
                 {data.length} total
               </span>
             </div>
-            <p className={`text-xl font-black ${
+            <p className={`text-xl font-black font-mono ${
               adjustmentKpis.totalSurpluses - adjustmentKpis.totalShortages >= 0
                 ? 'text-emerald-700'
                 : 'text-rose-700'
             }`}>
               {adjustmentKpis.totalSurpluses - adjustmentKpis.totalShortages >= 0 ? '+' : '-'}C$ {Math.abs(adjustmentKpis.totalSurpluses - adjustmentKpis.totalShortages).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
-            <p className="text-[11px] text-slate-500">Resultado neto acumulado en el período</p>
+            <p className="text-[11px] font-medium text-blue-600/90">Resultado neto acumulado en el período</p>
           </div>
         </div>
       )}
