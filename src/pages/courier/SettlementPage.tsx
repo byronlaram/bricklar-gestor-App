@@ -39,12 +39,16 @@ import {
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
 
+// Estados que indican que una tarea ya fue cerrada (terminal)
+const TERMINAL_STATUSES = ['completed', 'not_completed', 'rescheduled', 'cancelled', 'archived']
+
 export default function CourierSettlementPage() {
   const { profile } = useAuth()
   const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
   const todayStr = getLocalDateString()
   const [notes, setNotes] = useState('')
   const [showCarryoverDetails, setShowCarryoverDetails] = useState(false)
+  const [showPendingTasksError, setShowPendingTasksError] = useState(false)
 
   const { data: activeWorkday, isLoading: isLoadingWorkday } = useActiveWorkday(profile?.id)
   const targetWorkDate = activeWorkday?.work_date || todayStr
@@ -70,6 +74,13 @@ export default function CourierSettlementPage() {
     () => (tasksData?.data || []).filter((t) => t.status === 'completed'),
     [tasksData?.data]
   )
+
+  // Tareas que aún no han sido cerradas (estados activos/pendientes)
+  const pendingTasks = useMemo(
+    () => (tasksData?.data || []).filter((t) => !TERMINAL_STATUSES.includes(t.status)),
+    [tasksData?.data]
+  )
+  const hasPendingTasks = pendingTasks.length > 0
 
   const completedTasksCount = completedTasks.length
 
@@ -219,6 +230,12 @@ export default function CourierSettlementPage() {
 
   const handleSubmitReview = async () => {
     if (!activeWorkday) return
+    // Bloquear envío si hay tareas pendientes por cerrar
+    if (hasPendingTasks) {
+      setShowPendingTasksError(true)
+      return
+    }
+    setShowPendingTasksError(false)
     try {
       await submitSettlement({ workdayId: activeWorkday.id, notes: notes.trim() || undefined })
     } catch (err) {
@@ -688,6 +705,32 @@ export default function CourierSettlementPage() {
               className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-600/30 text-slate-900 shadow-2xs resize-none"
             />
           </div>
+
+          {/* ⚠️ Error: Tareas pendientes por cerrar */}
+          {showPendingTasksError && hasPendingTasks && (
+            <div className="flex items-start gap-3 bg-rose-50 border border-rose-200 rounded-2xl p-3.5 animate-fade-in">
+              <div className="shrink-0 mt-0.5 p-1.5 bg-rose-100 rounded-xl">
+                <AlertCircle className="h-4 w-4 text-rose-600" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-rose-800">
+                  Tienes {pendingTasks.length} tarea{pendingTasks.length > 1 ? 's' : ''} pendiente{pendingTasks.length > 1 ? 's' : ''} por cerrar
+                </p>
+                <p className="text-[11px] text-rose-600 mt-0.5 leading-snug">
+                  Debes completar, cancelar o reprogramar todas las tareas activas antes de enviar tu liquidación a revisión.
+                </p>
+                <div className="mt-2 space-y-1">
+                  {pendingTasks.map((t) => (
+                    <div key={t.id} className="flex items-center gap-1.5 text-[11px] text-rose-700 bg-rose-100/60 rounded-lg px-2 py-1">
+                      <span className="font-mono font-bold">{t.code}</span>
+                      <span className="text-rose-500">—</span>
+                      <span className="truncate">{t.contact_name || t.title}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
           <Button
             size="lg"
