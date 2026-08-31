@@ -1,5 +1,20 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import {
+  DndContext,
+  closestCenter,
+  useSensor,
+  useSensors,
+  PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
 import {
   Plus,
   Eye,
@@ -19,6 +34,8 @@ import {
   X,
   Building2,
   CalendarClock,
+  GripVertical,
+  ArrowUpDown,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
@@ -35,6 +52,7 @@ import { AssignCourierModal } from '@/modules/tasks/components/AssignCourierModa
 import { TaskStatusModal } from '@/modules/tasks/components/TaskStatusModal'
 import { RescheduleTaskModal } from '@/modules/tasks/components/RescheduleTaskModal'
 import { RejectTaskModal } from '@/modules/tasks/components/RejectTaskModal'
+import { AdminSortableTaskRow } from '@/modules/tasks/components/AdminSortableTaskRow'
 import {
   Card,
   MetricCard,
@@ -89,11 +107,55 @@ export default function TasksPage() {
   const effectiveBranchId = filters.branch_id || defaultBranchId || (branches[0]?.id ?? '')
   const { data, isLoading, isError, error } = useTasks(filters)
   const { data: couriers = [] } = useCouriers(effectiveBranchId)
-  const { deleteTask, isDeleting, approveTask, isApproving, rejectTask, isRejecting } = useTaskMutations()
+  const { deleteTask, isDeleting, approveTask, isApproving, rejectTask, isRejecting, reorderTasks, isReordering } = useTaskMutations()
 
   const tasks = data?.data || []
   const totalPages = data?.total_pages || 1
   const totalCount = data?.count || 0
+
+  // Modo reordenamiento: solo activo cuando se filtra por un motorizado específico
+  const isReorderMode = !!(filters.courier_id && filters.courier_id !== '')
+
+  // Tareas ordenadas localmente para el modo reordenamiento
+  const sortedTasks = useMemo(
+    () => isReorderMode ? [...tasks].sort((a, b) => (a.route_order ?? 999) - (b.route_order ?? 999)) : tasks,
+    [tasks, isReorderMode]
+  )
+
+  // Sensores calibrados para móvil y escritorio
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+    useSensor(KeyboardSensor)
+  )
+
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const oldIndex = sortedTasks.findIndex((t) => t.id === active.id)
+    const newIndex = sortedTasks.findIndex((t) => t.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+    const reordered = arrayMove(sortedTasks, oldIndex, newIndex)
+    const payload = reordered.map((task, idx) => ({ id: task.id, route_order: idx + 1 }))
+    try {
+      await reorderTasks(payload)
+      toast.info('Ruta actualizada', 'El nuevo orden de paradas fue guardado.')
+    } catch (err: unknown) {
+      toast.error('Error al reordenar', (err as Error)?.message || 'No se pudo guardar el orden.')
+    }
+  }
+
+  const handleMoveItem = async (currentIndex: number, targetIndex: number) => {
+    if (targetIndex < 0 || targetIndex >= sortedTasks.length) return
+    const reordered = arrayMove(sortedTasks, currentIndex, targetIndex)
+    const payload = reordered.map((task, idx) => ({ id: task.id, route_order: idx + 1 }))
+    try {
+      await reorderTasks(payload)
+      toast.info('Ruta actualizada', 'El nuevo orden de paradas fue guardado.')
+    } catch (err: unknown) {
+      toast.error('Error al reordenar', (err as Error)?.message || 'No se pudo guardar el orden.')
+    }
+  }
 
   // Métricas rápidas
   const enRouteCount = tasks.filter((t) => t.status === 'en_route').length
@@ -261,6 +323,22 @@ export default function TasksPage() {
         branches={branches}
       />
 
+      {/* Banner informativo de modo reordenamiento */}
+      {isReorderMode && (
+        <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3 text-xs text-indigo-800 font-medium shadow-2xs animate-fade-in">
+          <div className="p-1.5 bg-indigo-100 rounded-xl shrink-0">
+            <ArrowUpDown className="h-4 w-4 text-indigo-600" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <span className="font-bold text-indigo-900 block">Modo Reordenamiento Activo</span>
+            <span className="text-indigo-600">Arrastra las filas con <GripVertical className="h-3 w-3 inline" /> o usa las flechas ↑↓ para reorganizar la ruta del motorizado. Los cambios se guardan automáticamente.</span>
+          </div>
+          {isReordering && (
+            <span className="text-2xs font-bold text-indigo-600 bg-indigo-100 px-2 py-1 rounded-lg animate-pulse">Guardando...</span>
+          )}
+        </div>
+      )}
+
       {/* Tabla de Tareas */}
       <Card className="p-0 overflow-hidden bg-white border-slate-200 shadow-xs">
         {isLoading ? (
@@ -287,6 +365,9 @@ export default function TasksPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-2xs">
+                  {isReorderMode && (
+                    <th className="py-3.5 px-3 text-center w-[90px]">Orden</th>
+                  )}
                   <th className="py-3.5 px-4">Código / Título</th>
                   <th className="py-3.5 px-3">Tipo & Origen</th>
                   <th className="py-3.5 px-3">Contacto / Cliente</th>
@@ -296,236 +377,371 @@ export default function TasksPage() {
                   <th className="py-3.5 px-4 text-right">Acciones</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
-                {tasks.map((task) => (
-                  <tr key={task.id} className="hover:bg-slate-50/80 transition-colors group">
-                    {/* Código / Título */}
-                    <td className="py-3 px-4 max-w-[220px]">
-                      <div
-                        onClick={() => navigate(`/admin/tareas/${task.id}`)}
-                        className="cursor-pointer group/title"
-                      >
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-2xs font-bold text-accent group-hover/title:underline">
-                            {task.code}
-                          </span>
-                          {task.evidence_url && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setPreviewEvidenceUrl(task.evidence_url!)
-                              }}
-                              className="text-2xs text-[#004594] bg-blue-50 px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 hover:underline cursor-pointer"
-                              title="Ver evidencia"
+              {isReorderMode ? (
+                <DndContext
+                  sensors={sensors}
+                  collisionDetection={closestCenter}
+                  onDragEnd={handleDragEnd}
+                >
+                  <SortableContext
+                    items={sortedTasks.map((t) => t.id)}
+                    strategy={verticalListSortingStrategy}
+                  >
+                    <tbody className="divide-y divide-slate-100">
+                      {sortedTasks.map((task, idx) => (
+                        <AdminSortableTaskRow
+                          key={task.id}
+                          task={task}
+                          index={idx}
+                          isFirst={idx === 0}
+                          isLast={idx === sortedTasks.length - 1}
+                          onMoveUp={() => handleMoveItem(idx, idx - 1)}
+                          onMoveDown={() => handleMoveItem(idx, idx + 1)}
+                          isReordering={isReordering}
+                        >
+                          {/* Código / Título */}
+                          <td className="py-3 px-4 max-w-[220px]">
+                            <div
+                              onClick={() => navigate(`/admin/tareas/${task.id}`)}
+                              className="cursor-pointer group/title"
                             >
-                              <FileImage className="h-3 w-3" /> Foto
-                            </button>
+                              <div className="flex items-center gap-1.5">
+                                <span className="font-mono text-2xs font-bold text-accent group-hover/title:underline">
+                                  {task.code}
+                                </span>
+                                {task.evidence_url && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); setPreviewEvidenceUrl(task.evidence_url!) }}
+                                    className="text-2xs text-[#004594] bg-blue-50 px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 hover:underline cursor-pointer"
+                                    title="Ver evidencia"
+                                  >
+                                    <FileImage className="h-3 w-3" /> Foto
+                                  </button>
+                                )}
+                              </div>
+                              <div className="font-semibold text-slate-900 truncate group-hover/title:text-accent transition-colors" title={task.title}>
+                                {task.title}
+                              </div>
+                            </div>
+                            <div className="text-2xs text-slate-400 pt-0.5 font-medium">
+                              {task.scheduled_date} {task.scheduled_start_time ? `• ${task.scheduled_start_time}` : ''}
+                            </div>
+                            <div className="mt-1.5 md:hidden">
+                              <TaskStatusBadge status={task.status} className="text-[10px] py-0.5 px-2" />
+                            </div>
+                          </td>
+
+                          {/* Tipo & Origen */}
+                          <td className="py-3 px-3 space-y-1">
+                            <TaskTypeBadge type={task.task_type} />
+                            <div>
+                              {task.creation_origin === 'courier_created' ? (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">📱 Por Motorizado</span>
+                              ) : (
+                                <TaskPriorityBadge priority={task.priority} />
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Contacto */}
+                          <td className="py-3 px-3 max-w-[180px]">
+                            <div className="font-semibold text-slate-900 truncate" title={task.contact_name || task.provider_name || task.institution_name || task.company_name || task.destination_contact || 'Sin contacto'}>
+                              {task.contact_name || task.provider_name || task.institution_name || task.company_name || task.destination_contact || 'Sin contacto'}
+                            </div>
+                            {task.company_name && task.contact_name && task.company_name !== task.contact_name && (
+                              <div className="text-2xs text-slate-500 truncate">{task.company_name}</div>
+                            )}
+                            {task.phone && <div className="text-2xs text-slate-400 font-mono">{task.phone}</div>}
+                          </td>
+
+                          {/* Motorizado */}
+                          <td className="py-3 px-3">
+                            {task.courier ? (
+                              <div className="flex items-center gap-2">
+                                <Avatar name={task.courier.full_name} size="sm" />
+                                <span className="font-semibold text-slate-800 truncate text-xs">{task.courier.display_name || task.courier.full_name}</span>
+                              </div>
+                            ) : (
+                              <span className="text-2xs text-slate-400 italic">Sin asignar</span>
+                            )}
+                          </td>
+
+                          {/* Aprobación / Finanzas */}
+                          <td className="py-3 px-3 text-center">
+                            <div className="flex flex-col items-center gap-1">
+                              {task.approval_status === 'pending' ? (
+                                <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full animate-pulse">⏳ Pendiente Aprobación</span>
+                              ) : task.approval_status === 'rejected' ? (
+                                <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full">❌ Rechazada</span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500">✅ Aprobada</span>
+                              )}
+                              {task.requires_collection && (
+                                <Badge variant="completed" size="sm"><DollarSign className="h-3 w-3 inline mr-0.5" />Cobrar C${task.expected_collection_amount ?? 0}</Badge>
+                              )}
+                              {task.requires_payment && (
+                                <Badge variant="pending" size="sm">Pagar C${task.expected_payment_amount ?? 0}</Badge>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* Estado */}
+                          <td className="py-3 px-3"><TaskStatusBadge status={task.status} /></td>
+
+                          {/* Acciones */}
+                          <td className="py-3 px-4 text-right">
+                            <div className="inline-flex items-center gap-1">
+                              {task.approval_status === 'pending' ? (
+                                <>
+                                  <button type="button" onClick={() => handleApprove(task)} disabled={isApproving} className="h-8 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-2xs font-extrabold rounded-xl shadow-2xs flex items-center gap-1 transition cursor-pointer"><Check className="h-3.5 w-3.5" strokeWidth={3} /><span>Aprobar</span></button>
+                                  <button type="button" onClick={() => setRejectTaskTarget(task)} disabled={isRejecting} className="h-8 px-2.5 bg-rose-600 hover:bg-rose-700 text-white text-2xs font-extrabold rounded-xl shadow-2xs flex items-center gap-1 transition cursor-pointer"><X className="h-3.5 w-3.5" strokeWidth={3} /><span>Rechazar</span></button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button size="icon" variant="ghost" onClick={() => navigate(`/admin/tareas/${task.id}`)} className="h-8 w-8 text-slate-500 hover:text-accent hover:bg-slate-100" title="Ver detalle"><Eye className="h-4 w-4" /></Button>
+                                  <Button size="icon" variant="ghost" onClick={() => setAssignTaskTarget(task)} className="h-8 w-8 text-slate-500 hover:text-sky-600 hover:bg-sky-50" title="Asignar motorizado"><UserPlus className="h-4 w-4" /></Button>
+                                  <Button size="icon" variant="ghost" onClick={() => setRescheduleTaskTarget(task)} className="h-8 w-8 text-slate-500 hover:text-orange-600 hover:bg-orange-50" title="Reprogramar tarea"><CalendarClock className="h-4 w-4 text-orange-600" /></Button>
+                                </>
+                              )}
+                              <Button size="icon" variant="ghost" onClick={() => handleEdit(task)} className="h-8 w-8 text-slate-500 hover:text-slate-900 hover:bg-slate-100" title="Editar tarea"><Edit3 className="h-4 w-4" /></Button>
+                              <Button size="icon" variant="ghost" onClick={() => setTaskToDelete({ id: task.id, code: task.code })} className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50" title="Eliminar tarea"><Trash2 className="h-4 w-4" /></Button>
+                            </div>
+                          </td>
+                        </AdminSortableTaskRow>
+                      ))}
+                    </tbody>
+                  </SortableContext>
+                </DndContext>
+              ) : (
+                <tbody className="divide-y divide-slate-100">
+                  {tasks.map((task) => (
+                    <tr key={task.id} className="hover:bg-slate-50/80 transition-colors group">
+                      {/* Código / Título */}
+                      <td className="py-3 px-4 max-w-[220px]">
+                        <div
+                          onClick={() => navigate(`/admin/tareas/${task.id}`)}
+                          className="cursor-pointer group/title"
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-2xs font-bold text-accent group-hover/title:underline">
+                              {task.code}
+                            </span>
+                            {task.evidence_url && (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setPreviewEvidenceUrl(task.evidence_url!)
+                                }}
+                                className="text-2xs text-[#004594] bg-blue-50 px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 hover:underline cursor-pointer"
+                                title="Ver evidencia"
+                              >
+                                <FileImage className="h-3 w-3" /> Foto
+                              </button>
+                            )}
+                          </div>
+                          <div className="font-semibold text-slate-900 truncate group-hover/title:text-accent transition-colors" title={task.title}>
+                            {task.title}
+                          </div>
+                        </div>
+                        <div className="text-2xs text-slate-400 pt-0.5 font-medium">
+                          {task.scheduled_date} {task.scheduled_start_time ? `• ${task.scheduled_start_time}` : ''}
+                        </div>
+
+                        {/* Estado de la tarea en móvil */}
+                        <div className="mt-1.5 md:hidden">
+                          <TaskStatusBadge status={task.status} className="text-[10px] py-0.5 px-2" />
+                        </div>
+                      </td>
+
+                      {/* Tipo & Origen */}
+                      <td className="py-3 px-3 space-y-1">
+                        <TaskTypeBadge type={task.task_type} />
+                        <div>
+                          {task.creation_origin === 'courier_created' ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
+                              📱 Por Motorizado
+                            </span>
+                          ) : (
+                            <TaskPriorityBadge priority={task.priority} />
                           )}
                         </div>
-                        <div className="font-semibold text-slate-900 truncate group-hover/title:text-accent transition-colors" title={task.title}>
-                          {task.title}
+                      </td>
+
+                      {/* Contacto / Cliente / Entidad */}
+                      <td className="py-3 px-3 max-w-[180px]">
+                        <div
+                          className="font-semibold text-slate-900 truncate"
+                          title={
+                            task.contact_name ||
+                            task.provider_name ||
+                            task.institution_name ||
+                            task.company_name ||
+                            task.destination_contact ||
+                            'Sin contacto'
+                          }
+                        >
+                          {task.contact_name ||
+                            task.provider_name ||
+                            task.institution_name ||
+                            task.company_name ||
+                            task.destination_contact ||
+                            'Sin contacto'}
                         </div>
-                      </div>
-                      <div className="text-2xs text-slate-400 pt-0.5 font-medium">
-                        {task.scheduled_date} {task.scheduled_start_time ? `• ${task.scheduled_start_time}` : ''}
-                      </div>
-
-                      {/* Estado de la tarea en móvil (inferior izquierda debajo de textos) */}
-                      <div className="mt-1.5 md:hidden">
-                        <TaskStatusBadge status={task.status} className="text-[10px] py-0.5 px-2" />
-                      </div>
-                    </td>
-
-                    {/* Tipo & Origen */}
-                    <td className="py-3 px-3 space-y-1">
-                      <TaskTypeBadge type={task.task_type} />
-                      <div>
-                        {task.creation_origin === 'courier_created' ? (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
-                            📱 Por Motorizado
-                          </span>
-                        ) : (
-                          <TaskPriorityBadge priority={task.priority} />
+                        {task.company_name &&
+                          task.contact_name &&
+                          task.company_name !== task.contact_name && (
+                            <div className="text-2xs text-slate-500 truncate" title={task.company_name}>
+                              {task.company_name}
+                            </div>
+                          )}
+                        {task.phone && (
+                          <div className="text-2xs text-slate-400 font-mono">{task.phone}</div>
                         )}
-                      </div>
-                    </td>
+                      </td>
 
-                    {/* Contacto / Cliente / Entidad */}
-                    <td className="py-3 px-3 max-w-[180px]">
-                      <div
-                        className="font-semibold text-slate-900 truncate"
-                        title={
-                          task.contact_name ||
-                          task.provider_name ||
-                          task.institution_name ||
-                          task.company_name ||
-                          task.destination_contact ||
-                          'Sin contacto'
-                        }
-                      >
-                        {task.contact_name ||
-                          task.provider_name ||
-                          task.institution_name ||
-                          task.company_name ||
-                          task.destination_contact ||
-                          'Sin contacto'}
-                      </div>
-                      {task.company_name &&
-                        task.contact_name &&
-                        task.company_name !== task.contact_name && (
-                          <div className="text-2xs text-slate-500 truncate" title={task.company_name}>
-                            {task.company_name}
+                      {/* Motorizado */}
+                      <td className="py-3 px-3">
+                        {task.courier ? (
+                          <div className="flex items-center gap-2">
+                            <Avatar name={task.courier.full_name} size="sm" />
+                            <span className="font-semibold text-slate-800 truncate text-xs">
+                              {task.courier.display_name || task.courier.full_name}
+                            </span>
                           </div>
+                        ) : (
+                          <span className="text-2xs text-slate-400 italic">Sin asignar</span>
                         )}
-                      {task.phone && (
-                        <div className="text-2xs text-slate-400 font-mono">{task.phone}</div>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Motorizado */}
-                    <td className="py-3 px-3">
-                      {task.courier ? (
-                        <div className="flex items-center gap-2">
-                          <Avatar name={task.courier.full_name} size="sm" />
-                          <span className="font-semibold text-slate-800 truncate text-xs">
-                            {task.courier.display_name || task.courier.full_name}
-                          </span>
+                      {/* Aprobación / Finanzas */}
+                      <td className="py-3 px-3 text-center">
+                        <div className="flex flex-col items-center gap-1">
+                          {task.approval_status === 'pending' ? (
+                            <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full animate-pulse">
+                              ⏳ Pendiente Aprobación
+                            </span>
+                          ) : task.approval_status === 'rejected' ? (
+                            <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full" title={task.rejection_reason || ''}>
+                              ❌ Rechazada
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500">
+                              ✅ Aprobada
+                            </span>
+                          )}
+
+                          {task.requires_collection && (
+                            <Badge variant="completed" size="sm">
+                              <DollarSign className="h-3 w-3 inline mr-0.5" />
+                              Cobrar C${task.expected_collection_amount ?? 0}
+                            </Badge>
+                          )}
+                          {task.requires_payment && (
+                            <Badge variant="pending" size="sm">
+                              Pagar C${task.expected_payment_amount ?? 0}
+                            </Badge>
+                          )}
                         </div>
-                      ) : (
-                        <span className="text-2xs text-slate-400 italic">Sin asignar</span>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* Aprobación / Finanzas */}
-                    <td className="py-3 px-3 text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        {/* Estado de Aprobación */}
-                        {task.approval_status === 'pending' ? (
-                          <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full animate-pulse">
-                            ⏳ Pendiente Aprobación
-                          </span>
-                        ) : task.approval_status === 'rejected' ? (
-                          <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full" title={task.rejection_reason || ''}>
-                            ❌ Rechazada
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500">
-                            ✅ Aprobada
-                          </span>
-                        )}
+                      {/* Estado */}
+                      <td className="py-3 px-3">
+                        <TaskStatusBadge status={task.status} />
+                      </td>
 
-                        {/* Montos */}
-                        {task.requires_collection && (
-                          <Badge variant="completed" size="sm">
-                            <DollarSign className="h-3 w-3 inline mr-0.5" />
-                            Cobrar C${task.expected_collection_amount ?? 0}
-                          </Badge>
-                        )}
-                        {task.requires_payment && (
-                          <Badge variant="pending" size="sm">
-                            Pagar C${task.expected_payment_amount ?? 0}
-                          </Badge>
-                        )}
-                      </div>
-                    </td>
+                      {/* Acciones */}
+                      <td className="py-3 px-4 text-right">
+                        <div className="inline-flex items-center gap-1">
+                          {task.approval_status === 'pending' ? (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => handleApprove(task)}
+                                disabled={isApproving}
+                                className="h-8 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-2xs font-extrabold rounded-xl shadow-2xs flex items-center gap-1 transition cursor-pointer"
+                                title="Aprobar e incorporar a ruta"
+                              >
+                                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                                <span>Aprobar</span>
+                              </button>
 
-                    {/* Estado */}
-                    <td className="py-3 px-3">
-                      <TaskStatusBadge status={task.status} />
-                    </td>
+                              <button
+                                type="button"
+                                onClick={() => setRejectTaskTarget(task)}
+                                disabled={isRejecting}
+                                className="h-8 px-2.5 bg-rose-600 hover:bg-rose-700 text-white text-2xs font-extrabold rounded-xl shadow-2xs flex items-center gap-1 transition cursor-pointer"
+                                title="Rechazar gestión"
+                              >
+                                <X className="h-3.5 w-3.5" strokeWidth={3} />
+                                <span>Rechazar</span>
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => navigate(`/admin/tareas/${task.id}`)}
+                                className="h-8 w-8 text-slate-500 hover:text-accent hover:bg-slate-100"
+                                title="Ver detalle"
+                                aria-label="Ver detalle"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
 
-                    {/* Acciones */}
-                    <td className="py-3 px-4 text-right">
-                      <div className="inline-flex items-center gap-1">
-                        {/* Si está pendiente de aprobación: botones destacados Aprobar / Rechazar */}
-                        {task.approval_status === 'pending' ? (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => handleApprove(task)}
-                              disabled={isApproving}
-                              className="h-8 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-2xs font-extrabold rounded-xl shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                              title="Aprobar e incorporar a ruta"
-                            >
-                              <Check className="h-3.5 w-3.5" strokeWidth={3} />
-                              <span>Aprobar</span>
-                            </button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => setAssignTaskTarget(task)}
+                                className="h-8 w-8 text-slate-500 hover:text-sky-600 hover:bg-sky-50"
+                                title="Asignar motorizado"
+                                aria-label="Asignar motorizado"
+                              >
+                                <UserPlus className="h-4 w-4" />
+                              </Button>
 
-                            <button
-                              type="button"
-                              onClick={() => setRejectTaskTarget(task)}
-                              disabled={isRejecting}
-                              className="h-8 px-2.5 bg-rose-600 hover:bg-rose-700 text-white text-2xs font-extrabold rounded-xl shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                              title="Rechazar gestión"
-                            >
-                              <X className="h-3.5 w-3.5" strokeWidth={3} />
-                              <span>Rechazar</span>
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => navigate(`/admin/tareas/${task.id}`)}
-                              className="h-8 w-8 text-slate-500 hover:text-accent hover:bg-slate-100"
-                              title="Ver detalle"
-                              aria-label="Ver detalle"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => setRescheduleTaskTarget(task)}
+                                className="h-8 w-8 text-slate-500 hover:text-orange-600 hover:bg-orange-50"
+                                title="Reprogramar tarea"
+                                aria-label="Reprogramar tarea"
+                              >
+                                <CalendarClock className="h-4 w-4 text-orange-600" />
+                              </Button>
+                            </>
+                          )}
 
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => setAssignTaskTarget(task)}
-                              className="h-8 w-8 text-slate-500 hover:text-sky-600 hover:bg-sky-50"
-                              title="Asignar motorizado"
-                              aria-label="Asignar motorizado"
-                            >
-                              <UserPlus className="h-4 w-4" />
-                            </Button>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => handleEdit(task)}
+                            className="h-8 w-8 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                            title="Editar tarea"
+                            aria-label="Editar tarea"
+                          >
+                            <Edit3 className="h-4 w-4" />
+                          </Button>
 
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              onClick={() => setRescheduleTaskTarget(task)}
-                              className="h-8 w-8 text-slate-500 hover:text-orange-600 hover:bg-orange-50"
-                              title="Reprogramar tarea"
-                              aria-label="Reprogramar tarea"
-                            >
-                              <CalendarClock className="h-4 w-4 text-orange-600" />
-                            </Button>
-                          </>
-                        )}
-
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => handleEdit(task)}
-                          className="h-8 w-8 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-                          title="Editar tarea"
-                          aria-label="Editar tarea"
-                        >
-                          <Edit3 className="h-4 w-4" />
-                        </Button>
-
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => setTaskToDelete({ id: task.id, code: task.code })}
-                          className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                          title="Eliminar tarea"
-                          aria-label="Eliminar tarea"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
+                          <Button
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setTaskToDelete({ id: task.id, code: task.code })}
+                            className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                            title="Eliminar tarea"
+                            aria-label="Eliminar tarea"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              )}
             </table>
           </div>
         )}
