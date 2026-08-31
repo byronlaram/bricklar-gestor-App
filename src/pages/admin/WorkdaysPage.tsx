@@ -308,16 +308,16 @@ export default function AdminWorkdaysPage() {
           subtitle={
             <div className="space-y-1">
               <div>Inicial: C$ {financialSummary.totalInitialCashNIO.toFixed(2)} | Entregas: C$ {financialSummary.totalAdvancesNIO.toFixed(2)}</div>
-              <span className="inline-flex items-center text-[10px] font-extrabold text-indigo-700 hover:underline">
+              <span className="inline-flex items-center text-[10px] font-extrabold text-blue-700 hover:underline">
                 Ver detalle ↗
               </span>
             </div>
           }
-          icon={<HandCoins className="h-4 w-4 text-indigo-600" />}
-          accentColor="accent"
+          icon={<HandCoins className="h-4 w-4 text-[#004594]" />}
+          accentColor="primary"
           isHoverable
           onClick={() => setSelectedCardDetail('funds')}
-          className="cursor-pointer group hover:scale-[1.01] hover:border-indigo-300 transition-all"
+          className="cursor-pointer group hover:scale-[1.01] hover:border-blue-300 transition-all"
         />
 
         <MetricCard
