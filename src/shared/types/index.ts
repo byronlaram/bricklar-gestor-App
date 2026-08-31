@@ -83,6 +83,7 @@ export type PaymentMethod =
   | 'cash'
   | 'bank_transfer'
   | 'mobile_wallet'
+  | 'cheque'
   | 'mixed'
   | 'other';
 
@@ -133,6 +134,7 @@ export const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
   cash: 'Efectivo',
   bank_transfer: 'Transferencia bancaria',
   mobile_wallet: 'Billetera móvil',
+  cheque: 'Cheque',
   mixed: 'Mixto',
   other: 'Otro',
 };
