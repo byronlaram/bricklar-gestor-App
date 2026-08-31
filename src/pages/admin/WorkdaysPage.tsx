@@ -22,6 +22,8 @@ import {
   Banknote,
   RotateCcw,
   Wallet,
+  CreditCard,
+  FileCheck,
 } from 'lucide-react'
 import { cn } from '@/shared/utils/cn'
 import { useAuth } from '@/modules/auth/useAuth'
@@ -188,6 +190,54 @@ export default function AdminWorkdaysPage() {
         ? Math.round((completedCollectionsNIO / projectedCollectionsNIO) * 100)
         : 0
 
+    // 7. Cobros por Transferencia Bancaria / Billetera (cobros no-efectivo)
+    let completedTransfersNIO = 0
+    let projectedTransfersNIO = 0
+
+    allTasks.forEach((t) => {
+      if (!t.requires_collection) return
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      const isCompleted = t.status === 'completed'
+
+      if (isCompleted) {
+        // Si hay payment_breakdown con transfer_amount, tomamos ese valor real
+        const transferAmt = pb?.transfer_amount ?? 0
+        completedTransfersNIO += transferAmt
+        projectedTransfersNIO += transferAmt
+      } else {
+        // Para tareas pendientes: proyectamos si el método esperado es transferencia/billetera
+        const isTransferMethod =
+          t.expected_payment_method === 'bank_transfer' ||
+          t.expected_payment_method === 'mobile_wallet'
+        if (isTransferMethod) {
+          projectedTransfersNIO += t.expected_collection_amount || 0
+        }
+      }
+    })
+
+    // 8. Cobros por Cheque (físico)
+    let completedChequesNIO = 0
+    let projectedChequesNIO = 0
+
+    allTasks.forEach((t) => {
+      if (!t.requires_collection) return
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      const isCompleted = t.status === 'completed'
+
+      if (isCompleted) {
+        const chequeAmt = pb?.cheque_amount ?? 0
+        completedChequesNIO += chequeAmt
+        projectedChequesNIO += chequeAmt
+      } else {
+        const isChequeMethod = t.expected_payment_method === 'cheque'
+        if (isChequeMethod) {
+          projectedChequesNIO += t.expected_collection_amount || 0
+        }
+      }
+    })
+
     return {
       totalInitialCashNIO,
       totalAdvancesNIO,
@@ -200,6 +250,10 @@ export default function AdminWorkdaysPage() {
       totalAlreadyReceivedNIO,
       liveCashInHandNIO,
       netProjectedCashNIO,
+      completedTransfersNIO,
+      projectedTransfersNIO,
+      completedChequesNIO,
+      projectedChequesNIO,
     }
   }, [workdays, allTasks])
 
@@ -422,6 +476,72 @@ export default function AdminWorkdaysPage() {
           className="cursor-pointer group hover:scale-[1.01] hover:border-blue-300 transition-all col-span-2 sm:col-span-1"
         />
       </div>
+
+      {/* 💳 Segunda Fila: Cobros No-Efectivo (Transferencias + Cheques) */}
+      {(financialSummary.projectedTransfersNIO > 0 || financialSummary.projectedChequesNIO > 0 || financialSummary.completedTransfersNIO > 0 || financialSummary.completedChequesNIO > 0) && (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-2xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
+              <CreditCard className="h-3.5 w-3.5 text-sky-500" />
+              Cobros No-Efectivo Recibidos en Ruta
+            </span>
+            <div className="flex-1 h-px bg-slate-200" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <MetricCard
+              title={viewMode === 'projected' ? 'Transferencias / Billeteras (Ruta)' : 'Transferencias Recibidas'}
+              value={
+                viewMode === 'projected'
+                  ? `C$ ${financialSummary.projectedTransfersNIO.toFixed(2)}`
+                  : `C$ ${financialSummary.completedTransfersNIO.toFixed(2)}`
+              }
+              subtitle={
+                <div className="space-y-1">
+                  <div>
+                    {viewMode === 'projected'
+                      ? `Ya recibido: C$ ${financialSummary.completedTransfersNIO.toFixed(2)}`
+                      : `Proyectado: C$ ${financialSummary.projectedTransfersNIO.toFixed(2)}`}
+                  </div>
+                  <span className="inline-flex items-center text-[10px] font-extrabold text-sky-700 hover:underline">
+                    Ver detalle ↗
+                  </span>
+                </div>
+              }
+              icon={<CreditCard className="h-4 w-4 text-sky-600" />}
+              accentColor="primary"
+              isHoverable
+              onClick={() => setSelectedCardDetail('transfers')}
+              className="cursor-pointer group hover:scale-[1.01] hover:border-sky-300 transition-all"
+            />
+
+            <MetricCard
+              title={viewMode === 'projected' ? 'Cheques Físicos (Ruta)' : 'Cheques Físicos Recibidos'}
+              value={
+                viewMode === 'projected'
+                  ? `C$ ${financialSummary.projectedChequesNIO.toFixed(2)}`
+                  : `C$ ${financialSummary.completedChequesNIO.toFixed(2)}`
+              }
+              subtitle={
+                <div className="space-y-1">
+                  <div>
+                    {viewMode === 'projected'
+                      ? `Ya recibido: C$ ${financialSummary.completedChequesNIO.toFixed(2)}`
+                      : `Proyectado: C$ ${financialSummary.projectedChequesNIO.toFixed(2)}`}
+                  </div>
+                  <span className="inline-flex items-center text-[10px] font-extrabold text-purple-700 hover:underline">
+                    Ver detalle ↗
+                  </span>
+                </div>
+              }
+              icon={<FileCheck className="h-4 w-4 text-purple-600" />}
+              accentColor="accent"
+              isHoverable
+              onClick={() => setSelectedCardDetail('cheques')}
+              className="cursor-pointer group hover:scale-[1.01] hover:border-purple-300 transition-all"
+            />
+          </div>
+        </div>
+      )}
 
       {/* 🛵 Sub-barra de Estado de Jornadas Laborales */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs">

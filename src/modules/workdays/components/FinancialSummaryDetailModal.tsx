@@ -14,6 +14,8 @@ import {
   Clock,
   User,
   ArrowRight,
+  CreditCard,
+  FileCheck,
 } from 'lucide-react'
 import { cn } from '@/shared/utils/cn'
 import { Badge, Avatar, Button, EmptyState } from '@/shared/components/ui'
@@ -22,7 +24,7 @@ import type { DetailedCashMovement } from '../services/workdaysService'
 import type { Task } from '@/modules/tasks/types/task.types'
 import { TASK_STATUS_LABELS } from '@/shared/types'
 
-export type FinancialCardType = 'funds' | 'collections' | 'payments' | 'received' | 'net'
+export type FinancialCardType = 'funds' | 'collections' | 'payments' | 'received' | 'net' | 'transfers' | 'cheques'
 
 interface FinancialSummaryDetailModalProps {
   cardType: FinancialCardType | null
@@ -44,6 +46,10 @@ interface FinancialSummaryDetailModalProps {
     totalAlreadyReceivedNIO: number
     liveCashInHandNIO: number
     netProjectedCashNIO: number
+    completedTransfersNIO: number
+    projectedTransfersNIO: number
+    completedChequesNIO: number
+    projectedChequesNIO: number
   }
   onSelectWorkdayMovements?: (workday: Workday) => void
 }
@@ -214,6 +220,57 @@ export function FinancialSummaryDetailModal({
     )
   }, [cardType, workdays, searchTerm])
 
+  const filteredTransferTasks = useMemo(() => {
+    if (cardType !== 'transfers') return []
+    const base = tasks.filter((t) => {
+      if (!t.requires_collection) return false
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      const isCompleted = t.status === 'completed'
+      if (isCompleted) {
+        return (pb?.transfer_amount ?? 0) > 0
+      }
+      return (
+        t.expected_payment_method === 'bank_transfer' ||
+        t.expected_payment_method === 'mobile_wallet'
+      )
+    })
+    if (!searchTerm.trim()) return base
+    const term = searchTerm.toLowerCase()
+    return base.filter(
+      (t) =>
+        t.code?.toLowerCase().includes(term) ||
+        t.title?.toLowerCase().includes(term) ||
+        t.contact_name?.toLowerCase().includes(term) ||
+        t.company_name?.toLowerCase().includes(term) ||
+        (t.assigned_courier_id && courierMap.get(t.assigned_courier_id)?.toLowerCase().includes(term))
+    )
+  }, [cardType, tasks, searchTerm, courierMap])
+
+  const filteredChequeTasks = useMemo(() => {
+    if (cardType !== 'cheques') return []
+    const base = tasks.filter((t) => {
+      if (!t.requires_collection) return false
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      const isCompleted = t.status === 'completed'
+      if (isCompleted) {
+        return (pb?.cheque_amount ?? 0) > 0
+      }
+      return t.expected_payment_method === 'cheque'
+    })
+    if (!searchTerm.trim()) return base
+    const term = searchTerm.toLowerCase()
+    return base.filter(
+      (t) =>
+        t.code?.toLowerCase().includes(term) ||
+        t.title?.toLowerCase().includes(term) ||
+        t.contact_name?.toLowerCase().includes(term) ||
+        t.company_name?.toLowerCase().includes(term) ||
+        (t.assigned_courier_id && courierMap.get(t.assigned_courier_id)?.toLowerCase().includes(term))
+    )
+  }, [cardType, tasks, searchTerm, courierMap])
+
   if (!isOpen || !cardType) return null
 
   // Configuración de encabezado según tarjeta y modo
@@ -293,6 +350,40 @@ export function FinancialSummaryDetailModal({
           : `C$ ${financialSummary.liveCashInHandNIO.toFixed(2)}`,
       totalLabel:
         viewMode === 'projected' ? 'Balance Neto Proyectado' : 'Total Efectivo en Calle',
+    },
+    transfers: {
+      title:
+        viewMode === 'projected'
+          ? 'Transferencias Bancarias / Billeteras en Ruta'
+          : 'Transferencias Bancarias / Billeteras Recibidas',
+      subtitle:
+        viewMode === 'projected'
+          ? 'Gestiones con cobro por transferencia o billetera electrónica (completadas y pendientes).'
+          : 'Gestiones completadas donde el cliente pagó por transferencia bancaria o billetera.',
+      icon: <CreditCard className="h-5 w-5 text-sky-600" />,
+      badgeColor: 'bg-sky-50 text-sky-700 border-sky-200',
+      totalFormatted:
+        viewMode === 'projected'
+          ? `C$ ${financialSummary.projectedTransfersNIO.toFixed(2)}`
+          : `C$ ${financialSummary.completedTransfersNIO.toFixed(2)}`,
+      totalLabel: viewMode === 'projected' ? 'Total Proyectado (Transferencias)' : 'Total Recibido (Transferencias)',
+    },
+    cheques: {
+      title:
+        viewMode === 'projected'
+          ? 'Cheques Físicos en Ruta'
+          : 'Cheques Físicos Recibidos',
+      subtitle:
+        viewMode === 'projected'
+          ? 'Gestiones con cobro por cheque físico (completadas y pendientes).'
+          : 'Gestiones completadas donde el cliente pagó con cheque físico.',
+      icon: <FileCheck className="h-5 w-5 text-purple-600" />,
+      badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
+      totalFormatted:
+        viewMode === 'projected'
+          ? `C$ ${financialSummary.projectedChequesNIO.toFixed(2)}`
+          : `C$ ${financialSummary.completedChequesNIO.toFixed(2)}`,
+      totalLabel: viewMode === 'projected' ? 'Total Proyectado (Cheques)' : 'Total Recibido (Cheques)',
     },
   }[cardType]
 
@@ -920,6 +1011,202 @@ export function FinancialSummaryDetailModal({
                 )}
               </div>
             </div>
+          )}
+          {/* CASO 6: TRANSFERENCIAS BANCARIAS / BILLETERAS */}
+          {cardType === 'transfers' && (
+            <>
+              {filteredTransferTasks.length === 0 ? (
+                <EmptyState
+                  title="No hay cobros por transferencia"
+                  description={
+                    viewMode === 'live'
+                      ? 'No hay gestiones completadas con cobro por transferencia para los filtros aplicados.'
+                      : 'No hay gestiones con cobro por transferencia en esta fecha.'
+                  }
+                  icon={<CreditCard className="h-8 w-8 text-slate-400" />}
+                />
+              ) : (
+                <div className="space-y-2">
+                  {filteredTransferTasks.map((t) => {
+                    const isCompleted = t.status === 'completed'
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const pb = (t as any).metadata?.payment_breakdown
+                    const transferAmt = isCompleted
+                      ? (pb?.transfer_amount ?? 0)
+                      : (t.expected_collection_amount ?? 0)
+                    const courierName = t.assigned_courier_id
+                      ? courierMap.get(t.assigned_courier_id) || 'Asignado'
+                      : 'Sin asignar'
+                    const bank = pb?.transfer_bank || t.expected_payment_method === 'mobile_wallet' ? 'Billetera / Móvil' : 'Transferencia Bancaria'
+                    const reference = pb?.transfer_reference || ''
+
+                    return (
+                      <div
+                        key={t.id}
+                        className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-2xs hover:border-sky-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={cn(
+                              'w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 mt-0.5',
+                              isCompleted
+                                ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                                : 'bg-slate-100 text-slate-600 border border-slate-200'
+                            )}
+                          >
+                            {isCompleted ? (
+                              <CheckCircle2 className="h-4 w-4" />
+                            ) : (
+                              <Clock className="h-4 w-4" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-slate-900 font-mono">{t.code}</span>
+                              <span className="text-xs font-semibold text-slate-800">
+                                {t.contact_name || t.company_name || t.title}
+                              </span>
+                              <span className="text-[10px] bg-sky-50 text-sky-700 font-bold border border-sky-200 px-2 py-0.5 rounded-full">
+                                {bank}
+                              </span>
+                              {isCompleted && (
+                                <span className={cn(
+                                  'text-[10px] font-extrabold px-2 py-0.5 rounded-full border',
+                                  'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                )}>
+                                  {TASK_STATUS_LABELS[t.status] || t.status}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-2xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                              <span>Motorizado: <strong className="text-slate-700">{courierName}</strong></span>
+                              {reference && <span className="font-mono text-slate-400">Ref: {reference}</span>}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0">
+                          <div className="text-left sm:text-right">
+                            <span className="text-sm font-extrabold font-mono text-sky-700 block">
+                              C$ {transferAmt.toFixed(2)}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {isCompleted ? 'Transferencia recibida' : 'Cobro proyectado'}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/admin/tareas/${t.id}`)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition cursor-pointer"
+                            title="Ver tarea"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* CASO 7: CHEQUES FÍSICOS */}
+          {cardType === 'cheques' && (
+            <>
+              {filteredChequeTasks.length === 0 ? (
+                <EmptyState
+                  title="No hay cobros por cheque"
+                  description={
+                    viewMode === 'live'
+                      ? 'No hay gestiones completadas con cobro por cheque para los filtros aplicados.'
+                      : 'No hay gestiones con cobro por cheque en esta fecha.'
+                  }
+                  icon={<FileCheck className="h-8 w-8 text-slate-400" />}
+                />
+              ) : (
+                <div className="space-y-2">
+                  {filteredChequeTasks.map((t) => {
+                    const isCompleted = t.status === 'completed'
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    const pb = (t as any).metadata?.payment_breakdown
+                    const chequeAmt = isCompleted
+                      ? (pb?.cheque_amount ?? 0)
+                      : (t.expected_collection_amount ?? 0)
+                    const courierName = t.assigned_courier_id
+                      ? courierMap.get(t.assigned_courier_id) || 'Asignado'
+                      : 'Sin asignar'
+                    const bank = pb?.cheque_bank || 'Banco emisor'
+                    const chequeNumber = pb?.cheque_number || 'S/N'
+
+                    return (
+                      <div
+                        key={t.id}
+                        className="p-3.5 bg-white rounded-2xl border border-slate-200 shadow-2xs hover:border-purple-300 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div
+                            className={cn(
+                              'w-8 h-8 rounded-xl flex items-center justify-center font-bold text-xs shrink-0 mt-0.5',
+                              isCompleted
+                                ? 'bg-purple-50 text-purple-700 border border-purple-200'
+                                : 'bg-slate-100 text-slate-600 border border-slate-200'
+                            )}
+                          >
+                            {isCompleted ? (
+                              <CheckCircle2 className="h-4 w-4" />
+                            ) : (
+                              <Clock className="h-4 w-4" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs font-bold text-slate-900 font-mono">{t.code}</span>
+                              <span className="text-xs font-semibold text-slate-800">
+                                {t.contact_name || t.company_name || t.title}
+                              </span>
+                              {isCompleted && pb?.cheque_number && (
+                                <span className="text-[10px] bg-purple-50 text-purple-700 font-bold border border-purple-200 px-2 py-0.5 rounded-full font-mono">
+                                  CK #{chequeNumber}
+                                </span>
+                              )}
+                              <span className="text-[10px] bg-purple-50 text-purple-800 font-bold border border-purple-200 px-2 py-0.5 rounded-full">
+                                {bank}
+                              </span>
+                            </div>
+                            <p className="text-2xs text-slate-500 mt-0.5 flex items-center gap-2 flex-wrap">
+                              <span>Motorizado: <strong className="text-slate-700">{courierName}</strong></span>
+                              {t.address && (
+                                <span className="truncate max-w-[200px] text-slate-400">• {t.address}</span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0">
+                          <div className="text-left sm:text-right">
+                            <span className="text-sm font-extrabold font-mono text-purple-700 block">
+                              C$ {chequeAmt.toFixed(2)}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {isCompleted ? 'Cheque recibido' : 'Cobro proyectado'}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/admin/tareas/${t.id}`)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition cursor-pointer"
+                            title="Ver tarea"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
 
