@@ -187,14 +187,17 @@ export function FinancialSummaryDetailModal({
     if (cardType !== 'received') return []
     const receivedMovements = ledgerMovements.filter((m) => {
       const isReception =
-        ['cash_return', 'deposit', 'adjustment', 'reception', 'settlement_payment'].includes(
+        ['cash_return', 'deposit', 'adjustment', 'reception', 'partial_delivery'].includes(
           m.movement_type
         ) ||
         m.description?.toLowerCase().includes('recepción de efectivo') ||
         m.description?.toLowerCase().includes('entrega parcial')
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const isVoided = !!(m as any).is_voided || m.description?.toLowerCase().includes('anulad')
-      return isReception && !isVoided
+      const isFinalSettlement =
+        m.movement_type === 'settlement_payment' ||
+        m.description?.toLowerCase().includes('liquidación aprobada')
+      return isReception && !isVoided && !isFinalSettlement
     })
     if (!searchTerm.trim()) return receivedMovements
     const term = searchTerm.toLowerCase()

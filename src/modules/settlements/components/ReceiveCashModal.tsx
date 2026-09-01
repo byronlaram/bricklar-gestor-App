@@ -210,7 +210,7 @@ export function ReceiveCashModal({
         const summary = calculateWorkdayCashSummary(wd.initial_cash ?? 0, tasks || [], movements || [])
 
         const historyList: ReceptionHistoryItem[] = (movements || [])
-          .filter((m) => m.direction === 'income' && ['cash_return', 'deposit', 'adjustment', 'settlement_payment'].includes(m.movement_type))
+          .filter((m) => m.direction === 'income' && ['cash_return', 'deposit', 'adjustment', 'reception', 'partial_delivery'].includes(m.movement_type))
           .map((m) => ({
             id: m.id,
             created_at: m.created_at,

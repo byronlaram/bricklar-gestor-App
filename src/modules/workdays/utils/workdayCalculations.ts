@@ -137,10 +137,11 @@ export function calculateWorkdayCashSummary(
         if (curr === 'USD') advancesUSD += amt
         else advancesNIO += amt
       } else if (
-        ['cash_return', 'deposit', 'adjustment', 'settlement_payment', 'reception'].includes(
+        ['cash_return', 'deposit', 'adjustment', 'reception', 'partial_delivery'].includes(
           m.movement_type
         )
       ) {
+        // Entregas parciales / devoluciones en ventanilla durante la jornada (previas al cierre)
         if (curr === 'USD') alreadyReceivedUSD += amt
         else alreadyReceivedNIO += amt
       }
