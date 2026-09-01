@@ -140,6 +140,8 @@ export type MetricCardAccent =
   | 'amber'
   | 'emerald'
   | 'rose'
+  | 'navy'
+  | 'dark_navy'
 
 export interface MetricCardProps extends HTMLAttributes<HTMLDivElement> {
   /** Título del indicador */
@@ -163,6 +165,7 @@ const PASTEL_THEMES: Record<
     iconBg: string
     title: string
     subtitle: string
+    value?: string
   }
 > = {
   primary: {
@@ -170,66 +173,91 @@ const PASTEL_THEMES: Record<
     iconBg: 'bg-[#004594]/10 text-[#004594]',
     title: 'text-[#0A2540]/80',
     subtitle: 'text-blue-700/90',
+    value: 'text-[#0A2540]',
   },
   blue: {
     card: 'bg-[#F5F8FE] border-blue-200/80 hover:border-blue-400/80 shadow-2xs',
     iconBg: 'bg-[#004594]/10 text-[#004594]',
     title: 'text-[#0A2540]/80',
     subtitle: 'text-blue-700/90',
+    value: 'text-[#0A2540]',
   },
   accent: {
     card: 'bg-[#F5F8FE] border-blue-200/80 hover:border-blue-400/80 shadow-2xs',
     iconBg: 'bg-blue-600/10 text-blue-600',
     title: 'text-[#0A2540]/80',
     subtitle: 'text-blue-700/90',
+    value: 'text-[#0A2540]',
   },
   success: {
     card: 'bg-[#F3F9F6] border-emerald-200/80 hover:border-emerald-400/80 shadow-2xs',
     iconBg: 'bg-emerald-500/10 text-emerald-600',
     title: 'text-[#0A2540]/80',
     subtitle: 'text-emerald-700/90',
+    value: 'text-[#0A2540]',
   },
   emerald: {
     card: 'bg-[#F3F9F6] border-emerald-200/80 hover:border-emerald-400/80 shadow-2xs',
     iconBg: 'bg-emerald-500/10 text-emerald-600',
     title: 'text-[#0A2540]/80',
     subtitle: 'text-emerald-700/90',
+    value: 'text-[#0A2540]',
   },
   warning: {
     card: 'bg-[#FCFAF4] border-amber-200/80 hover:border-amber-400/80 shadow-2xs',
     iconBg: 'bg-amber-500/10 text-amber-600',
     title: 'text-[#0A2540]/80',
     subtitle: 'text-amber-700/90',
+    value: 'text-[#0A2540]',
   },
   amber: {
     card: 'bg-[#FCFAF4] border-amber-200/80 hover:border-amber-400/80 shadow-2xs',
     iconBg: 'bg-amber-500/10 text-amber-600',
     title: 'text-[#0A2540]/80',
     subtitle: 'text-amber-700/90',
+    value: 'text-[#0A2540]',
   },
   destructive: {
     card: 'bg-[#FFF5F5] border-rose-200/80 hover:border-rose-400/80 shadow-2xs',
     iconBg: 'bg-rose-500/10 text-rose-600',
     title: 'text-[#0A2540]/80',
     subtitle: 'text-rose-700/90',
+    value: 'text-[#0A2540]',
   },
   rose: {
     card: 'bg-[#FFF5F5] border-rose-200/80 hover:border-rose-400/80 shadow-2xs',
     iconBg: 'bg-rose-500/10 text-rose-600',
     title: 'text-[#0A2540]/80',
     subtitle: 'text-rose-700/90',
+    value: 'text-[#0A2540]',
   },
   purple: {
     card: 'bg-[#FAF8FE] border-purple-200/80 hover:border-purple-400/80 shadow-2xs',
     iconBg: 'bg-purple-500/10 text-purple-600',
     title: 'text-[#0A2540]/80',
     subtitle: 'text-purple-700/90',
+    value: 'text-[#0A2540]',
   },
   violet: {
     card: 'bg-[#FAF8FE] border-purple-200/80 hover:border-purple-400/80 shadow-2xs',
     iconBg: 'bg-purple-500/10 text-purple-600',
     title: 'text-[#0A2540]/80',
     subtitle: 'text-purple-700/90',
+    value: 'text-[#0A2540]',
+  },
+  navy: {
+    card: 'bg-gradient-to-br from-[#1e1b6b] via-[#1a1752] to-[#12113b] border-indigo-400/25 hover:border-indigo-300/40 shadow-sm text-white',
+    iconBg: 'bg-white/10 text-cyan-300',
+    title: 'text-indigo-200',
+    subtitle: 'text-indigo-200/90',
+    value: 'text-white',
+  },
+  dark_navy: {
+    card: 'bg-gradient-to-br from-[#1e1b6b] via-[#1a1752] to-[#12113b] border-indigo-400/25 hover:border-indigo-300/40 shadow-sm text-white',
+    iconBg: 'bg-white/10 text-cyan-300',
+    title: 'text-indigo-200',
+    subtitle: 'text-indigo-200/90',
+    value: 'text-white',
   },
 }
 
@@ -259,7 +287,7 @@ export const MetricCard = forwardRef<HTMLDivElement, MetricCardProps>(
           )}
         </div>
         <div>
-          <div className="text-xl sm:text-2xl font-black font-mono tracking-tight text-[#0A2540]">
+          <div className={cn('text-xl sm:text-2xl font-black font-mono tracking-tight', theme.value || 'text-[#0A2540]')}>
             {value}
           </div>
           {subtitle && (

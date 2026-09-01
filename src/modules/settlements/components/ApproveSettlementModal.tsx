@@ -1,5 +1,14 @@
 import { useState, useEffect, useMemo } from 'react'
-import { CheckCircle2, AlertTriangle, Calculator, Info, FileCheck, CreditCard, Receipt } from 'lucide-react'
+import {
+  CheckCircle2,
+  AlertTriangle,
+  Calculator,
+  Info,
+  FileCheck,
+  CreditCard,
+  Receipt,
+  RotateCcw,
+} from 'lucide-react'
 import type { Settlement } from '../types/settlements.types'
 import { useSettlementMutations } from '../hooks/useSettlements'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
@@ -13,6 +22,7 @@ import {
   ModalFooter,
   Button,
   Input,
+  useToast,
 } from '@/shared/components/ui'
 
 interface ApproveSettlementModalProps {
@@ -21,14 +31,36 @@ interface ApproveSettlementModalProps {
   onClose: () => void
 }
 
+const PRESET_REJECTION_REASONS = [
+  { id: 'comprobante_faltante', label: 'Comprobante físico / voucher faltante o ilegible' },
+  { id: 'error_metodo_pago', label: 'Error en método de cobro (efectivo vs transferencia)' },
+  { id: 'diferencia_injustificada', label: 'Diferencia / faltante de efectivo no justificado' },
+  { id: 'enviada_antes_de_tiempo', label: 'Liquidación enviada antes de terminar todas las tareas del día' },
+  { id: 'gasto_no_autorizado', label: 'Gasto de combustible o compras no autorizado o sin factura' },
+  { id: 'otro', label: 'Otro motivo específico...' },
+]
+
 export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveSettlementModalProps) {
+  const { success, error, info } = useToast()
   const [actualCash, setActualCash] = useState<number | ''>('')
   const [actualTransfers, setActualTransfers] = useState<number | ''>('')
   const [adjustmentReasonType, setAdjustmentReasonType] = useState<string>('')
   const [adjustmentNotes, setAdjustmentNotes] = useState<string>('')
   const [notes, setNotes] = useState<string>('')
 
-  const { approveSettlement, isApproving, approveError } = useSettlementMutations()
+  // Estado para el panel de rechazo / devolución con observaciones
+  const [isRejectOpen, setIsRejectOpen] = useState<boolean>(false)
+  const [rejectPreset, setRejectPreset] = useState<string>('')
+  const [rejectReason, setRejectReason] = useState<string>('')
+
+  const {
+    approveSettlement,
+    isApproving,
+    approveError,
+    rejectSettlement,
+    isRejecting,
+    rejectError,
+  } = useSettlementMutations()
 
   const { data: tasksData } = useTasks({
     courier_id: settlement?.courier_id,
@@ -131,6 +163,9 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
       setNotes(settlement.notes || '')
       setAdjustmentReasonType('')
       setAdjustmentNotes('')
+      setIsRejectOpen(false)
+      setRejectPreset('')
+      setRejectReason('')
     }
   }, [settlement])
 
@@ -156,9 +191,49 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
         adjustment_reason_type: hasDiff ? adjustmentReasonType : undefined,
         adjustment_notes: hasDiff ? adjustmentNotes.trim() : undefined,
       })
+      success(
+        'Liquidación aprobada',
+        'La liquidación fue auditada, aprobada y la jornada ha sido cerrada.'
+      )
       onClose()
     } catch (err) {
       console.error('Error approving settlement:', err)
+    }
+  }
+
+  const handleReject = async () => {
+    const selectedObj = PRESET_REJECTION_REASONS.find((p) => p.id === rejectPreset)
+    const presetLabel = selectedObj && selectedObj.id !== 'otro' ? selectedObj.label : ''
+    
+    let combinedReason = ''
+    if (presetLabel && rejectReason.trim()) {
+      combinedReason = `${presetLabel} — Detalle: ${rejectReason.trim()}`
+    } else if (presetLabel) {
+      combinedReason = presetLabel
+    } else {
+      combinedReason = rejectReason.trim()
+    }
+
+    if (!combinedReason) {
+      error(
+        'Motivo requerido',
+        'Por favor selecciona o escribe el motivo para devolver la liquidación.'
+      )
+      return
+    }
+
+    try {
+      await rejectSettlement({
+        settlement_id: settlement.id,
+        reason: combinedReason,
+      })
+      info(
+        'Liquidación devuelta',
+        'Se ha devuelto la liquidación al motorizado con las observaciones para su corrección.'
+      )
+      onClose()
+    } catch (err) {
+      console.error('Error rejecting settlement:', err)
     }
   }
 
@@ -188,6 +263,93 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
                 <span>
                   Esta liquidación ya fue <strong>auditada, aprobada y cerrada</strong>. El turno del motorizado está cerrado. Consulta en modo solo lectura.
                 </span>
+              </div>
+            )}
+
+            {/* Banner de Estado Observada / Devuelta */}
+            {settlement.status === 'observed' && (
+              <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 font-medium animate-fade-in shadow-2xs">
+                <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <span className="font-bold block">Liquidación en estado Observada / Devuelta</span>
+                  <p className="text-amber-800 text-2xs leading-relaxed">
+                    {settlement.notes || 'La liquidación fue devuelta al motorizado para corrección antes de ser aprobada.'}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Panel de Devolución / Rechazo con Observaciones */}
+            {isRejectOpen && (
+              <div className="p-4 rounded-2xl bg-rose-50/80 border border-rose-200 space-y-3.5 text-xs animate-slide-up shadow-sm">
+                <div className="flex items-center gap-2 text-rose-950 font-bold text-sm">
+                  <RotateCcw className="h-4 w-4 text-rose-600" />
+                  <span>Devolver Liquidación con Observaciones</span>
+                </div>
+                <p className="text-rose-800 text-2xs leading-snug">
+                  La liquidación cambiará a estado <strong>Observada</strong> y la jornada del motorizado volverá a abrirse para que pueda realizar las correcciones y volverla a enviar.
+                </p>
+
+                <div className="space-y-1.5">
+                  <label className="block font-bold text-slate-800 text-2xs uppercase tracking-wider">
+                    Motivo Principal de Devolución <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={rejectPreset}
+                    onChange={(e) => setRejectPreset(e.target.value)}
+                    className="w-full px-3 py-2 text-xs bg-white border border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/30 text-slate-900 shadow-2xs font-medium"
+                  >
+                    <option value="">Selecciona una causa frecuente...</option>
+                    {PRESET_REJECTION_REASONS.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="block font-bold text-slate-800 text-2xs uppercase tracking-wider">
+                    Instrucciones o Detalles para el Motorizado
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Ej. El voucher de gasolina C$300 no se visualiza bien, por favor vuelve a subir foto legible..."
+                    className="w-full px-3 py-2 text-xs bg-white border border-rose-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500/30 text-slate-900 shadow-2xs resize-none"
+                  />
+                </div>
+
+                {rejectError && (
+                  <p className="text-xs text-rose-700 font-medium bg-white p-2 rounded-lg border border-rose-200">
+                    {(rejectError as Error).message}
+                  </p>
+                )}
+
+                <div className="flex justify-end items-center gap-2 pt-2 border-t border-rose-200/60">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setIsRejectOpen(false)}
+                    disabled={isRejecting}
+                    className="text-xs text-slate-600 hover:text-slate-800"
+                  >
+                    Cancelar Devolución
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleReject}
+                    isLoading={isRejecting}
+                    leftIcon={<RotateCcw className="h-3.5 w-3.5" />}
+                    className="bg-rose-600 hover:bg-rose-700 text-white border-transparent text-xs font-bold shadow-xs"
+                  >
+                    Confirmar Devolución
+                  </Button>
+                </div>
               </div>
             )}
 
@@ -458,22 +620,37 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
                 Cerrar Consulta
               </Button>
             ) : (
-              <>
-                <Button variant="ghost" size="sm" type="button" onClick={onClose}>
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  variant="primary"
-                  size="sm"
-                  isLoading={isApproving}
-                  disabled={hasDiff && !adjustmentReasonType}
-                  leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent"
-                >
-                  {hasDiff ? 'Aprobar y Registrar Ajuste' : 'Aprobar y Cerrar Liquidación'}
-                </Button>
-              </>
+              <div className="flex items-center justify-between w-full gap-2">
+                {!isRejectOpen && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsRejectOpen(true)}
+                    leftIcon={<RotateCcw className="h-3.5 w-3.5 text-rose-600" />}
+                    className="border-rose-200 text-rose-700 bg-rose-50 hover:bg-rose-100 hover:border-rose-300 font-bold text-xs"
+                  >
+                    Rechazar / Devolver
+                  </Button>
+                )}
+
+                <div className="flex items-center gap-2 ml-auto">
+                  <Button variant="ghost" size="sm" type="button" onClick={onClose}>
+                    Cancelar
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    size="sm"
+                    isLoading={isApproving}
+                    disabled={isRejectOpen || (hasDiff && !adjustmentReasonType)}
+                    leftIcon={<CheckCircle2 className="h-3.5 w-3.5" />}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white border-transparent font-bold text-xs"
+                  >
+                    {hasDiff ? 'Aprobar y Registrar Ajuste' : 'Aprobar y Cerrar Liquidación'}
+                  </Button>
+                </div>
+              </div>
             )}
           </ModalFooter>
         </form>

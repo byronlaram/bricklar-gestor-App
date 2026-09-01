@@ -6,6 +6,7 @@ import type {
   CashMovement,
   CreateMovementPayload,
   ApproveSettlementPayload,
+  RejectSettlementPayload,
   AdminForceSettlementPayload,
   SettlementFilters,
   DailyClosureSummary,
@@ -442,6 +443,59 @@ export async function approveSettlement(payload: ApproveSettlementPayload): Prom
 
     if (adjError) {
       console.warn('[Settlements] Warning: could not persist settlement_adjustment:', adjError.message)
+    }
+  }
+
+  return data as unknown as Settlement
+}
+
+export async function rejectSettlement(payload: RejectSettlementPayload): Promise<Settlement> {
+  const { data: session } = await supabase.auth.getSession()
+  const adminId = session?.session?.user?.id
+  if (!adminId) throw new Error('No hay sesión activa.')
+
+  const { data: current, error: getErr } = await supabase
+    .from('settlements')
+    .select('workday_id, courier_id, notes')
+    .eq('id', payload.settlement_id)
+    .single()
+
+  if (getErr) throw new Error(getErr.message)
+
+  const workdayId = current?.workday_id
+  const reasonText = payload.reason.trim()
+  const formattedNotes = `[OBSERVACIÓN / DEVUELTA]: ${reasonText}`
+
+  const { data, error } = await supabase
+    .from('settlements')
+    .update({
+      status: 'observed',
+      reviewed_by: adminId,
+      reviewed_at: new Date().toISOString(),
+      notes: formattedNotes,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', payload.settlement_id)
+    .select(SETTLEMENT_SELECT)
+    .single()
+
+  if (error) {
+    console.error('[Settlements] rejectSettlement error:', error)
+    throw new Error(error.message)
+  }
+
+  // Devolver la jornada laboral a estado "open" para que el motorizado pueda corregir y reenviar
+  if (workdayId) {
+    const { error: wdErr } = await supabase
+      .from('workdays')
+      .update({
+        status: 'open',
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', workdayId)
+
+    if (wdErr) {
+      console.warn('[Settlements] Warning: could not update workday status to open on reject:', wdErr.message)
     }
   }
 

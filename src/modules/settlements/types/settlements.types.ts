@@ -83,6 +83,11 @@ export interface ApproveSettlementPayload {
   adjustment_notes?: string
 }
 
+export interface RejectSettlementPayload {
+  settlement_id: string
+  reason: string
+}
+
 export interface AdminForceSettlementPayload {
   workday_id: string
   actual_cash: number

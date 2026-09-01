@@ -376,6 +376,33 @@ export default function CourierSettlementPage() {
         </div>
       )}
 
+      {/* ⚠️ AVISO SI LA LIQUIDACIÓN FUE DEVUELTA / OBSERVADA */}
+      {settlement?.status === 'observed' && (
+        <div className="bg-rose-50 border border-rose-200 rounded-3xl p-5 shadow-sm space-y-2.5 animate-fade-in">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-rose-100 rounded-2xl shrink-0 mt-0.5">
+              <AlertTriangle className="h-6 w-6 text-rose-600" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-rose-900 block">
+                  Liquidación Observada / Devuelta por Administración
+                </span>
+                <Badge variant="urgent" size="sm">
+                  Requiere Corrección
+                </Badge>
+              </div>
+              <p className="text-xs text-rose-950 font-bold mt-1.5 leading-snug bg-white/80 p-2.5 rounded-xl border border-rose-150">
+                {settlement.notes || 'Administración solicitó revisar comprobantes o montos antes de aprobar.'}
+              </p>
+              <p className="text-[11px] text-rose-700 mt-1.5 leading-snug">
+                Corrige los comprobantes, fotos o cobros de tus tareas. Cuando todo esté en orden, vuelve a presionar <strong>"Reenviar Liquidación Corregida"</strong> abajo.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header Crema Pastel Ejecutivo */}
       <div className="bg-[#FCFAF4] border border-amber-100/70 rounded-3xl p-5 shadow-2xs flex items-center justify-between">
         <div>
@@ -390,7 +417,13 @@ export default function CourierSettlementPage() {
 
         {settlement && (
           <Badge
-            variant={settlement.status === 'approved' ? 'completed' : 'pending'}
+            variant={
+              settlement.status === 'approved'
+                ? 'completed'
+                : settlement.status === 'observed'
+                ? 'urgent'
+                : 'pending'
+            }
             size="md"
           >
             {SETTLEMENT_STATUS_LABELS[settlement.status] || settlement.status}
@@ -686,11 +719,17 @@ export default function CourierSettlementPage() {
       </div>
 
       {/* Formulario / Acción de Enviar a Liquidación */}
-      {(!settlement || settlement.status === 'draft') && (
+      {(!settlement || settlement.status === 'draft' || settlement.status === 'observed') && (
         <Card className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-xs space-y-4">
-          <CardTitle className="text-sm font-bold text-slate-900">Enviar a Revisión de Administración</CardTitle>
+          <CardTitle className="text-sm font-bold text-slate-900">
+            {settlement?.status === 'observed'
+              ? 'Reenviar Liquidación a Revisión'
+              : 'Enviar a Revisión de Administración'}
+          </CardTitle>
           <p className="text-xs text-slate-500 font-medium">
-            Al presionar este botón, tu resumen se enviará al panel del administrador para cuadre y aprobación.
+            {settlement?.status === 'observed'
+              ? 'Una vez corregidas las observaciones, presiona el botón para reenviar tu liquidación al administrador.'
+              : 'Al presionar este botón, tu resumen se enviará al panel del administrador para cuadre y aprobación.'}
           </p>
 
           <div className="space-y-1.5">
@@ -701,7 +740,11 @@ export default function CourierSettlementPage() {
               rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ej: Entregué billetes en sobre, comprobante de gasolina adjunto..."
+              placeholder={
+                settlement?.status === 'observed'
+                  ? 'Ej: Ya subí la foto legible del comprobante y ajusté la tarea #12...'
+                  : 'Ej: Entregué billetes en sobre, comprobante de gasolina adjunto...'
+              }
               className="w-full px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-600/30 text-slate-900 shadow-2xs resize-none"
             />
           </div>
@@ -740,7 +783,9 @@ export default function CourierSettlementPage() {
             leftIcon={<Send className="h-4 w-4" />}
             className="w-full justify-center text-sm font-bold shadow-xs py-3 bg-[#004594] hover:bg-[#083570]"
           >
-            Enviar Liquidación a Revisión
+            {settlement?.status === 'observed'
+              ? 'Reenviar Liquidación Corregida'
+              : 'Enviar Liquidación a Revisión'}
           </Button>
         </Card>
       )}

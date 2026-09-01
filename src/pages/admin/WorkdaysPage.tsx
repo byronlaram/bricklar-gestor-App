@@ -458,22 +458,22 @@ export default function AdminWorkdaysPage() {
                   ? `En mano en calle ahora: C$ ${financialSummary.liveCashInHandNIO.toFixed(2)}`
                   : `Neto proyectado al cierre: C$ ${financialSummary.netProjectedCashNIO.toFixed(2)}`}
               </div>
-              <span className="inline-flex items-center text-[10px] font-extrabold text-blue-700 hover:underline">
+              <span className="inline-flex items-center text-[10px] font-extrabold text-cyan-300 hover:text-cyan-200 hover:underline">
                 Ver arqueo ↗
               </span>
             </div>
           }
           icon={
             viewMode === 'projected' ? (
-              <Calculator className="h-4 w-4 text-[#004594]" />
+              <Calculator className="h-4 w-4 text-cyan-300" />
             ) : (
-              <Wallet className="h-4 w-4 text-[#004594]" />
+              <Wallet className="h-4 w-4 text-cyan-300" />
             )
           }
-          accentColor="primary"
+          accentColor="navy"
           isHoverable
           onClick={() => setSelectedCardDetail('net')}
-          className="cursor-pointer group hover:scale-[1.01] hover:border-blue-300 transition-all col-span-2 sm:col-span-1"
+          className="cursor-pointer group hover:scale-[1.01] transition-all col-span-2 sm:col-span-1"
         />
       </div>
 
@@ -502,16 +502,16 @@ export default function AdminWorkdaysPage() {
                       ? `Ya recibido: C$ ${financialSummary.completedTransfersNIO.toFixed(2)}`
                       : `Proyectado: C$ ${financialSummary.projectedTransfersNIO.toFixed(2)}`}
                   </div>
-                  <span className="inline-flex items-center text-[10px] font-extrabold text-sky-700 hover:underline">
+                  <span className="inline-flex items-center text-[10px] font-extrabold text-cyan-300 hover:text-cyan-200 hover:underline">
                     Ver detalle ↗
                   </span>
                 </div>
               }
-              icon={<CreditCard className="h-4 w-4 text-sky-600" />}
-              accentColor="primary"
+              icon={<CreditCard className="h-4 w-4 text-sky-300" />}
+              accentColor="navy"
               isHoverable
               onClick={() => setSelectedCardDetail('transfers')}
-              className="cursor-pointer group hover:scale-[1.01] hover:border-sky-300 transition-all"
+              className="cursor-pointer group hover:scale-[1.01] transition-all"
             />
 
             <MetricCard
@@ -528,16 +528,16 @@ export default function AdminWorkdaysPage() {
                       ? `Ya recibido: C$ ${financialSummary.completedChequesNIO.toFixed(2)}`
                       : `Proyectado: C$ ${financialSummary.projectedChequesNIO.toFixed(2)}`}
                   </div>
-                  <span className="inline-flex items-center text-[10px] font-extrabold text-purple-700 hover:underline">
+                  <span className="inline-flex items-center text-[10px] font-extrabold text-cyan-300 hover:text-cyan-200 hover:underline">
                     Ver detalle ↗
                   </span>
                 </div>
               }
-              icon={<FileCheck className="h-4 w-4 text-purple-600" />}
-              accentColor="accent"
+              icon={<FileCheck className="h-4 w-4 text-purple-300" />}
+              accentColor="navy"
               isHoverable
               onClick={() => setSelectedCardDetail('cheques')}
-              className="cursor-pointer group hover:scale-[1.01] hover:border-purple-300 transition-all"
+              className="cursor-pointer group hover:scale-[1.01] transition-all"
             />
           </div>
         </div>

@@ -180,8 +180,8 @@ export default function AdminSettlementsPage() {
           title="Neto Esperado en Caja"
           value={`C$ ${totalNetExpected.toFixed(2)}`}
           subtitle={`${pendingCount} pendiente(s) de revisión`}
-          icon={<Calculator className="h-4 w-4 text-[#004594]" />}
-          accentColor="primary"
+          icon={<Calculator className="h-4 w-4 text-cyan-300" />}
+          accentColor="navy"
         />
       </div>
 
@@ -349,11 +349,22 @@ export default function AdminSettlementsPage() {
                       <td className="py-3 px-3">
                         <div className="space-y-1">
                           <Badge
-                            variant={s.status === 'approved' ? 'completed' : 'pending'}
+                            variant={
+                              s.status === 'approved'
+                                ? 'completed'
+                                : s.status === 'observed'
+                                ? 'urgent'
+                                : 'pending'
+                            }
                             size="sm"
                           >
                             {(SETTLEMENT_STATUS_LABELS && SETTLEMENT_STATUS_LABELS[s.status]) || s.status}
                           </Badge>
+                          {s.status === 'observed' && s.notes && (
+                            <span className="block text-[10px] text-rose-700 font-medium truncate max-w-[130px]" title={s.notes}>
+                              {s.notes}
+                            </span>
+                          )}
                           {s.status === 'approved' && Math.abs(diff) > 0.001 && (
                             <span className="inline-block text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
                               Cerrado c/ Ajuste
@@ -377,10 +388,16 @@ export default function AdminSettlementsPage() {
                           className={
                             s.status === 'approved'
                               ? 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-2xs font-bold shadow-2xs'
+                              : s.status === 'observed'
+                              ? 'bg-amber-600 hover:bg-amber-700 text-white border-transparent text-2xs font-bold'
                               : 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent text-2xs font-bold'
                           }
                         >
-                          {s.status === 'approved' ? 'Ver Arqueo' : 'Revisar / Aprobar'}
+                          {s.status === 'approved'
+                            ? 'Ver Arqueo'
+                            : s.status === 'observed'
+                            ? 'Revisar (Observada)'
+                            : 'Revisar / Aprobar'}
                         </Button>
                       </td>
                     </tr>

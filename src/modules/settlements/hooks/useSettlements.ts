@@ -5,6 +5,7 @@ import {
   getSettlementByWorkday,
   submitSettlement,
   approveSettlement,
+  rejectSettlement,
   adminForceSettlement,
   getCashMovements,
   createCashMovement,
@@ -15,6 +16,7 @@ import type {
   SettlementFilters,
   CreateMovementPayload,
   ApproveSettlementPayload,
+  RejectSettlementPayload,
   AdminForceSettlementPayload,
 } from '../types/settlements.types'
 import { broadcastSyncEvent } from '@/shared/lib/realtimeSync'
@@ -99,6 +101,24 @@ export function useSettlementMutations() {
     },
   })
 
+  const rejectMutation = useMutation({
+    mutationFn: (payload: RejectSettlementPayload) => rejectSettlement(payload),
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['settlements'] })
+      queryClient.refetchQueries({ queryKey: ['settlements'], type: 'active' })
+      queryClient.invalidateQueries({ queryKey: ['settlement', data.id] })
+      queryClient.invalidateQueries({ queryKey: ['workday-settlement'] })
+      queryClient.invalidateQueries({ queryKey: ['active-workday'] })
+      queryClient.invalidateQueries({ queryKey: ['workdays'] })
+      queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
+      queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+      queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
+      queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+      queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+      broadcastSyncEvent('settlements', 'update', { entityId: data.id })
+    },
+  })
+
   const forceSettlementMutation = useMutation({
     mutationFn: (payload: AdminForceSettlementPayload) => adminForceSettlement(payload),
     onSuccess: () => {
@@ -159,6 +179,10 @@ export function useSettlementMutations() {
     approveSettlement: approveMutation.mutateAsync,
     isApproving: approveMutation.isPending,
     approveError: approveMutation.error,
+
+    rejectSettlement: rejectMutation.mutateAsync,
+    isRejecting: rejectMutation.isPending,
+    rejectError: rejectMutation.error,
 
     forceSettlement: forceSettlementMutation.mutateAsync,
     isForcingSettlement: forceSettlementMutation.isPending,

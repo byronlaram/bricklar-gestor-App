@@ -164,31 +164,31 @@ export default function AdminDailyClosurePage() {
           </div>
 
           {/* Banner Héroe de Efectivo Neto en Caja General */}
-          <div className="bg-[#F5F8FE] border border-blue-200/80 rounded-3xl p-6 sm:p-8 shadow-2xs space-y-5">
-            <div className="flex items-center justify-between border-b border-blue-200/60 pb-3.5">
-              <span className="text-xs font-extrabold uppercase tracking-wider flex items-center gap-2 text-[#0A2540]/80">
-                <div className="w-8 h-8 rounded-xl bg-[#004594]/10 text-[#004594] flex items-center justify-center">
+          <div className="bg-gradient-to-br from-[#1e1b6b] via-[#1a1752] to-[#12113b] border border-indigo-400/25 rounded-3xl p-6 sm:p-8 shadow-md text-white space-y-5">
+            <div className="flex items-center justify-between border-b border-indigo-400/20 pb-3.5">
+              <span className="text-xs font-extrabold uppercase tracking-wider flex items-center gap-2.5 text-indigo-200">
+                <div className="w-8 h-8 rounded-xl bg-white/10 text-cyan-300 flex items-center justify-center">
                   <Wallet className="h-4 w-4" />
                 </div>
                 Efectivo Neto Físico Ingresado en Bóveda / Caja General
               </span>
-              <span className="text-xs bg-blue-100/70 px-3 py-1 rounded-full font-mono font-bold text-blue-900 border border-blue-200/70">
+              <span className="text-xs bg-black/30 px-3.5 py-1 rounded-full font-mono font-bold text-indigo-100 border border-white/10 shadow-2xs">
                 {date}
               </span>
             </div>
 
             <div className="space-y-2">
-              <p className="text-4xl sm:text-5xl font-black tracking-tight text-[#0A2540] font-mono">
+              <p className="text-4xl sm:text-5xl font-black tracking-tight text-white font-mono">
                 C$ {(closure?.net_cash_in_hand ?? 0).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
-              <p className="text-xs sm:text-sm text-blue-800/90 font-medium leading-relaxed max-w-xl">
+              <p className="text-xs sm:text-sm text-indigo-200/90 font-medium leading-relaxed max-w-xl">
                 Total físico efectivamente recibido por administración (Entregas parciales en ventanilla + Liquidaciones aprobadas del turno).
               </p>
             </div>
 
             {isAllClosed && (
-              <div className="p-3.5 bg-emerald-50 rounded-2xl text-xs font-semibold text-emerald-800 flex items-center gap-2.5 border border-emerald-200">
-                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              <div className="p-3.5 bg-emerald-500/15 rounded-2xl text-xs font-semibold text-emerald-300 flex items-center gap-2.5 border border-emerald-400/30">
+                <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
                 <span>Cierre diario de caja formalmente verificado y guardado en auditoría.</span>
               </div>
             )}
