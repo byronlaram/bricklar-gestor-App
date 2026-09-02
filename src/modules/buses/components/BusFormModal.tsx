@@ -3,6 +3,8 @@ import { X, Bus, Edit3, Loader2 } from 'lucide-react'
 import type { BusRoute } from '../types/buses.types'
 import { useBusMutations } from '../hooks/useBuses'
 
+import { useToast } from '@/shared/components/ui'
+
 interface BusFormModalProps {
   routeToEdit?: BusRoute | null
   isOpen: boolean
@@ -11,6 +13,7 @@ interface BusFormModalProps {
 
 export function BusFormModal({ routeToEdit, isOpen, onClose }: BusFormModalProps) {
   const isEditing = !!routeToEdit
+  const { success, error: showToastError } = useToast()
 
   const [cooperativeName, setCooperativeName] = useState('')
   const [originTerminal, setOriginTerminal] = useState('')
@@ -46,22 +49,25 @@ export function BusFormModal({ routeToEdit, isOpen, onClose }: BusFormModalProps
     e.preventDefault()
     try {
       const payload = {
-        cooperative_name: cooperativeName,
-        origin_terminal: originTerminal,
-        destination_city: destinationCity,
-        departure_schedules: departureSchedules,
-        dispatch_phone: dispatchPhone || undefined,
-        notes: notes || undefined,
+        cooperative_name: cooperativeName.trim(),
+        origin_terminal: originTerminal.trim(),
+        destination_city: destinationCity.trim(),
+        departure_schedules: departureSchedules.trim(),
+        dispatch_phone: dispatchPhone.trim() || undefined,
+        notes: notes.trim() || undefined,
       }
 
       if (isEditing && routeToEdit) {
         await updateBusRoute({ id: routeToEdit.id, payload })
+        success('Ruta actualizada', `Se actualizaron los datos de ${payload.destination_city}`)
       } else {
         await createBusRoute(payload)
+        success('Ruta agregada', `Se registró la ruta hacia ${payload.destination_city}`)
       }
       onClose()
     } catch (err) {
       console.error('Error saving bus route:', err)
+      showToastError('Error al guardar', (err as Error)?.message || 'No se pudo guardar la ruta.')
     }
   }
 
