@@ -42,7 +42,7 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
   try {
     let tasksQuery = supabase
       .from('tasks')
-      .select('id, status, financial_status, created_at, scheduled_date, branch_id, requires_collection, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_payment, expected_payment_amount, expected_payment_currency, metadata')
+      .select('id, status, financial_status, created_at, scheduled_date, branch_id, assigned_courier_id, requires_collection, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_payment, expected_payment_amount, expected_payment_currency, metadata')
       .eq('scheduled_date', targetDate)
 
     let workdaysQuery = supabase
@@ -52,14 +52,8 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
 
     let settlementsQuery = supabase
       .from('settlements')
-      .select('id, status, actual_cash, actual_transfers, total_expenses, expected_cash, branch_id')
+      .select('id, workday_id, courier_id, status, actual_cash, actual_transfers, total_expenses, expected_cash, branch_id')
       .eq('settlement_date', targetDate)
-
-    let movementsQuery = supabase
-      .from('cash_movements')
-      .select('id, amount, currency, direction, movement_type, description, workday_id')
-      .gte('created_at', `${targetDate}T00:00:00`)
-      .lte('created_at', `${targetDate}T23:59:59.999Z`)
 
     // Si se especificaron sucursales, filtrar por ellas
     if (branchIds && branchIds.length > 0) {
@@ -68,18 +62,35 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
       settlementsQuery = settlementsQuery.in('branch_id', branchIds)
     }
 
-    const [tasksRes, workdaysRes, settlementsRes, movementsRes] = await Promise.all([
+    const [tasksRes, workdaysRes, settlementsRes] = await Promise.all([
       tasksQuery,
       workdaysQuery,
       settlementsQuery,
-      movementsQuery,
     ])
 
+    const tasks = tasksRes.data ?? []
+    const workdays = workdaysRes.data ?? []
+    const settlements = settlementsRes.data ?? []
+
+    const workdayIds = workdays.map((w) => w.id)
+
+    let movements: any[] = []
+    if (workdayIds.length > 0) {
+      const { data: movementsData, error: movementsErr } = await supabase
+        .from('cash_movements')
+        .select('id, amount, currency, direction, movement_type, description, workday_id')
+        .in('workday_id', workdayIds)
+
+      if (!movementsErr && movementsData) {
+        movements = movementsData
+      }
+    }
+
     return {
-      tasks: tasksRes.data ?? [],
-      workdays: workdaysRes.data ?? [],
-      settlements: settlementsRes.data ?? [],
-      movements: movementsRes.data ?? [],
+      tasks,
+      workdays,
+      settlements,
+      movements,
     }
   } catch (err) {
     console.error('[Dashboard] Error fetching dashboard data:', err)
@@ -210,12 +221,19 @@ export default function DashboardPage() {
     const movements = data?.movements ?? []
 
     const completedTasks = tasks.filter((t) => t.status === 'completed')
-    const totalInitialCash = workdays.reduce((acc, w) => acc + (w.initial_cash || 0), 0)
 
-    const liveSummary = calculateWorkdayCashSummary(totalInitialCash, completedTasks, movements)
+    const settlementMap = new Map<string, any>()
+    settlements.forEach((s) => settlementMap.set(s.workday_id, s))
+
+    // Calcular por cada jornada individual sus tareas y movimientos correspondientes
+    const workdaySummaries = workdays.map((w) => {
+      const wTasks = completedTasks.filter((t) => t.assigned_courier_id === w.courier_id)
+      const wMovements = movements.filter((m) => m.workday_id === w.id)
+      return calculateWorkdayCashSummary(w.initial_cash || 0, wTasks, wMovements)
+    })
 
     // Total recaudado en efectivo por tareas completadas
-    const totalCash = liveSummary.collectionsNIO
+    const totalCash = workdaySummaries.reduce((acc, s) => acc + s.collectionsNIO, 0)
 
     // Total transferencias recibidas
     const totalTransfer = completedTasks.reduce((acc, t) => {
@@ -234,10 +252,22 @@ export default function DashboardPage() {
     }, 0)
 
     // Total compras y gastos en calle desembolsados
-    const totalExpenses = liveSummary.expensesNIO
+    const totalExpenses = workdaySummaries.reduce((acc, s) => acc + s.expensesNIO, 0)
 
-    // Neto consolidado en caja / en mano
-    const netCash = liveSummary.cashInHandNIO
+    // Entregas previas a caja
+    const totalAlreadyReceived = workdaySummaries.reduce((acc, s) => acc + s.alreadyReceivedNIO, 0)
+
+    // Físico ingresado a bóveda/caja (entregas previas + liquidaciones aprobadas)
+    const netReceivedInVault = workdays.reduce((acc, w, idx) => {
+      const s = settlementMap.get(w.id)
+      const priorReceived = workdaySummaries[idx]?.alreadyReceivedNIO || 0
+      const finalSettlementReceived = s && s.status === 'approved' ? (s.actual_cash || 0) : 0
+      return acc + priorReceived + finalSettlementReceived
+    }, 0)
+
+    // Neto consolidado de operaciones (Cobros en efectivo - Gastos)
+    const netOperationsCash = totalCash - totalExpenses
+    const netCash = netReceivedInVault > 0 ? netReceivedInVault : Math.max(0, netOperationsCash)
 
     return {
       totalTasks: tasks.length,
@@ -249,6 +279,8 @@ export default function DashboardPage() {
       totalCash,
       totalTransfer,
       totalExpenses,
+      totalAlreadyReceived,
+      netReceivedInVault,
       netCash,
       pendingSettlements: settlements.filter(
         (s) => s.status === 'pending_review' || s.status === 'pending_settlement'
