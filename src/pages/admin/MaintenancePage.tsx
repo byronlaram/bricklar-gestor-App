@@ -14,6 +14,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
 import { Button } from '@/shared/components/ui/Button'
 import { ResetDatabaseModal } from './components/ResetDatabaseModal'
+import { BackupManager } from '@/modules/maintenance/components/BackupManager'
 
 interface StatusItem {
   label: string
@@ -82,11 +83,14 @@ export default function MaintenancePage() {
     <div className="space-y-6 animate-fade-in max-w-2xl">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">Mantenimiento</h1>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Mantenimiento & Respaldos</h1>
         <p className="text-xs text-foreground-muted mt-0.5">
-          Herramientas de diagnóstico y mantenimiento del sistema.
+          Copias de seguridad en la nube, respaldos automáticos y herramientas de diagnóstico del sistema.
         </p>
       </div>
+
+      {/* Centro de Respaldos y Recuperación */}
+      <BackupManager />
 
       {/* Caché del Cliente */}
       <div className="bg-card border border-border rounded-2xl p-6 shadow-xs space-y-4">

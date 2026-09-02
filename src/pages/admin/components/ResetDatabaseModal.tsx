@@ -22,6 +22,7 @@ import {
 } from '@/shared/components/ui/Modal'
 import { Button } from '@/shared/components/ui/Button'
 import { Input } from '@/shared/components/ui/Input'
+import { generateFullBackup, triggerBackupDownload } from '@/modules/maintenance/services/backupService'
 
 interface ResetDatabaseModalProps {
   isOpen: boolean
@@ -70,6 +71,14 @@ export function ResetDatabaseModal({ isOpen, onClose }: ResetDatabaseModalProps)
         toast.error('Error de autenticación', msg)
         setIsLoading(false)
         return
+      }
+
+      // 1.5. Generar y descargar automáticamente un respaldo de seguridad preventivo
+      try {
+        const emergencyBackup = await generateFullBackup(user.email)
+        triggerBackupDownload(emergencyBackup)
+      } catch (backupErr) {
+        console.warn('Advertencia al generar respaldo previo al reinicio:', backupErr)
       }
 
       // 2. Ejecutar la función RPC en PostgreSQL
