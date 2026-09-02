@@ -28,6 +28,7 @@ import {
   useToast,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
+import { formatDate } from '@/shared/utils/format'
 
 export default function CourierFundsPage() {
   const { profile } = useAuth()
@@ -180,14 +181,14 @@ export default function CourierFundsPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-black uppercase tracking-wider text-amber-100 block">
-                  Turno Activo: {activeWorkday.work_date}
+                  Turno Activo: {formatDate(activeWorkday.work_date)}
                 </span>
                 <span className="text-xs font-black bg-white/20 px-2.5 py-0.5 rounded-full font-tabular">
                   Cierre Pendiente
                 </span>
               </div>
               <p className="text-xs text-white/95 mt-1 leading-snug">
-                Esta jornada pertenece al <strong>{activeWorkday.work_date}</strong> y está abierta. Recuerda liquidarla en la pestaña <strong>"Liquidación"</strong> para entregar cuentas e iniciar tu jornada de hoy.
+                Esta jornada pertenece al <strong>{formatDate(activeWorkday.work_date)}</strong> y está abierta. Recuerda liquidarla en la pestaña <strong>"Liquidación"</strong> para entregar cuentas e iniciar tu jornada de hoy.
               </p>
             </div>
           </div>

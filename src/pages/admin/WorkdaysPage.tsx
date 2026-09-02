@@ -50,6 +50,7 @@ import {
   EmptyState,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
+import { formatDate } from '@/shared/utils/format'
 
 export default function AdminWorkdaysPage() {
   const { profile } = useAuth()
@@ -635,7 +636,7 @@ export default function AdminWorkdaysPage() {
 
         {filters.date ? (
           <span className="text-2xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
-            Jornadas del: <strong className="text-slate-800 font-mono">{filters.date}</strong> {filters.date === todayStr ? '(Hoy)' : ''}
+            Jornadas del: <strong className="text-slate-800 font-mono">{formatDate(filters.date)}</strong> {filters.date === todayStr ? '(Hoy)' : ''}
           </span>
         ) : (
           <span className="text-2xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full">
@@ -746,7 +747,7 @@ export default function AdminWorkdaysPage() {
                         </td>
 
                         <td className="py-3 px-3">
-                          <div className="font-semibold text-slate-900">{w.work_date}</div>
+                          <div className="font-semibold text-slate-900">{formatDate(w.work_date)}</div>
                           <div className="text-2xs text-slate-400 font-medium">
                             Inicio:{' '}
                             {w.start_time

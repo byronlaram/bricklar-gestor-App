@@ -70,6 +70,7 @@ import {
   ModalBody,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
+import { formatDate } from '@/shared/utils/format'
 
 export default function TasksPage() {
   const navigate = useNavigate()
@@ -425,7 +426,7 @@ export default function TasksPage() {
                               </div>
                             </div>
                             <div className="text-2xs text-slate-400 pt-0.5 font-medium">
-                              {task.scheduled_date} {task.scheduled_start_time ? `• ${task.scheduled_start_time}` : ''}
+                              {formatDate(task.scheduled_date)} {task.scheduled_start_time ? `• ${task.scheduled_start_time}` : ''}
                             </div>
                             <div className="mt-1.5 md:hidden">
                               <TaskStatusBadge status={task.status} className="text-[10px] py-0.5 px-2" />
@@ -546,7 +547,7 @@ export default function TasksPage() {
                           </div>
                         </div>
                         <div className="text-2xs text-slate-400 pt-0.5 font-medium">
-                          {task.scheduled_date} {task.scheduled_start_time ? `• ${task.scheduled_start_time}` : ''}
+                          {formatDate(task.scheduled_date)} {task.scheduled_start_time ? `• ${task.scheduled_start_time}` : ''}
                         </div>
 
                         {/* Estado de la tarea en móvil */}

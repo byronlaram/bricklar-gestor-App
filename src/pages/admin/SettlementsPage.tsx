@@ -27,6 +27,7 @@ import {
   EmptyState,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
+import { formatDate } from '@/shared/utils/format'
 
 export default function AdminSettlementsPage() {
   const { profile } = useAuth()
@@ -226,7 +227,7 @@ export default function AdminSettlementsPage() {
 
         {filters.date ? (
           <span className="text-2xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
-            Liquidaciones del: <strong className="text-slate-800 font-mono">{filters.date}</strong> {filters.date === todayStr ? '(Hoy)' : ''}
+            Liquidaciones del: <strong className="text-slate-800 font-mono">{formatDate(filters.date)}</strong> {filters.date === todayStr ? '(Hoy)' : ''}
           </span>
         ) : (
           <span className="text-2xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full">
@@ -251,7 +252,7 @@ export default function AdminSettlementsPage() {
               filters.date === todayStr
                 ? 'Sin liquidaciones registradas hoy'
                 : filters.date
-                ? `Sin liquidaciones para la fecha ${filters.date}`
+                ? `Sin liquidaciones para la fecha ${formatDate(filters.date)}`
                 : 'No hay liquidaciones registradas'
             }
             description={
@@ -293,7 +294,7 @@ export default function AdminSettlementsPage() {
                         <div className="font-semibold text-slate-900">
                           {s.courier_profile?.display_name || s.courier_profile?.full_name || 'Motorizado'}
                         </div>
-                        <div className="text-2xs text-slate-400 font-mono">{s.settlement_date}</div>
+                        <div className="text-2xs text-slate-400 font-mono">{formatDate(s.settlement_date)}</div>
                       </td>
 
                       <td className="py-3 px-3 font-semibold text-emerald-700 font-mono">

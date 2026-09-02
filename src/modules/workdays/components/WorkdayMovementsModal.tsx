@@ -15,6 +15,7 @@ import { useCashMovements } from '../hooks/useCashMovements'
 import { VoidMovementModal } from './VoidMovementModal'
 import type { DetailedCashMovement } from '../services/workdaysService'
 import { Badge, TableSkeleton, EmptyState } from '@/shared/components/ui'
+import { formatDate } from '@/shared/utils/format'
 
 interface WorkdayMovementsModalProps {
   workday: Workday | null
@@ -66,7 +67,7 @@ export function WorkdayMovementsModal({
                 Flujo de Efectivo & Movimientos de Jornada
               </h2>
               <Badge variant="neutral" size="sm">
-                {workday.work_date}
+                {formatDate(workday.work_date)}
               </Badge>
             </div>
             <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">

@@ -35,6 +35,7 @@ import {
   Divider,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
+import { formatDate } from '@/shared/utils/format'
 
 // ─── Queries de KPI ──────────────────────────────────────────────────────────
 
@@ -377,10 +378,10 @@ export default function DashboardPage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                {isToday ? 'Operaciones del Día (Hoy)' : `Operaciones del ${selectedDate}`}
+                {isToday ? 'Operaciones del Día (Hoy)' : `Operaciones del ${formatDate(selectedDate)}`}
               </h3>
               <Badge variant={isToday ? 'assigned' : 'neutral'} size="sm">
-                {isToday ? 'Actualización en vivo' : selectedDate}
+                {isToday ? 'Actualización en vivo' : formatDate(selectedDate)}
               </Badge>
             </div>
 
@@ -420,11 +421,11 @@ export default function DashboardPage() {
 
               <Link to="/admin/tareas">
                 <MetricCard
-                  title="Por Completar / Asignadas"
-                  value={kpis.pending + kpis.notCompleted}
-                  subtitle={`${kpis.pending} asignadas activas`}
-                  icon={<AlertCircle className="h-5 w-5 text-amber-500" />}
-                  accentColor="warning"
+                  title="No Completadas / Canceladas"
+                  value={kpis.notCompleted}
+                  subtitle="Incidencias registradas"
+                  icon={<AlertCircle className="h-5 w-5 text-destructive" />}
+                  accentColor="destructive"
                   className="hover:shadow-card-hover cursor-pointer"
                 />
               </Link>
@@ -436,7 +437,7 @@ export default function DashboardPage() {
           {/* SECCIÓN 2: PERSONAL Y RECAUDACIÓN (MetricCards) */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Personal & Estado Financiero ({selectedDate})
+              Personal & Estado Financiero ({formatDate(selectedDate)})
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -488,10 +489,10 @@ export default function DashboardPage() {
 
           {/* SECCIÓN 3: DISTRIBUCIÓN O ESTADO VACÍO */}
           {data && data.tasks && data.tasks.length > 0 ? (
-            <TaskStatusBar tasks={data.tasks} dateLabel={isToday ? 'Hoy' : selectedDate} />
+            <TaskStatusBar tasks={data.tasks} dateLabel={isToday ? 'Hoy' : formatDate(selectedDate)} />
           ) : (
             <EmptyState
-              title={`Sin tareas registradas para el ${selectedDate}`}
+              title={`Sin tareas registradas para el ${formatDate(selectedDate)}`}
               description="Actualmente no hay órdenes de despacho o entregas agendadas para esta fecha."
               icon={<PackageCheck className="h-7 w-7 text-slate-400" />}
               action={

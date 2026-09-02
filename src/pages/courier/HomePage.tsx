@@ -41,6 +41,7 @@ import {
   Input,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
+import { formatDate } from '@/shared/utils/format'
 
 export default function CourierHomePage() {
   const navigate = useNavigate()
@@ -605,7 +606,7 @@ export default function CourierHomePage() {
                       {/* Fecha si no es hoy */}
                       {task.scheduled_date !== todayStr && (
                         <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 border border-slate-200 text-[11px] font-bold px-2 py-0.5 rounded-lg font-mono">
-                          📅 {task.scheduled_date}
+                          📅 {formatDate(task.scheduled_date)}
                         </span>
                       )}
 

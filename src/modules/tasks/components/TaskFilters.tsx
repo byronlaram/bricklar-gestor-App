@@ -4,6 +4,7 @@ import { TASK_STATUS_LABELS, TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/sh
 import type { TaskStatus, TaskType, TaskPriority } from '@/shared/types'
 import { Card, Button, Input } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
+import { formatDate } from '@/shared/utils/format'
 
 interface TaskFiltersProps {
   filters: FilterType
@@ -126,7 +127,7 @@ export function TaskFilters({ filters, onFilterChange, couriers = [], branches =
       <div className="flex items-center justify-between pt-1 text-2xs">
         {filters.date ? (
           <span className="font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-            Mostrando tareas del: <strong className="text-slate-800 font-mono">{filters.date}</strong> {filters.date === todayStr ? '(Hoy)' : ''}
+            Mostrando tareas del: <strong className="text-slate-800 font-mono">{formatDate(filters.date)}</strong> {filters.date === todayStr ? '(Hoy)' : ''}
           </span>
         ) : (
           <span className="font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">

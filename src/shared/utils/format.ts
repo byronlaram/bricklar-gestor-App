@@ -6,15 +6,30 @@ const DEFAULT_TZ = import.meta.env.VITE_DEFAULT_TIMEZONE ?? 'America/Managua'
 
 // ─── Fechas ────────────────────────────────────────────────────────────────────
 
-/** Formatea una fecha en la zona horaria de Managua */
+/** Formatea una fecha en formato dd/MM/yyyy (o especificado) en la zona horaria de Managua */
 export function formatDate(
   date: Date | string | null | undefined,
   fmt = 'dd/MM/yyyy'
 ): string {
   if (!date) return '—'
-  const d = typeof date === 'string' ? new Date(date) : date
-  if (isNaN(d.getTime())) return '—'
-  return formatInTimeZone(d, DEFAULT_TZ, fmt, { locale: es })
+  if (typeof date === 'string') {
+    const trimmed = date.trim()
+    if (!trimmed) return '—'
+    // Manejo directo de fechas puras YYYY-MM-DD para evitar desplazamientos por UTC/zona horaria
+    const ymdMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/)
+    if (ymdMatch) {
+      const [, y, m, d] = ymdMatch
+      if (fmt === 'dd/MM/yyyy') return `${d}/${m}/${y}`
+      if (fmt === 'dd-MM-yyyy') return `${d}-${m}-${y}`
+      const noonDate = new Date(Number(y), Number(m) - 1, Number(d), 12, 0, 0)
+      return formatInTimeZone(noonDate, DEFAULT_TZ, fmt, { locale: es })
+    }
+    const d = new Date(trimmed)
+    if (isNaN(d.getTime())) return trimmed
+    return formatInTimeZone(d, DEFAULT_TZ, fmt, { locale: es })
+  }
+  if (isNaN(date.getTime())) return '—'
+  return formatInTimeZone(date, DEFAULT_TZ, fmt, { locale: es })
 }
 
 /** Formatea fecha y hora en la zona horaria de Managua */

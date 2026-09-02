@@ -40,6 +40,7 @@ import {
   ImageViewerModal,
   useToast,
 } from '@/shared/components/ui'
+import { formatDate } from '@/shared/utils/format'
 
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -416,7 +417,7 @@ export default function TaskDetailPage() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <span className="text-2xs font-semibold text-slate-400 uppercase tracking-wider block">Fecha Programada</span>
-                <span className="text-xs font-bold text-slate-900 block mt-0.5">{task.scheduled_date}</span>
+                <span className="text-xs font-bold text-slate-900 block mt-0.5">{formatDate(task.scheduled_date)}</span>
               </div>
 
               <div>

@@ -4,6 +4,7 @@ import type { TaskWithCourier } from '../types/task.types'
 import { useCouriers } from '../hooks/useCouriers'
 import { useTaskMutations } from '../hooks/useTaskMutations'
 import { getLocalDateString } from '@/shared/utils/date'
+import { formatDate } from '@/shared/utils/format'
 import {
   Modal,
   ModalContent,
@@ -109,7 +110,7 @@ export function RescheduleTaskModal({
             {/* Tarjeta Resumen de la Tarea Original */}
             <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-2 text-xs">
               <div className="flex items-center justify-between text-slate-500 font-medium">
-                <span>Fecha Original: <strong className="text-slate-800">{task.scheduled_date}</strong></span>
+                <span>Fecha Original: <strong className="text-slate-800">{formatDate(task.scheduled_date)}</strong></span>
                 <span className="bg-slate-200 text-slate-700 px-2 py-0.5 rounded-full font-semibold">
                   {task.status === 'not_completed' ? 'No Completada' : task.status}
                 </span>
@@ -149,7 +150,7 @@ export function RescheduleTaskModal({
             <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 leading-relaxed">
               <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
               <span>
-                La tarea original <strong>{task.code}</strong> quedará registrada en el histórico de {task.scheduled_date} como <strong>Reprogramada</strong>. Se creará automáticamente una <strong>nueva tarea activa</strong> para la fecha seleccionada con estado <strong>Asignada</strong>.
+                La tarea original <strong>{task.code}</strong> quedará registrada en el histórico de {formatDate(task.scheduled_date)} como <strong>Reprogramada</strong>. Se creará automáticamente una <strong>nueva tarea activa</strong> para la fecha seleccionada con estado <strong>Asignada</strong>.
               </span>
             </div>
 

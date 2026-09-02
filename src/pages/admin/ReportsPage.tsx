@@ -24,6 +24,7 @@ import { getTasks } from '@/modules/tasks/services/tasksService'
 import { getSettlements } from '@/modules/settlements/services/settlementsService'
 import { getWorkdays } from '@/modules/workdays/services/workdaysService'
 import { getLocalDateString } from '@/shared/utils/date'
+import { formatDate } from '@/shared/utils/format'
 
 type ReportType = 'tasks' | 'settlements' | 'workdays' | 'adjustments'
 
@@ -72,7 +73,7 @@ async function fetchReportData(
       id: t.id,
       codigo: t.code || 'N/A',
       titulo: t.title || 'Sin título',
-      fecha_programada: t.scheduled_date || 'N/A',
+      fecha_programada: formatDate(t.scheduled_date),
       tipo: TASK_TYPE_LABELS[t.task_type] || t.task_type,
       estado: TASK_STATUS_LABELS[t.status] || t.status,
       prioridad: t.priority?.toUpperCase() || 'NORMAL',
@@ -108,7 +109,7 @@ async function fetchReportData(
 
       return {
         id: s.id,
-        fecha_liquidacion: s.settlement_date,
+        fecha_liquidacion: formatDate(s.settlement_date),
         motorizado: s.courier_profile?.display_name || s.courier_profile?.full_name || 'N/A',
         sucursal: s.branch?.name || 'N/A',
         estado: s.status === 'approved' ? 'Aprobada' : 'Pendiente Revisión',
@@ -149,7 +150,7 @@ async function fetchReportData(
 
       return {
         id: w.id,
-        fecha: w.work_date,
+        fecha: formatDate(w.work_date),
         motorizado: w.courier_profile?.display_name || w.courier_profile?.full_name || 'N/A',
         sucursal: w.branch?.name || 'N/A',
         estado: (WORKDAY_STATUS_LABELS && WORKDAY_STATUS_LABELS[w.status as keyof typeof WORKDAY_STATUS_LABELS]) || w.status,
@@ -240,7 +241,7 @@ async function fetchReportData(
 
       formatted.push({
         id: adj?.id || s.id,
-        fecha_liquidacion: s.settlement_date,
+        fecha_liquidacion: formatDate(s.settlement_date),
         motorizado:
           s.courier_profile?.display_name || s.courier_profile?.full_name || 'N/A',
         sucursal: s.branch?.name || 'N/A',
@@ -274,7 +275,7 @@ async function fetchReportData(
 
         formatted.push({
           id: adj.id,
-          fecha_liquidacion: rowDate,
+          fecha_liquidacion: formatDate(rowDate),
           motorizado:
             adj.settlement?.courier?.display_name ||
             adj.settlement?.courier?.full_name ||

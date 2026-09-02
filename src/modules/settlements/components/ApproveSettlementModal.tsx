@@ -24,6 +24,7 @@ import {
   Input,
   useToast,
 } from '@/shared/components/ui'
+import { formatDate } from '@/shared/utils/format'
 
 interface ApproveSettlementModalProps {
   settlement: Settlement | null
@@ -248,7 +249,7 @@ export function ApproveSettlementModal({ settlement, isOpen, onClose }: ApproveS
             <div>
               <ModalTitle>Arqueo y Cierre de Liquidación</ModalTitle>
               <ModalDescription>
-                Motorizado: {settlement.courier_profile?.display_name || settlement.courier_profile?.full_name} ({settlement.settlement_date})
+                Motorizado: {settlement.courier_profile?.display_name || settlement.courier_profile?.full_name} ({formatDate(settlement.settlement_date)})
               </ModalDescription>
             </div>
           </div>

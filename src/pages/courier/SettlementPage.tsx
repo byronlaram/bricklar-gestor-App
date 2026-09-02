@@ -38,6 +38,7 @@ import {
   EmptyState,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
+import { formatDate } from '@/shared/utils/format'
 
 // Estados que indican que una tarea ya fue cerrada (terminal)
 const TERMINAL_STATUSES = ['completed', 'not_completed', 'rescheduled', 'cancelled', 'archived']
@@ -362,14 +363,14 @@ export default function CourierSettlementPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-black uppercase tracking-wider text-amber-100 block">
-                  Liquidando Jornada Anterior ({activeWorkday.work_date})
+                  Liquidando Jornada Anterior ({formatDate(activeWorkday.work_date)})
                 </span>
                 <span className="text-xs font-black bg-white/20 px-2.5 py-0.5 rounded-full font-tabular">
                   Cierre Pendiente
                 </span>
               </div>
               <p className="text-xs text-white/95 mt-1 leading-snug">
-                Esta jornada del <strong>{activeWorkday.work_date}</strong> quedó abierta al finalizar el día. Revisa los montos cobrados y presiona <strong>"Enviar Liquidación a Revisión"</strong> para formalizar la entrega en caja y poder iniciar tu jornada de hoy.
+                Esta jornada del <strong>{formatDate(activeWorkday.work_date)}</strong> quedó abierta al finalizar el día. Revisa los montos cobrados y presiona <strong>"Enviar Liquidación a Revisión"</strong> para formalizar la entrega en caja y poder iniciar tu jornada de hoy.
               </p>
             </div>
           </div>
@@ -411,7 +412,7 @@ export default function CourierSettlementPage() {
             Liquidación de Turno
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Resumen ejecutivo del arqueo y cierre diario de entregas ({activeWorkday.work_date}).
+            Resumen ejecutivo del arqueo y cierre diario de entregas ({formatDate(activeWorkday.work_date)}).
           </p>
         </div>
 
@@ -578,7 +579,7 @@ export default function CourierSettlementPage() {
           <div className="flex justify-between items-center p-3.5 bg-indigo-50/70 rounded-2xl border border-indigo-100 font-bold">
             <span className="text-indigo-950 flex items-center gap-2">
               <Calculator className="h-4 w-4 text-indigo-600" />
-              Saldo Neto de este Turno ({activeWorkday.work_date}):
+              Saldo Neto de este Turno ({formatDate(activeWorkday.work_date)}):
             </span>
             <span className="font-black text-indigo-950 font-tabular text-sm">
               C$ {todayNetCashToDeliver.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

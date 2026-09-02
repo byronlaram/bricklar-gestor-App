@@ -26,6 +26,7 @@ import {
   useToast,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
+import { formatDate } from '@/shared/utils/format'
 import { WORKDAY_STATUS_LABELS } from '@/shared/types'
 
 export default function AdminDailyClosurePage() {
@@ -173,7 +174,7 @@ export default function AdminDailyClosurePage() {
                 Efectivo Neto Físico Ingresado en Bóveda / Caja General
               </span>
               <span className="text-xs bg-black/30 px-3.5 py-1 rounded-full font-mono font-bold text-indigo-100 border border-white/10 shadow-2xs">
-                {date}
+                {formatDate(date)}
               </span>
             </div>
 
