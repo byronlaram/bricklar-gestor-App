@@ -333,7 +333,7 @@ export function DeliverCashModal({
             status: 'open',
             opened_by: user?.id || targetCourierId,
             initial_cash: deliveryType === 'initial_cash' && currency === 'NIO' ? numAmount : 0,
-            start_time: new Date().toLocaleTimeString('en-US', { hour12: false }),
+            start_time: new Date().toISOString(),
           })
           .select('id')
           .single()
