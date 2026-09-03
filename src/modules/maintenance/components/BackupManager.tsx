@@ -66,11 +66,11 @@ export function BackupManager() {
     setIsExporting(true)
     try {
       const backup = await generateFullBackup(profile?.email || 'admin@gestorops.com')
-      triggerBackupDownload(backup)
+      await triggerBackupDownload(backup)
       setLastBackupDate(backup.metadata.created_at)
       toast.success(
         'Respaldo Descargado',
-        'El archivo de seguridad se generó y descargó exitosamente a tu dispositivo.'
+        'El archivo de seguridad se generó y resguardó exitosamente.'
       )
     } catch (err: unknown) {
       console.error('Error generating backup:', err)

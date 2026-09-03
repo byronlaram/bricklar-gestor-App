@@ -94,7 +94,13 @@ export default function CourierHomePage() {
 
   // Clasificación dinámica: Tareas de hoy vs Retrasadas acumuladas
   const todayTasks = useMemo(
-    () => allTasks.filter((t) => t.scheduled_date === todayStr),
+    () =>
+      allTasks.filter(
+        (t) =>
+          t.scheduled_date === todayStr &&
+          t.status !== 'cancelled' &&
+          t.approval_status !== 'rejected'
+      ),
     [allTasks, todayStr]
   )
 
@@ -105,7 +111,8 @@ export default function CourierHomePage() {
           t.scheduled_date < todayStr &&
           t.status !== 'completed' &&
           t.status !== 'cancelled' &&
-          t.status !== 'rescheduled'
+          t.status !== 'rescheduled' &&
+          t.approval_status !== 'rejected'
       ),
     [allTasks, todayStr]
   )

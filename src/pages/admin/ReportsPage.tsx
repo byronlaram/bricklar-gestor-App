@@ -21,6 +21,7 @@ import { useBranches } from '@/modules/branches/hooks/useBranches'
 import { useAuth } from '@/modules/auth/useAuth'
 import { TASK_STATUS_LABELS, TASK_TYPE_LABELS, WORKDAY_STATUS_LABELS } from '@/shared/types'
 import { getTasks } from '@/modules/tasks/services/tasksService'
+import { getTaskFinancialDetails } from '@/modules/tasks/utils/taskCalculations'
 import { getSettlements } from '@/modules/settlements/services/settlementsService'
 import { getWorkdays } from '@/modules/workdays/services/workdaysService'
 import { getLocalDateString } from '@/shared/utils/date'
@@ -45,13 +46,13 @@ const REPORT_OPTIONS = [
     id: 'workdays' as ReportType,
     label: 'Reporte de Jornadas',
     icon: <Bike className="h-4 w-4" />,
-    desc: 'Jornadas laborales, fondos iniciales y estados de cierre.',
+    desc: 'Kilometraje, combustible y rendimiento por motorizado.',
   },
   {
     id: 'adjustments' as ReportType,
-    label: 'Faltantes y Sobrantes',
+    label: 'Reporte de Faltantes y Sobrantes',
     icon: <Scale className="h-4 w-4" />,
-    desc: 'Historial de ajustes contables, faltantes y sobrantes por motorizado.',
+    desc: 'Historial de deducciones por faltantes y reintegros por sobrantes de caja.',
   },
 ]
 
@@ -60,7 +61,7 @@ async function fetchReportData(
   from: string,
   to: string,
   branchId?: string
-) {
+): Promise<Record<string, unknown>[]> {
   if (type === 'tasks') {
     const res = await getTasks({
       date_from: from,
@@ -69,24 +70,33 @@ async function fetchReportData(
       page_size: 1000,
     })
 
-    const formatted = res.data.map((t) => ({
-      id: t.id,
-      codigo: t.code || 'N/A',
-      titulo: t.title || 'Sin título',
-      fecha_programada: formatDate(t.scheduled_date),
-      tipo: TASK_TYPE_LABELS[t.task_type] || t.task_type,
-      estado: TASK_STATUS_LABELS[t.status] || t.status,
-      prioridad: t.priority?.toUpperCase() || 'NORMAL',
-      motorizado: t.courier?.display_name || t.courier?.full_name || 'Sin asignar',
-      cliente_contacto: t.contact_name || '—',
-      telefono: t.phone || '—',
-      direccion: t.address || '—',
-      requiere_cobro: t.requires_collection ? 'Sí' : 'No',
-      monto_cobro: t.requires_collection ? `C$ ${(t.expected_collection_amount || 0).toFixed(2)}` : '—',
-      metodo_cobro: t.requires_collection ? (t.expected_payment_method === 'bank_transfer' ? 'Transferencia' : 'Efectivo') : '—',
-      requiere_pago: t.requires_payment ? 'Sí' : 'No',
-      monto_pago: t.requires_payment ? `C$ ${(t.expected_payment_amount || 0).toFixed(2)}` : '—',
-    }))
+    const formatted = res.data.map((t) => {
+      const fin = getTaskFinancialDetails(t)
+      return {
+        codigo: t.code,
+        titulo: t.title,
+        tipo: TASK_TYPE_LABELS[t.task_type] || t.task_type,
+        estado: TASK_STATUS_LABELS[t.status] || t.status,
+        fecha: t.scheduled_date,
+        motorizado: t.courier?.display_name || t.courier?.full_name || 'Sin asignar',
+        cliente_contacto: t.contact_name || '—',
+        telefono: t.phone || '—',
+        direccion: t.address || '—',
+        requiere_cobro: t.requires_collection ? 'Sí' : 'No',
+        monto_cobro: fin.requiresCollection
+          ? `${fin.currencySymbol} ${fin.displayCollectionAmount.toFixed(2)}${fin.isActualCollection && fin.collectionDiscrepancy !== 0 ? ` (Previsto: ${fin.expectedCollectionAmount.toFixed(2)})` : ''}`
+          : '—',
+        metodo_cobro: t.requires_collection
+          ? t.expected_payment_method === 'bank_transfer'
+            ? 'Transferencia'
+            : 'Efectivo'
+          : '—',
+        requiere_pago: t.requires_payment ? 'Sí' : 'No',
+        monto_pago: fin.requiresPayment
+          ? `${fin.currencySymbol} ${fin.displayPaymentAmount.toFixed(2)}${fin.isActualPaid && fin.paymentDiscrepancy !== 0 ? ` (Previsto: ${fin.expectedPaymentAmount.toFixed(2)})` : ''}`
+          : '—',
+      }
+    })
 
     return formatted as unknown as Record<string, unknown>[]
   }

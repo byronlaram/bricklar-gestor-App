@@ -24,6 +24,7 @@ import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
 import { TaskStatusBadge } from '@/modules/tasks/components/TaskStatusBadge'
 import { TaskPriorityBadge } from '@/modules/tasks/components/TaskPriorityBadge'
 import { TaskTypeBadge } from '@/modules/tasks/components/TaskTypeBadge'
+import { getTaskFinancialDetails } from '@/modules/tasks/utils/taskCalculations'
 import { TaskHistoryPanel } from '@/modules/tasks/components/TaskHistoryPanel'
 import { AssignCourierModal } from '@/modules/tasks/components/AssignCourierModal'
 import { TaskStatusModal } from '@/modules/tasks/components/TaskStatusModal'
@@ -361,51 +362,95 @@ export default function TaskDetailPage() {
           )}
 
           {/* Aspectos Financieros */}
-          <Card className="p-6 bg-white border-slate-200 shadow-2xs space-y-4">
-            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
-              <DollarSign className="h-4 w-4 text-emerald-600" />
-              Detalles Financieros Previstos
-            </h2>
+          {(() => {
+            const fin = getTaskFinancialDetails(task)
+            return (
+              <Card className="p-6 bg-white border-slate-200 shadow-2xs space-y-4">
+                <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-3">
+                  <DollarSign className="h-4 w-4 text-emerald-600" />
+                  {task.status === 'completed' ? 'Detalles Financieros Ejecutados' : 'Detalles Financieros Previstos'}
+                </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Cobro */}
-              <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-1">
-                <span className="text-xs font-bold text-emerald-800 block">
-                  Cobro al Cliente
-                </span>
-                {task.requires_collection ? (
-                  <div>
-                    <span className="text-xl font-bold text-emerald-700">
-                      {task.expected_collection_currency === 'USD' ? 'US$' : 'C$'}
-                      {task.expected_collection_amount?.toFixed(2)}
-                    </span>
-                    <span className="text-2xs font-semibold text-emerald-600 block pt-0.5">
-                      Método: {task.expected_payment_method || 'Efectivo'}
-                    </span>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Cobro */}
+                  <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-emerald-800">
+                        {task.status === 'completed' ? 'Cobro Ejecutado' : 'Cobro Previsto al Cliente'}
+                      </span>
+                      {fin.isActualCollection && (
+                        <span className="text-2xs font-extrabold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          Confirmado en Entrega
+                        </span>
+                      )}
+                    </div>
+                    {fin.requiresCollection ? (
+                      <div>
+                        <span className="text-2xl font-black text-emerald-800 font-mono block">
+                          {fin.currencySymbol}
+                          {fin.displayCollectionAmount.toFixed(2)}
+                        </span>
+                        {fin.isActualCollection && fin.collectionDiscrepancy !== 0 && (
+                          <span className="text-2xs font-bold text-slate-500 block pt-0.5">
+                            Monto previsto inicial: {fin.currencySymbol}{fin.expectedCollectionAmount.toFixed(2)} ({fin.collectionDiscrepancy > 0 ? `+${fin.currencySymbol}${fin.collectionDiscrepancy.toFixed(2)}` : `-${fin.currencySymbol}${Math.abs(fin.collectionDiscrepancy).toFixed(2)}`})
+                          </span>
+                        )}
+                        {fin.collectionDiscrepancyReason && (
+                          <p className="text-xs text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-1.5 font-medium">
+                            <strong>Motivo ajuste:</strong> {fin.collectionDiscrepancyReason}
+                          </p>
+                        )}
+                        <span className="text-2xs font-semibold text-emerald-600 block pt-1">
+                          Método: {task.expected_payment_method || 'Efectivo'}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 block">No requiere cobro</span>
+                    )}
                   </div>
-                ) : (
-                  <span className="text-xs text-slate-400 block">No requiere cobro</span>
-                )}
-              </div>
 
-              {/* Pago / Viático */}
-              <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-1">
-                <span className="text-xs font-bold text-amber-800 block">
-                  Pago / Viático Previsto
-                </span>
-                {task.requires_payment ? (
-                  <div>
-                    <span className="text-xl font-bold text-amber-700">
-                      {task.expected_payment_currency === 'USD' ? 'US$' : 'C$'}
-                      {task.expected_payment_amount?.toFixed(2)}
-                    </span>
+                  {/* Pago / Compra */}
+                  <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-amber-800">
+                        {task.status === 'completed' ? 'Pago / Compra Ejecutado' : 'Pago / Viático Previsto'}
+                      </span>
+                      {fin.isActualPaid && (
+                        <span className="text-2xs font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                          Pagado en Gestión
+                        </span>
+                      )}
+                    </div>
+                    {fin.requiresPayment ? (
+                      <div>
+                        <span className="text-2xl font-black text-amber-900 font-mono block">
+                          {fin.currencySymbol}
+                          {fin.displayPaymentAmount.toFixed(2)}
+                        </span>
+                        {fin.isActualPaid && fin.paymentDiscrepancy !== 0 && (
+                          <span className="text-2xs font-bold text-slate-500 block pt-0.5">
+                            Monto previsto inicial: {fin.currencySymbol}{fin.expectedPaymentAmount.toFixed(2)} ({fin.paymentDiscrepancy > 0 ? `+${fin.currencySymbol}${fin.paymentDiscrepancy.toFixed(2)}` : `-${fin.currencySymbol}${Math.abs(fin.paymentDiscrepancy).toFixed(2)}`})
+                          </span>
+                        )}
+                        {fin.invoiceNumber && (
+                          <span className="text-2xs font-mono font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded border border-amber-200 inline-block mt-1">
+                            Factura/Recibo: {fin.invoiceNumber}
+                          </span>
+                        )}
+                        {fin.paymentDiscrepancyReason && (
+                          <p className="text-xs text-amber-900 bg-amber-100/70 p-2 rounded-lg border border-amber-200 mt-1.5 font-medium">
+                            <strong>Motivo diferencia:</strong> {fin.paymentDiscrepancyReason}
+                          </p>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400 block">No requiere pago</span>
+                    )}
                   </div>
-                ) : (
-                  <span className="text-xs text-slate-400 block">No requiere pago</span>
-                )}
-              </div>
-            </div>
-          </Card>
+                </div>
+              </Card>
+            )
+          })()}
 
           {/* Programación y Notas */}
           <Card className="p-6 bg-white border-slate-200 shadow-2xs space-y-4">

@@ -78,7 +78,10 @@ export default function CourierSettlementPage() {
 
   // Tareas que aún no han sido cerradas (estados activos/pendientes)
   const pendingTasks = useMemo(
-    () => (tasksData?.data || []).filter((t) => !TERMINAL_STATUSES.includes(t.status)),
+    () =>
+      (tasksData?.data || []).filter(
+        (t) => !TERMINAL_STATUSES.includes(t.status) && t.approval_status !== 'rejected'
+      ),
     [tasksData?.data]
   )
   const hasPendingTasks = pendingTasks.length > 0

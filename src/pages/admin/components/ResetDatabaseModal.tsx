@@ -76,7 +76,7 @@ export function ResetDatabaseModal({ isOpen, onClose }: ResetDatabaseModalProps)
       // 1.5. Generar y descargar automáticamente un respaldo de seguridad preventivo
       try {
         const emergencyBackup = await generateFullBackup(user.email)
-        triggerBackupDownload(emergencyBackup)
+        await triggerBackupDownload(emergencyBackup)
       } catch (backupErr) {
         console.warn('Advertencia al generar respaldo previo al reinicio:', backupErr)
       }

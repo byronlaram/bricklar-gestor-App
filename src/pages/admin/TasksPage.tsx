@@ -46,6 +46,7 @@ import type { TaskFilters as FilterType, TaskWithCourier } from '@/modules/tasks
 import { TaskStatusBadge } from '@/modules/tasks/components/TaskStatusBadge'
 import { TaskPriorityBadge } from '@/modules/tasks/components/TaskPriorityBadge'
 import { TaskTypeBadge } from '@/modules/tasks/components/TaskTypeBadge'
+import { getTaskFinancialDetails } from '@/modules/tasks/utils/taskCalculations'
 import { TaskFilters } from '@/modules/tasks/components/TaskFilters'
 import { TaskFormModal } from '@/modules/tasks/components/TaskFormModal'
 import { AssignCourierModal } from '@/modules/tasks/components/AssignCourierModal'
@@ -470,21 +471,47 @@ export default function TasksPage() {
 
                           {/* Aprobación / Finanzas */}
                           <td className="py-3 px-3 text-center">
-                            <div className="flex flex-col items-center gap-1">
-                              {task.approval_status === 'pending' ? (
-                                <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full animate-pulse">⏳ Pendiente Aprobación</span>
-                              ) : task.approval_status === 'rejected' ? (
-                                <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full">❌ Rechazada</span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500">✅ Aprobada</span>
-                              )}
-                              {task.requires_collection && (
-                                <Badge variant="completed" size="sm"><DollarSign className="h-3 w-3 inline mr-0.5" />Cobrar C${task.expected_collection_amount ?? 0}</Badge>
-                              )}
-                              {task.requires_payment && (
-                                <Badge variant="pending" size="sm">Pagar C${task.expected_payment_amount ?? 0}</Badge>
-                              )}
-                            </div>
+                            {(() => {
+                              const fin = getTaskFinancialDetails(task)
+                              return (
+                                <div className="flex flex-col items-center gap-1">
+                                  {task.approval_status === 'pending' ? (
+                                    <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full animate-pulse">⏳ Pendiente Aprobación</span>
+                                  ) : task.approval_status === 'rejected' ? (
+                                    <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full">❌ Rechazada</span>
+                                  ) : (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500">✅ Aprobada</span>
+                                  )}
+                                  {fin.requiresCollection && (
+                                    <Badge
+                                      variant="completed"
+                                      size="sm"
+                                      title={
+                                        fin.isActualCollection && fin.collectionDiscrepancy !== 0
+                                          ? `Previsto: ${fin.currencySymbol}${fin.expectedCollectionAmount.toFixed(2)} | Cobrado real: ${fin.currencySymbol}${fin.actualCollectionAmount.toFixed(2)}${fin.collectionDiscrepancyReason ? ` (${fin.collectionDiscrepancyReason})` : ''}`
+                                          : undefined
+                                      }
+                                    >
+                                      <DollarSign className="h-3 w-3 inline mr-0.5" />
+                                      {task.status === 'completed' ? 'Cobrado' : 'Cobrar'} {fin.currencySymbol}{fin.displayCollectionAmount.toFixed(0) === fin.displayCollectionAmount.toString() ? fin.displayCollectionAmount : fin.displayCollectionAmount.toFixed(2)}
+                                    </Badge>
+                                  )}
+                                  {fin.requiresPayment && (
+                                    <Badge
+                                      variant={task.status === 'completed' ? 'completed' : 'pending'}
+                                      size="sm"
+                                      title={
+                                        fin.isActualPaid && fin.paymentDiscrepancy !== 0
+                                          ? `Previsto: ${fin.currencySymbol}${fin.expectedPaymentAmount.toFixed(2)} | Pagado real: ${fin.currencySymbol}${fin.actualPaidAmount.toFixed(2)}${fin.paymentDiscrepancyReason ? ` (${fin.paymentDiscrepancyReason})` : ''}`
+                                          : undefined
+                                      }
+                                    >
+                                      {task.status === 'completed' ? 'Pagado' : 'Pagar'} {fin.currencySymbol}{fin.displayPaymentAmount.toFixed(0) === fin.displayPaymentAmount.toString() ? fin.displayPaymentAmount : fin.displayPaymentAmount.toFixed(2)}
+                                    </Badge>
+                                  )}
+                                </div>
+                              )
+                            })()}
                           </td>
 
                           {/* Estado */}
@@ -618,33 +645,54 @@ export default function TasksPage() {
 
                       {/* Aprobación / Finanzas */}
                       <td className="py-3 px-3 text-center">
-                        <div className="flex flex-col items-center gap-1">
-                          {task.approval_status === 'pending' ? (
-                            <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full animate-pulse">
-                              ⏳ Pendiente Aprobación
-                            </span>
-                          ) : task.approval_status === 'rejected' ? (
-                            <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full" title={task.rejection_reason || ''}>
-                              ❌ Rechazada
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500">
-                              ✅ Aprobada
-                            </span>
-                          )}
+                        {(() => {
+                          const fin = getTaskFinancialDetails(task)
+                          return (
+                            <div className="flex flex-col items-center gap-1">
+                              {task.approval_status === 'pending' ? (
+                                <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full animate-pulse">
+                                  ⏳ Pendiente Aprobación
+                                </span>
+                              ) : task.approval_status === 'rejected' ? (
+                                <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full" title={task.rejection_reason || ''}>
+                                  ❌ Rechazada
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500">
+                                  ✅ Aprobada
+                                </span>
+                              )}
 
-                          {task.requires_collection && (
-                            <Badge variant="completed" size="sm">
-                              <DollarSign className="h-3 w-3 inline mr-0.5" />
-                              Cobrar C${task.expected_collection_amount ?? 0}
-                            </Badge>
-                          )}
-                          {task.requires_payment && (
-                            <Badge variant="pending" size="sm">
-                              Pagar C${task.expected_payment_amount ?? 0}
-                            </Badge>
-                          )}
-                        </div>
+                              {fin.requiresCollection && (
+                                <Badge
+                                  variant="completed"
+                                  size="sm"
+                                  title={
+                                    fin.isActualCollection && fin.collectionDiscrepancy !== 0
+                                      ? `Previsto: ${fin.currencySymbol}${fin.expectedCollectionAmount.toFixed(2)} | Cobrado real: ${fin.currencySymbol}${fin.actualCollectionAmount.toFixed(2)}${fin.collectionDiscrepancyReason ? ` (${fin.collectionDiscrepancyReason})` : ''}`
+                                      : undefined
+                                  }
+                                >
+                                  <DollarSign className="h-3 w-3 inline mr-0.5" />
+                                  {task.status === 'completed' ? 'Cobrado' : 'Cobrar'} {fin.currencySymbol}{fin.displayCollectionAmount.toFixed(0) === fin.displayCollectionAmount.toString() ? fin.displayCollectionAmount : fin.displayCollectionAmount.toFixed(2)}
+                                </Badge>
+                              )}
+                              {fin.requiresPayment && (
+                                <Badge
+                                  variant={task.status === 'completed' ? 'completed' : 'pending'}
+                                  size="sm"
+                                  title={
+                                    fin.isActualPaid && fin.paymentDiscrepancy !== 0
+                                      ? `Previsto: ${fin.currencySymbol}${fin.expectedPaymentAmount.toFixed(2)} | Pagado real: ${fin.currencySymbol}${fin.actualPaidAmount.toFixed(2)}${fin.paymentDiscrepancyReason ? ` (${fin.paymentDiscrepancyReason})` : ''}`
+                                      : undefined
+                                  }
+                                >
+                                  {task.status === 'completed' ? 'Pagado' : 'Pagar'} {fin.currencySymbol}{fin.displayPaymentAmount.toFixed(0) === fin.displayPaymentAmount.toString() ? fin.displayPaymentAmount : fin.displayPaymentAmount.toFixed(2)}
+                                </Badge>
+                              )}
+                            </div>
+                          )
+                        })()}
                       </td>
 
                       {/* Estado */}

@@ -126,6 +126,25 @@ export async function getTasks(filters: TaskFilters = {}): Promise<PaginatedTask
     }
   }
 
+  // Post-procesamiento: normalizar tareas rechazadas para que su estado siempre sea 'cancelled'
+  const legacyRejectedIds: string[] = []
+  rawTasks.forEach((t) => {
+    if (t.approval_status === 'rejected' && t.status !== 'cancelled') {
+      t.status = 'cancelled'
+      legacyRejectedIds.push(t.id)
+    }
+  })
+
+  // Autocorrección asíncrona no bloqueante en base de datos para tareas legadas
+  if (legacyRejectedIds.length > 0) {
+    Promise.resolve(
+      supabase
+        .from('tasks')
+        .update({ status: 'cancelled' })
+        .in('id', legacyRejectedIds)
+    ).catch((err: unknown) => console.warn('[Tasks] Non-blocking status auto-fix failed:', err))
+  }
+
   const total = count ?? 0
   return {
     data: rawTasks as unknown as TaskWithCourier[],
@@ -161,6 +180,16 @@ export async function getTaskById(id: string): Promise<TaskWithCourier> {
     if (p) {
       task.courier = p
     }
+  }
+
+  if (task && task.approval_status === 'rejected' && task.status !== 'cancelled') {
+    task.status = 'cancelled'
+    Promise.resolve(
+      supabase
+        .from('tasks')
+        .update({ status: 'cancelled' })
+        .eq('id', task.id)
+    ).catch(() => {})
   }
 
   return task as unknown as TaskWithCourier
@@ -712,14 +741,27 @@ export async function rejectTask(taskId: string, rejectionReason: string): Promi
     throw new Error('Debes indicar el motivo del rechazo.')
   }
 
+  // Obtener estado actual antes de cancelar
+  const { data: currentTask } = await supabase
+    .from('tasks')
+    .select('status')
+    .eq('id', taskId)
+    .single()
+
+  const currentStatus = (currentTask?.status as TaskStatus) || 'pending'
   const now = new Date().toISOString()
+  const cleanReason = rejectionReason.trim()
+
   const { data, error } = await supabase
     .from('tasks')
     .update({
       approval_status: 'rejected',
+      status: 'cancelled',
       approved_by: adminId,
       approved_at: now,
-      rejection_reason: rejectionReason.trim(),
+      cancelled_at: now,
+      cancellation_reason: `Rechazada por administración: ${cleanReason}`,
+      rejection_reason: cleanReason,
       updated_at: now,
       updated_by: adminId,
     })
@@ -730,6 +772,19 @@ export async function rejectTask(taskId: string, rejectionReason: string): Promi
   if (error) {
     console.error('[Tasks] rejectTask error:', error)
     throw new Error(error.message || 'Error al rechazar la gestión.')
+  }
+
+  // Registrar en el historial de estados
+  try {
+    await supabase.from('task_status_history').insert({
+      task_id: taskId,
+      from_status: currentStatus,
+      to_status: 'cancelled',
+      changed_by: adminId,
+      notes: `Gestión rechazada: ${cleanReason}`,
+    })
+  } catch (histErr) {
+    console.warn('[Tasks] Could not record status history for rejection:', histErr)
   }
 
   return data as unknown as Task

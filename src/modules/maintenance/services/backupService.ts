@@ -130,15 +130,45 @@ export async function generateFullBackup(userEmail?: string): Promise<BackupData
 }
 
 /**
- * Dispara la descarga del archivo de respaldo en formato JSON en el navegador del usuario
+ * Dispara la descarga del archivo de respaldo en formato JSON.
+ * Si el navegador lo soporta (Chrome, Edge, etc.), abre el explorador de archivos para elegir la carpeta.
+ * Si no o si falla, utiliza la descarga estándar hacia la carpeta Descargas.
  */
-export function triggerBackupDownload(backup: BackupData): void {
+export async function triggerBackupDownload(backup: BackupData): Promise<void> {
   const jsonString = JSON.stringify(backup, null, 2)
-  const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' })
-  const url = URL.createObjectURL(blob)
-
   const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
   const filename = `bricklar_respaldo_completo_${dateStr}.json`
+
+  // 1. Intentar usar la API moderna File System Access para elegir carpeta directamente
+  if (typeof window !== 'undefined' && 'showSaveFilePicker' in window) {
+    try {
+      const handle = await (window as any).showSaveFilePicker({
+        suggestedName: filename,
+        types: [
+          {
+            description: 'Archivo JSON de Respaldo',
+            accept: {
+              'application/json': ['.json'],
+            },
+          },
+        ],
+      })
+      const writable = await handle.createWritable()
+      await writable.write(jsonString)
+      await writable.close()
+      return
+    } catch (err: any) {
+      // Si el usuario canceló el diálogo "Guardar como", salimos limpiamente
+      if (err?.name === 'AbortError') {
+        return
+      }
+      console.warn('showSaveFilePicker no completado, usando descarga estándar:', err)
+    }
+  }
+
+  // 2. Método estándar de descarga (a la carpeta de Descargas por defecto del navegador)
+  const blob = new Blob([jsonString], { type: 'application/json;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
 
   const link = document.createElement('a')
   link.href = url
