@@ -14,6 +14,7 @@ const SuspendedPage = lazyWithRetry(() => import('@/pages/auth/SuspendedPage'))
 // Admin
 const AdminLayout = lazyWithRetry(() => import('@/layouts/AdminLayout'))
 const AdminDashboardPage = lazyWithRetry(() => import('@/pages/admin/DashboardPage'))
+const AdminMonitoringPage = lazyWithRetry(() => import('@/pages/admin/MonitoringPage'))
 const AdminTasksPage = lazyWithRetry(() => import('@/pages/admin/TasksPage'))
 const AdminTaskDetailPage = lazyWithRetry(() => import('@/pages/admin/TaskDetailPage'))
 const AdminUsersPage = lazyWithRetry(() => import('@/pages/admin/UsersPage'))
@@ -95,6 +96,7 @@ export function AppRouter() {
             }
           >
             <Route index element={<AdminDashboardPage />} />
+            <Route path="monitoreo" element={<AdminMonitoringPage />} />
             <Route path="tareas" element={<AdminTasksPage />} />
             <Route path="tareas/:id" element={<AdminTaskDetailPage />} />
             <Route path="usuarios" element={

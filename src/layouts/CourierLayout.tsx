@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useTasksRealtime } from '@/modules/tasks/hooks/useTasksRealtime'
+import { useCourierLiveLocation } from '@/modules/courier/hooks/useCourierLiveLocation'
 import { Avatar, ConfirmDialog, useToast } from '@/shared/components/ui'
 import { cn } from '@/shared/utils/cn'
 import {
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
 
 export default function CourierLayout() {
   useTasksRealtime()
+  useCourierLiveLocation()
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()

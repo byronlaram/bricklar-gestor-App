@@ -1,20 +1,22 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import {
   X,
   CheckCircle2,
   XCircle,
   Loader2,
   DollarSign,
-  CreditCard,
   Receipt,
-  FileCheck,
   Banknote,
   Split,
   RotateCcw,
   Clock,
+  Camera,
+  Image as ImageIcon,
+  Trash2,
 } from 'lucide-react'
 import type { TaskWithCourier, TaskPaymentBreakdown } from '@/modules/tasks/types/task.types'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
+import { uploadTaskEvidence } from '@/modules/tasks/services/tasksService'
 import type { PaymentMethod } from '@/shared/types'
 import { useToast } from '@/shared/components/ui'
 
@@ -69,6 +71,13 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
   const [mixedChequeBank, setMixedChequeBank] = useState<string>('BAC Credomatic')
   const [mixedChequeNumber, setMixedChequeNumber] = useState<string>('')
 
+  // ─── Estados para Comprobante / Foto de Entrega (POD) ───
+  const [evidenceFile, setEvidenceFile] = useState<File | null>(null)
+  const [evidencePreviewUrl, setEvidencePreviewUrl] = useState<string | null>(null)
+  const [isUploadingEvidence, setIsUploadingEvidence] = useState(false)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
+
   // Inicializar valores al abrir
   useEffect(() => {
     if (task) {
@@ -76,6 +85,14 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
       setNotes('')
       setFailureReason('Cliente ausente')
       setRetryReason('Proveedor o contacto ausente')
+
+      // Comprobante
+      setEvidenceFile(null)
+      if (evidencePreviewUrl) {
+        URL.revokeObjectURL(evidencePreviewUrl)
+      }
+      setEvidencePreviewUrl(null)
+      setIsUploadingEvidence(false)
 
       // Compras
       setActualPaidAmount(task.expected_payment_amount ?? '')
@@ -101,6 +118,33 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
       setMixedChequeNumber('')
     }
   }, [task, isOpen])
+
+  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Archivo no válido', 'Por favor selecciona una imagen o fotografía.')
+      return
+    }
+
+    if (evidencePreviewUrl) {
+      URL.revokeObjectURL(evidencePreviewUrl)
+    }
+
+    setEvidenceFile(file)
+    setEvidencePreviewUrl(URL.createObjectURL(file))
+  }
+
+  const handleRemovePhoto = () => {
+    if (evidencePreviewUrl) {
+      URL.revokeObjectURL(evidencePreviewUrl)
+    }
+    setEvidenceFile(null)
+    setEvidencePreviewUrl(null)
+    if (cameraInputRef.current) cameraInputRef.current.value = ''
+    if (galleryInputRef.current) galleryInputRef.current.value = ''
+  }
 
   // Total recaudado calculado en modo mixto
   const totalMixedCollected = useMemo(() => {
@@ -145,6 +189,19 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
     e.preventDefault()
 
     try {
+      let uploadedEvidenceUrl: string | null = null
+      if (evidenceFile) {
+        setIsUploadingEvidence(true)
+        try {
+          uploadedEvidenceUrl = await uploadTaskEvidence(evidenceFile)
+        } catch (uploadErr) {
+          console.warn('[CompleteTaskModal] Error al subir comprobante:', uploadErr)
+          toast.warning('Aviso', 'La foto no se pudo subir a la nube, pero se guardará el registro.')
+        } finally {
+          setIsUploadingEvidence(false)
+        }
+      }
+
       if (outcome === 'completed') {
         const paymentBreakdown: TaskPaymentBreakdown = {}
         const notesParts: string[] = []
@@ -281,9 +338,13 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
           new_status: 'completed',
           notes: finalNotes,
           payment_breakdown: paymentBreakdown,
+          evidence_url: uploadedEvidenceUrl || undefined,
         })
 
-        toast.success('Tarea Finalizada', `La tarea ${task.code} se completó con éxito.`)
+        toast.success(
+          'Tarea Finalizada',
+          `La tarea ${task.code} se completó con éxito.${uploadedEvidenceUrl ? ' Foto de comprobante guardada.' : ''}`
+        )
       } else if (outcome === 'retry_today') {
         const metadata = (task.metadata || {}) as Record<string, unknown>
         const currentRetries = (typeof metadata.retry_count === 'number' ? metadata.retry_count : 0) + 1
@@ -310,14 +371,114 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
           task_id: task.id,
           new_status: 'not_completed',
           notes: `Motivo: ${failureReason}. ${notes.trim()}`,
+          evidence_url: uploadedEvidenceUrl || undefined,
         })
-        toast.warning('Incidencia Registrada', `La tarea ${task.code} fue marcada como no completada.`)
+        toast.warning(
+          'Incidencia Registrada',
+          `La tarea ${task.code} fue marcada como no completada.${uploadedEvidenceUrl ? ' Foto de respaldo guardada.' : ''}`
+        )
       }
       onClose()
     } catch (err: unknown) {
       toast.error('Error al actualizar tarea', (err as Error)?.message || 'No se pudo guardar el resultado.')
     }
   }
+
+  // Subcomponente de Foto de Comprobante / POD
+  const renderPhotoSection = () => (
+    <div className="p-3.5 bg-slate-50 border border-slate-200/90 rounded-2xl space-y-2.5 shadow-2xs">
+      <div className="flex items-center justify-between">
+        <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+          <Camera className="h-4 w-4 text-indigo-600" />
+          <span>Foto de Comprobante / Prueba de Entrega</span>
+        </label>
+        <span className="text-2xs font-semibold text-slate-500 bg-slate-200/70 px-2 py-0.5 rounded-full">
+          {outcome === 'completed' ? 'Opcional / Recomendado' : 'Evidencia'}
+        </span>
+      </div>
+
+      {/* Hidden file inputs */}
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={handlePhotoSelect}
+      />
+      <input
+        ref={galleryInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handlePhotoSelect}
+      />
+
+      {evidencePreviewUrl ? (
+        <div className="relative rounded-xl overflow-hidden border border-slate-200 bg-slate-900 group">
+          <img
+            src={evidencePreviewUrl}
+            alt="Comprobante capturado"
+            className="w-full h-40 object-cover object-center"
+          />
+          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 p-2">
+            <button
+              type="button"
+              onClick={() => cameraInputRef.current?.click()}
+              className="px-3 py-1.5 bg-white/90 hover:bg-white text-slate-900 text-xs font-bold rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
+            >
+              <Camera className="h-3.5 w-3.5" />
+              <span>Retomar</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleRemovePhoto}
+              className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-lg shadow-sm flex items-center gap-1.5 cursor-pointer"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Quitar</span>
+            </button>
+          </div>
+          <div className="absolute bottom-2 left-2 right-2 bg-slate-900/80 backdrop-blur-xs text-white text-2xs px-2.5 py-1 rounded-lg flex items-center justify-between">
+            <span className="truncate max-w-[180px] font-mono">{evidenceFile?.name || 'Foto tomada'}</span>
+            <button
+              type="button"
+              onClick={handleRemovePhoto}
+              className="text-rose-300 hover:text-rose-100 font-bold ml-2 cursor-pointer"
+            >
+              Eliminar
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => cameraInputRef.current?.click()}
+            className="flex flex-col items-center justify-center p-3 bg-white border border-indigo-200 hover:border-indigo-400 hover:bg-indigo-50/50 rounded-xl text-center transition cursor-pointer shadow-2xs group"
+          >
+            <div className="p-2 bg-indigo-100 text-indigo-700 rounded-full mb-1 group-hover:scale-105 transition-transform">
+              <Camera className="h-4 w-4" />
+            </div>
+            <span className="text-xs font-bold text-slate-900">Tomar Foto</span>
+            <span className="text-2xs text-slate-500">Usa la cámara</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => galleryInputRef.current?.click()}
+            className="flex flex-col items-center justify-center p-3 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 rounded-xl text-center transition cursor-pointer shadow-2xs group"
+          >
+            <div className="p-2 bg-slate-100 text-slate-700 rounded-full mb-1 group-hover:scale-105 transition-transform">
+              <ImageIcon className="h-4 w-4" />
+            </div>
+            <span className="text-xs font-bold text-slate-900">Galería</span>
+            <span className="text-2xs text-slate-500">Subir archivo</span>
+          </button>
+        </div>
+      )}
+    </div>
+  )
 
   return (
     <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-fade-in">
@@ -340,7 +501,7 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
         </div>
 
         {/* Selector de 3 Opciones: Completada / Reintentar Hoy / No Completada */}
-        <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-2xl">
+        <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
           <button
             type="button"
             onClick={() => setOutcome('completed')}
@@ -449,28 +610,35 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
 
                   {/* Alerta y Justificación si hay Discrepancia en Compra */}
                   {hasPaymentDiscrepancy && (
-                    <div className="p-3 bg-amber-100/90 border border-amber-300 rounded-xl space-y-2 animate-fade-in">
-                      <div className="flex items-center justify-between text-2xs font-extrabold text-amber-950">
-                        <span className="flex items-center gap-1">
-                          ⚠️ Diferencia detectada en compra:
-                        </span>
-                        <span className="font-mono text-amber-900 bg-white/80 px-2 py-0.5 rounded-full border border-amber-300">
-                          {paymentDiff > 0
-                            ? `+${currencySymbol}${paymentDiff.toFixed(2)} pagado de más`
-                            : `-${currencySymbol}${Math.abs(paymentDiff).toFixed(2)} pagado de menos`}
-                        </span>
+                    <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl space-y-2">
+                      <div className="flex items-start gap-2">
+                        <DollarSign className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-bold text-rose-900">
+                            Diferencia detectada en la compra:
+                          </p>
+                          <p className="text-2xs text-rose-700">
+                            Estimado {currencySymbol}
+                            {expectedPayment.toFixed(2)} vs Pagado {currencySymbol}
+                            {actualPaymentNum.toFixed(2)} (
+                            <span className="font-bold font-mono">
+                              {paymentDiff > 0 ? `+${paymentDiff.toFixed(2)}` : paymentDiff.toFixed(2)}
+                            </span>
+                            )
+                          </p>
+                        </div>
                       </div>
                       <div>
-                        <label className="block text-2xs font-extrabold text-amber-950 mb-1">
-                          Motivo / Justificación de la diferencia <span className="text-rose-600">*</span>
+                        <label className="block text-2xs font-bold uppercase text-rose-900 mb-1">
+                          Justificación de la Diferencia *
                         </label>
                         <textarea
                           required
                           rows={2}
-                          placeholder="Explica por qué se pagó una cantidad distinta a la estimada (ej: Subida de precio en tienda, no había producto completo...)"
+                          placeholder="Explica por qué varió el precio de compra respecto al estimado..."
                           value={paymentDiscrepancyReason}
                           onChange={(e) => setPaymentDiscrepancyReason(e.target.value)}
-                          className="w-full px-2.5 py-1.5 text-xs bg-white border border-amber-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 font-medium"
+                          className="w-full px-2.5 py-1.5 text-xs bg-white border border-rose-300 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-rose-500 font-medium"
                         />
                       </div>
                     </div>
@@ -478,13 +646,13 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                 </div>
               )}
 
-              {/* ─── 💰 SECCIÓN DE COBRO A CLIENTE (PAGO ÚNICO O MIXTO) ─── */}
+              {/* ─── 💰 SECCIÓN DE COBRO AL CLIENTE ─── */}
               {task.requires_collection && (
                 <div className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl space-y-3 shadow-2xs">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-emerald-950 flex items-center gap-1.5">
-                      <DollarSign className="h-4 w-4 text-emerald-700" />
-                      Cobro al Cliente
+                      <Banknote className="h-4 w-4 text-emerald-700" />
+                      Registro de Cobro al Cliente
                     </span>
                     {task.expected_collection_amount && (
                       <span className="text-2xs font-mono font-bold text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">
@@ -494,51 +662,50 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                     )}
                   </div>
 
-                  {/* Selector de Modo de Cobro: Único vs Mixto */}
-                  <div className="flex items-center gap-2 p-1 bg-emerald-100/70 rounded-xl">
+                  {/* Selector de Modo: Pago Único vs Pago Mixto/Desglosado */}
+                  <div className="flex items-center gap-1 p-1 bg-emerald-100/70 rounded-xl">
                     <button
                       type="button"
                       onClick={() => setCollectionMode('single')}
-                      className={`flex-1 py-1.5 px-2 text-2xs font-bold rounded-lg transition cursor-pointer ${
+                      className={`flex-1 py-1.5 text-2xs font-bold rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${
                         collectionMode === 'single'
                           ? 'bg-white text-emerald-900 shadow-xs'
                           : 'text-emerald-800 hover:text-emerald-950'
                       }`}
                     >
-                      Pago en 1 sola forma
+                      <DollarSign className="h-3 w-3" />
+                      <span>Pago Único</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setCollectionMode('mixed')}
-                      className={`flex-1 py-1.5 px-2 text-2xs font-bold rounded-lg flex items-center justify-center gap-1 transition cursor-pointer ${
+                      className={`flex-1 py-1.5 text-2xs font-bold rounded-lg transition cursor-pointer flex items-center justify-center gap-1 ${
                         collectionMode === 'mixed'
                           ? 'bg-white text-emerald-900 shadow-xs'
                           : 'text-emerald-800 hover:text-emerald-950'
                       }`}
                     >
                       <Split className="h-3 w-3" />
-                      Pago Mixto / Combinado
+                      <span>Pago Mixto / Múltiple</span>
                     </button>
                   </div>
 
-                  {/* MODO ÚNICO */}
                   {collectionMode === 'single' ? (
+                    /* ─── MODO ÚNICO ─── */
                     <div className="space-y-2.5">
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         <div>
                           <label className="block text-2xs font-bold uppercase tracking-wider text-emerald-900 mb-1">
-                            Monto Recaudado ({currencySymbol}) *
+                            Monto Cobrado ({currencySymbol}) *
                           </label>
                           <input
                             type="number"
                             step="0.01"
                             required
-                            placeholder="Monto cobrado"
+                            placeholder="Monto recibido"
                             value={singleCollectedAmount}
                             onChange={(e) =>
-                              setSingleCollectedAmount(
-                                e.target.value ? Number(e.target.value) : ''
-                              )
+                              setSingleCollectedAmount(e.target.value ? Number(e.target.value) : '')
                             }
                             className="w-full px-3 py-2 text-xs font-mono font-bold bg-white border border-emerald-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 shadow-2xs"
                           />
@@ -546,7 +713,7 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
 
                         <div>
                           <label className="block text-2xs font-bold uppercase tracking-wider text-emerald-900 mb-1">
-                            Forma de Pago
+                            Método de Pago
                           </label>
                           <select
                             value={singlePaymentMethod}
@@ -557,24 +724,23 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                           >
                             <option value="cash">💵 Efectivo</option>
                             <option value="bank_transfer">📲 Transferencia Bancaria</option>
-                            <option value="mobile_wallet">📱 Billetera Móvil (Banpro/Lafise)</option>
-                            <option value="cheque">📑 Cheque (CK)</option>
+                            <option value="mobile_wallet">📱 Billetera Móvil</option>
+                            <option value="cheque">📑 Cheque</option>
                           </select>
                         </div>
                       </div>
 
-                      {/* Campos condicionales si es Transferencia */}
                       {(singlePaymentMethod === 'bank_transfer' ||
                         singlePaymentMethod === 'mobile_wallet') && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-2.5 bg-white/90 border border-emerald-200 rounded-xl">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                           <div>
-                            <label className="block text-2xs font-bold text-slate-600 mb-1">
-                              Banco Destino
+                            <label className="block text-2xs font-bold uppercase tracking-wider text-emerald-900 mb-1">
+                              Banco de Destino
                             </label>
                             <select
                               value={singleBank}
                               onChange={(e) => setSingleBank(e.target.value)}
-                              className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900"
+                              className="w-full px-3 py-2 text-xs bg-white border border-emerald-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 shadow-2xs font-medium"
                             >
                               {BANK_OPTIONS.map((b) => (
                                 <option key={b} value={b}>
@@ -584,31 +750,30 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                             </select>
                           </div>
                           <div>
-                            <label className="block text-2xs font-bold text-slate-600 mb-1">
-                              No. de Referencia
+                            <label className="block text-2xs font-bold uppercase tracking-wider text-emerald-900 mb-1">
+                              No. Referencia / Comprobante
                             </label>
                             <input
                               type="text"
-                              placeholder="Ej: TR-994821"
+                              placeholder="Ej: 94810238"
                               value={singleReference}
                               onChange={(e) => setSingleReference(e.target.value)}
-                              className="w-full px-2.5 py-1.5 text-xs font-mono bg-white border border-slate-200 rounded-lg text-slate-900"
+                              className="w-full px-3 py-2 text-xs font-mono bg-white border border-emerald-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 shadow-2xs"
                             />
                           </div>
                         </div>
                       )}
 
-                      {/* Campos condicionales si es Cheque */}
                       {singlePaymentMethod === 'cheque' && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-2.5 bg-white/90 border border-emerald-200 rounded-xl">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
                           <div>
-                            <label className="block text-2xs font-bold text-slate-600 mb-1">
+                            <label className="block text-2xs font-bold uppercase tracking-wider text-emerald-900 mb-1">
                               Banco Emisor del Cheque
                             </label>
                             <select
                               value={singleBank}
                               onChange={(e) => setSingleBank(e.target.value)}
-                              className="w-full px-2.5 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900"
+                              className="w-full px-3 py-2 text-xs bg-white border border-emerald-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 shadow-2xs font-medium"
                             >
                               {BANK_OPTIONS.map((b) => (
                                 <option key={b} value={b}>
@@ -618,66 +783,67 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                             </select>
                           </div>
                           <div>
-                            <label className="block text-2xs font-bold text-slate-600 mb-1">
-                              Número de Cheque *
+                            <label className="block text-2xs font-bold uppercase tracking-wider text-emerald-900 mb-1">
+                              Número del Cheque *
                             </label>
                             <input
                               type="text"
                               required
-                              placeholder="Ej: CK-004821"
+                              placeholder="Ej: CK-000491"
                               value={singleChequeNumber}
                               onChange={(e) => setSingleChequeNumber(e.target.value)}
-                              className="w-full px-2.5 py-1.5 text-xs font-mono font-bold bg-white border border-slate-200 rounded-lg text-slate-900"
+                              className="w-full px-3 py-2 text-xs font-mono bg-white border border-emerald-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900 shadow-2xs"
                             />
                           </div>
                         </div>
                       )}
                     </div>
                   ) : (
-                    /* MODO MIXTO / DESGLOSADO */
-                    <div className="space-y-3 pt-1">
-                      {/* 1. Efectivo */}
-                      <div className="p-2.5 bg-white border border-emerald-200 rounded-xl space-y-1">
-                        <label className="block text-2xs font-bold text-slate-700 flex items-center gap-1">
-                          <Banknote className="h-3.5 w-3.5 text-emerald-600" />
-                          Parte en Efectivo ({currencySymbol})
+                    /* ─── MODO MIXTO ─── */
+                    <div className="space-y-3">
+                      {/* Efectivo */}
+                      <div className="p-2.5 bg-white rounded-xl border border-emerald-200">
+                        <label className="block text-2xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                          💵 Porción en Efectivo ({currencySymbol})
                         </label>
                         <input
                           type="number"
                           step="0.01"
-                          placeholder="Monto en efectivo recibido"
+                          placeholder="0.00"
                           value={mixedCash}
                           onChange={(e) =>
                             setMixedCash(e.target.value ? Number(e.target.value) : '')
                           }
-                          className="w-full px-3 py-1.5 text-xs font-mono font-bold bg-slate-50 border border-slate-200 rounded-lg focus:bg-white text-slate-900"
+                          className="w-full px-3 py-1.5 text-xs font-mono font-bold bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900"
                         />
                       </div>
 
-                      {/* 2. Transferencia */}
-                      <div className="p-2.5 bg-white border border-sky-200 rounded-xl space-y-2">
-                        <label className="block text-2xs font-bold text-slate-700 flex items-center gap-1">
-                          <CreditCard className="h-3.5 w-3.5 text-sky-600" />
-                          Parte en Transferencia Bancaria ({currencySymbol})
-                        </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {/* Transferencia */}
+                      <div className="p-2.5 bg-white rounded-xl border border-emerald-200 space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
+                            <label className="block text-2xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                              📲 Porción Transferencia ({currencySymbol})
+                            </label>
                             <input
                               type="number"
                               step="0.01"
-                              placeholder="Monto transf."
+                              placeholder="0.00"
                               value={mixedTransfer}
                               onChange={(e) =>
                                 setMixedTransfer(e.target.value ? Number(e.target.value) : '')
                               }
-                              className="w-full px-2.5 py-1.5 text-xs font-mono font-bold bg-slate-50 border border-slate-200 rounded-lg focus:bg-white text-slate-900"
+                              className="w-full px-3 py-1.5 text-xs font-mono font-bold bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900"
                             />
                           </div>
                           <div>
+                            <label className="block text-2xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                              Banco
+                            </label>
                             <select
                               value={mixedTransferBank}
                               onChange={(e) => setMixedTransferBank(e.target.value)}
-                              className="w-full px-2 py-1.5 text-2xs bg-white border border-slate-200 rounded-lg text-slate-900 font-medium"
+                              className="w-full px-2 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900"
                             >
                               {BANK_OPTIONS.map((b) => (
                                 <option key={b} value={b}>
@@ -686,42 +852,44 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                               ))}
                             </select>
                           </div>
-                          <div>
-                            <input
-                              type="text"
-                              placeholder="No. Referencia"
-                              value={mixedTransferRef}
-                              onChange={(e) => setMixedTransferRef(e.target.value)}
-                              className="w-full px-2.5 py-1.5 text-2xs font-mono bg-slate-50 border border-slate-200 rounded-lg focus:bg-white text-slate-900"
-                            />
-                          </div>
                         </div>
+                        {typeof mixedTransfer === 'number' && mixedTransfer > 0 && (
+                          <input
+                            type="text"
+                            placeholder="No. de Referencia transferencia"
+                            value={mixedTransferRef}
+                            onChange={(e) => setMixedTransferRef(e.target.value)}
+                            className="w-full px-3 py-1.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900"
+                          />
+                        )}
                       </div>
 
-                      {/* 3. Cheque (CK) */}
-                      <div className="p-2.5 bg-white border border-purple-200 rounded-xl space-y-2">
-                        <label className="block text-2xs font-bold text-slate-700 flex items-center gap-1">
-                          <FileCheck className="h-3.5 w-3.5 text-purple-600" />
-                          Parte en Cheque Físico ({currencySymbol})
-                        </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {/* Cheque */}
+                      <div className="p-2.5 bg-white rounded-xl border border-emerald-200 space-y-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           <div>
+                            <label className="block text-2xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                              📑 Porción en Cheque ({currencySymbol})
+                            </label>
                             <input
                               type="number"
                               step="0.01"
-                              placeholder="Monto cheque"
+                              placeholder="0.00"
                               value={mixedCheque}
                               onChange={(e) =>
                                 setMixedCheque(e.target.value ? Number(e.target.value) : '')
                               }
-                              className="w-full px-2.5 py-1.5 text-xs font-mono font-bold bg-slate-50 border border-slate-200 rounded-lg focus:bg-white text-slate-900"
+                              className="w-full px-3 py-1.5 text-xs font-mono font-bold bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900"
                             />
                           </div>
                           <div>
+                            <label className="block text-2xs font-bold uppercase tracking-wider text-slate-700 mb-1">
+                              Banco del Cheque
+                            </label>
                             <select
                               value={mixedChequeBank}
                               onChange={(e) => setMixedChequeBank(e.target.value)}
-                              className="w-full px-2 py-1.5 text-2xs bg-white border border-slate-200 rounded-lg text-slate-900 font-medium"
+                              className="w-full px-2 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900"
                             >
                               {BANK_OPTIONS.map((b) => (
                                 <option key={b} value={b}>
@@ -730,22 +898,23 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                               ))}
                             </select>
                           </div>
-                          <div>
-                            <input
-                              type="text"
-                              placeholder="No. de Cheque *"
-                              value={mixedChequeNumber}
-                              onChange={(e) => setMixedChequeNumber(e.target.value)}
-                              className="w-full px-2.5 py-1.5 text-2xs font-mono font-bold bg-slate-50 border border-slate-200 rounded-lg focus:bg-white text-slate-900"
-                            />
-                          </div>
                         </div>
+                        {typeof mixedCheque === 'number' && mixedCheque > 0 && (
+                          <input
+                            type="text"
+                            placeholder="Número del cheque *"
+                            required
+                            value={mixedChequeNumber}
+                            onChange={(e) => setMixedChequeNumber(e.target.value)}
+                            className="w-full px-3 py-1.5 text-xs font-mono bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500 text-slate-900"
+                          />
+                        )}
                       </div>
 
-                      {/* Barra de Cuadre Total Mixto */}
-                      <div className="flex items-center justify-between p-2.5 bg-emerald-100/60 rounded-xl text-xs font-bold text-emerald-950">
-                        <span>Total Mixto Recaudado:</span>
-                        <span className="font-mono text-sm">
+                      {/* Total Cobrado Mixto */}
+                      <div className="flex items-center justify-between p-2.5 bg-emerald-100/80 rounded-xl border border-emerald-300">
+                        <span className="text-xs font-bold text-emerald-950">Total Recaudado:</span>
+                        <span className="text-sm font-mono font-black text-emerald-900">
                           {currencySymbol}
                           {totalMixedCollected.toFixed(2)}
                         </span>
@@ -753,22 +922,31 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                     </div>
                   )}
 
-                  {/* Alerta y Justificación si hay Discrepancia en Cobro al Cliente */}
+                  {/* Alerta y Justificación si hay Discrepancia en Cobro */}
                   {hasCollectionDiscrepancy && (
-                    <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2 animate-fade-in mt-2">
-                      <div className="flex items-center justify-between text-2xs font-extrabold text-rose-950">
-                        <span className="flex items-center gap-1">
-                          ⚠️ Diferencia detectada en cobro:
-                        </span>
-                        <span className="font-mono text-rose-800 bg-white/90 px-2 py-0.5 rounded-full border border-rose-200">
-                          {collectionDiff > 0
-                            ? `+${currencySymbol}${collectionDiff.toFixed(2)} de más`
-                            : `-${currencySymbol}${Math.abs(collectionDiff).toFixed(2)} de menos / incompleto`}
-                        </span>
+                    <div className="p-3 bg-rose-50 border border-rose-300 rounded-xl space-y-2">
+                      <div className="flex items-start gap-2">
+                        <DollarSign className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-bold text-rose-900">
+                            Diferencia detectada en el cobro:
+                          </p>
+                          <p className="text-2xs text-rose-700">
+                            Esperado {currencySymbol}
+                            {expectedCollection.toFixed(2)} vs Cobrado {currencySymbol}
+                            {actualCollectionNum.toFixed(2)} (
+                            <span className="font-bold font-mono">
+                              {collectionDiff > 0
+                                ? `+${collectionDiff.toFixed(2)}`
+                                : collectionDiff.toFixed(2)}
+                            </span>
+                            )
+                          </p>
+                        </div>
                       </div>
                       <div>
-                        <label className="block text-2xs font-extrabold text-rose-950 mb-1">
-                          Motivo / Justificación de la diferencia en el cobro <span className="text-rose-600">*</span>
+                        <label className="block text-2xs font-bold uppercase text-rose-900 mb-1">
+                          Justificación de la Diferencia *
                         </label>
                         <textarea
                           required
@@ -783,6 +961,9 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                   )}
                 </div>
               )}
+
+              {/* ─── 📸 FOTO DE COMPROBANTE / PRUEBA DE ENTREGA ─── */}
+              {renderPhotoSection()}
 
               {/* Notas de Entrega */}
               <div>
@@ -881,6 +1062,9 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                   className="w-full px-3.5 py-2.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:bg-white text-slate-900 resize-none font-medium shadow-2xs"
                 />
               </div>
+
+              {/* Foto de Incidencia / Respaldo opcional */}
+              {renderPhotoSection()}
             </div>
           )}
 
@@ -893,7 +1077,7 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
           <div className="pt-2">
             <button
               type="submit"
-              disabled={isChangingStatus}
+              disabled={isChangingStatus || isUploadingEvidence}
               className={`w-full py-3 px-4 text-xs font-extrabold text-white disabled:opacity-50 rounded-2xl shadow-md transition cursor-pointer flex items-center justify-center gap-2 ${
                 outcome === 'completed'
                   ? 'bg-emerald-600 hover:bg-emerald-700'
@@ -902,10 +1086,10 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
                   : 'bg-rose-600 hover:bg-rose-700'
               }`}
             >
-              {isChangingStatus ? (
+              {isChangingStatus || isUploadingEvidence ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  Guardando resultado...
+                  {isUploadingEvidence ? 'Subiendo fotografía...' : 'Guardando resultado...'}
                 </>
               ) : outcome === 'completed' ? (
                 <>

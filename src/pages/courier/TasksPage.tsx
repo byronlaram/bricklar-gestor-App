@@ -830,13 +830,13 @@ export default function CourierTasksPage() {
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handlePreviewPhotos(completedPhotos, task.title)
+                                  handlePreviewPhotos(completedPhotos, `Comprobante de Entrega - ${task.code}`)
                                 }}
-                                className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-800 bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-lg hover:bg-sky-100 transition-colors"
-                                title="Ver fotos adjuntas"
+                                className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-lg hover:bg-emerald-100 transition-colors cursor-pointer shrink-0"
+                                title="Ver comprobante de entrega"
                               >
-                                <Camera className="h-3 w-3 text-sky-600" />
-                                <span>{completedPhotos.length > 1 ? `${completedPhotos.length} fotos` : 'Foto'}</span>
+                                <Camera className="h-3 w-3 text-emerald-700" />
+                                <span>{task.evidence_url ? '📸 Comprobante POD' : `${completedPhotos.length} fotos`}</span>
                               </button>
                             )}
                           </div>

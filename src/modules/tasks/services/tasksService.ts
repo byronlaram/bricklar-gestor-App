@@ -485,7 +485,7 @@ export async function assignTask(payload: AssignCourierPayload): Promise<Task> {
 // ─── changeTaskStatus ─────────────────────────────────────────────────────────
 
 export async function changeTaskStatus(payload: ChangeStatusPayload): Promise<Task> {
-  const { task_id, new_status, notes, cancellation_reason, payment_breakdown, metadata } = payload
+  const { task_id, new_status, notes, cancellation_reason, payment_breakdown, metadata, evidence_url } = payload
   const { data: session } = await supabase.auth.getSession()
   const userId = session?.session?.user?.id
   if (!userId) throw new Error('No hay sesión activa.')
@@ -493,7 +493,7 @@ export async function changeTaskStatus(payload: ChangeStatusPayload): Promise<Ta
   // Obtener estado actual y metadata existente
   const { data: taskData, error: taskError } = await supabase
     .from('tasks')
-    .select('status, metadata')
+    .select('status, metadata, evidence_url')
     .eq('id', task_id)
     .single()
 
@@ -521,10 +521,15 @@ export async function changeTaskStatus(payload: ChangeStatusPayload): Promise<Ta
   }
 
   // Preparar actualización con metadata combinada
-  const mergedMetadata = {
+  const mergedMetadata: Record<string, unknown> = {
     ...existingMetadata,
     ...(metadata || {}),
     ...(payment_breakdown ? { payment_breakdown } : {}),
+  }
+
+  if (evidence_url) {
+    mergedMetadata.delivery_proof_url = evidence_url
+    mergedMetadata.delivery_proof_captured_at = new Date().toISOString()
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -533,6 +538,10 @@ export async function changeTaskStatus(payload: ChangeStatusPayload): Promise<Ta
     updated_by: userId,
     updated_at: new Date().toISOString(),
     metadata: mergedMetadata as any,
+  }
+
+  if (evidence_url !== undefined) {
+    updatePayload.evidence_url = evidence_url
   }
 
   if (new_status === 'completed') {

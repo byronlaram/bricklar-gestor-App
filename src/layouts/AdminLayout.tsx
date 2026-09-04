@@ -26,6 +26,7 @@ import {
   Bell,
   Bus,
   UserCheck,
+  Radio,
 } from 'lucide-react'
 
 // ─── Estructura de Navegación Organizada por Secciones ─────────────────────────
@@ -48,6 +49,7 @@ const NAV_SECTIONS: NavSection[] = [
     title: 'Operaciones',
     items: [
       { to: '/admin', label: 'Dashboard', icon: <LayoutDashboard size={18} />, roles: ['general_admin', 'junior_admin'], exact: true },
+      { to: '/admin/monitoreo', label: 'Monitoreo en Vivo', icon: <Radio size={18} className="text-emerald-500 animate-pulse" />, roles: ['general_admin', 'junior_admin'] },
       { to: '/admin/tareas', label: 'Tareas', icon: <ClipboardList size={18} />, roles: ['general_admin', 'junior_admin'] },
       { to: '/admin/jornadas', label: 'Jornadas y Fondos', icon: <Briefcase size={18} />, roles: ['general_admin', 'junior_admin'] },
       { to: '/admin/liquidaciones', label: 'Liquidaciones', icon: <Receipt size={18} />, roles: ['general_admin', 'junior_admin'] },
@@ -76,6 +78,7 @@ const NAV_SECTIONS: NavSection[] = [
 // Map para breadcrumbs dinámicos
 const ROUTE_NAME_MAP: Record<string, string> = {
   admin: 'Dashboard',
+  monitoreo: 'Monitoreo GPS en Vivo',
   tareas: 'Gestión de Tareas',
   jornadas: 'Jornadas y Fondos',
   liquidaciones: 'Liquidaciones',

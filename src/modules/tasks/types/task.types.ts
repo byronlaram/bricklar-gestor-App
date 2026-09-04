@@ -137,6 +137,9 @@ export interface TaskStatusHistory {
 
 export interface TaskMetadata {
   reference_photos?: string[]
+  delivery_proof_url?: string | null
+  delivery_proof_photos?: string[]
+  delivery_proof_captured_at?: string | null
   [key: string]: unknown
 }
 
@@ -219,6 +222,7 @@ export interface ChangeStatusPayload {
   cancellation_reason?: string
   payment_breakdown?: TaskPaymentBreakdown
   metadata?: Record<string, unknown>
+  evidence_url?: string | null
 }
 
 // ─── Payload para reprogramar tarea ──────────────────────────────────────────

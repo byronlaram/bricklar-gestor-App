@@ -26,7 +26,7 @@ import {
   Clock,
   Navigation,
   CheckCircle2,
-  FileImage,
+  Camera,
   ListFilter,
   DollarSign,
   PackageCheck,
@@ -64,11 +64,7 @@ import {
   ConfirmDialog,
   Badge,
   useToast,
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalTitle,
-  ModalBody,
+  ImageViewerModal,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
 import { formatDate } from '@/shared/utils/format'
@@ -415,10 +411,15 @@ export default function TasksPage() {
                                   <button
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); setPreviewEvidenceUrl(task.evidence_url!) }}
-                                    className="text-2xs text-[#004594] bg-blue-50 px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 hover:underline cursor-pointer"
-                                    title="Ver evidencia"
+                                    className={`text-2xs px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                                      task.status === 'completed'
+                                        ? 'text-emerald-900 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300'
+                                        : 'text-[#004594] bg-blue-50 hover:bg-blue-100 border border-blue-200'
+                                    }`}
+                                    title={task.status === 'completed' ? 'Ver comprobante de entrega (POD)' : 'Ver foto adjunta'}
                                   >
-                                    <FileImage className="h-3 w-3" /> Foto
+                                    <Camera className="h-3 w-3 shrink-0" />
+                                    <span>{task.status === 'completed' ? 'POD' : 'Foto'}</span>
                                   </button>
                                 )}
                               </div>
@@ -562,10 +563,15 @@ export default function TasksPage() {
                                   e.stopPropagation()
                                   setPreviewEvidenceUrl(task.evidence_url!)
                                 }}
-                                className="text-2xs text-[#004594] bg-blue-50 px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5 hover:underline cursor-pointer"
-                                title="Ver evidencia"
+                                className={`text-2xs px-2 py-0.5 rounded-full font-bold flex items-center gap-1 transition-all cursor-pointer ${
+                                  task.status === 'completed'
+                                    ? 'text-emerald-900 bg-emerald-100 hover:bg-emerald-200 border border-emerald-300'
+                                    : 'text-[#004594] bg-blue-50 hover:bg-blue-100 border border-blue-200'
+                                }`}
+                                title={task.status === 'completed' ? 'Ver comprobante de entrega (POD)' : 'Ver foto adjunta'}
                               >
-                                <FileImage className="h-3 w-3" /> Foto
+                                <Camera className="h-3 w-3 shrink-0" />
+                                <span>{task.status === 'completed' ? 'POD' : 'Foto'}</span>
                               </button>
                             )}
                           </div>
@@ -865,19 +871,13 @@ export default function TasksPage() {
         isLoading={isRejecting}
       />
 
-      {/* Modal de Previsualización de Evidencia */}
-      <Modal isOpen={!!previewEvidenceUrl} onClose={() => setPreviewEvidenceUrl(null)}>
-        <ModalContent size="md">
-          <ModalHeader onClose={() => setPreviewEvidenceUrl(null)}>
-            <ModalTitle>Evidencia de Gestión</ModalTitle>
-          </ModalHeader>
-          <ModalBody className="p-4 flex items-center justify-center">
-            {previewEvidenceUrl && (
-              <img src={previewEvidenceUrl} alt="Comprobante / Evidencia" className="max-h-[75vh] w-auto rounded-2xl shadow-lg border" />
-            )}
-          </ModalBody>
-        </ModalContent>
-      </Modal>
+      {/* Modal de Previsualización de Evidencia con Zoom y Descarga */}
+      <ImageViewerModal
+        images={previewEvidenceUrl ? [previewEvidenceUrl] : []}
+        isOpen={!!previewEvidenceUrl}
+        onClose={() => setPreviewEvidenceUrl(null)}
+        title="Comprobante de Entrega Digital / Evidencia"
+      />
 
       {/* Modal de Confirmación de Eliminación */}
       <ConfirmDialog

@@ -18,6 +18,7 @@ import {
   Camera,
   Eye,
   CalendarClock,
+  CheckCircle2,
 } from 'lucide-react'
 import { useTask } from '@/modules/tasks/hooks/useTask'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
@@ -58,14 +59,29 @@ export default function TaskDetailPage() {
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
   const [isViewerOpen, setIsViewerOpen] = useState(false)
   const [viewerIndex, setViewerIndex] = useState(0)
+  const [viewerImages, setViewerImages] = useState<string[]>([])
+  const [viewerTitle, setViewerTitle] = useState('')
 
-  const metadata = task?.metadata as { reference_photos?: string[] } | null
-  const referencePhotos = Array.isArray(metadata?.reference_photos) && metadata.reference_photos.length > 0
-    ? metadata.reference_photos
-    : (task?.evidence_url ? [task.evidence_url] : [])
+  const metadata = task?.metadata as {
+    reference_photos?: string[]
+    delivery_proof_url?: string
+    delivery_proof_captured_at?: string
+  } | null
 
-  const openViewer = (idx: number) => {
+  const referencePhotos = Array.isArray(metadata?.reference_photos) ? metadata.reference_photos : []
+  const deliveryProofPhoto = task?.evidence_url || metadata?.delivery_proof_url || null
+
+  const openReferenceViewer = (idx: number) => {
+    setViewerImages(referencePhotos)
     setViewerIndex(idx)
+    setViewerTitle(`Fotos de Referencia - ${task?.code}`)
+    setIsViewerOpen(true)
+  }
+
+  const openProofViewer = (proofUrl: string) => {
+    setViewerImages([proofUrl])
+    setViewerIndex(0)
+    setViewerTitle(`Comprobante de Entrega - ${task?.code}`)
     setIsViewerOpen(true)
   }
 
@@ -341,7 +357,7 @@ export default function TaskDetailPage() {
                   <button
                     key={idx}
                     type="button"
-                    onClick={() => openViewer(idx)}
+                    onClick={() => openReferenceViewer(idx)}
                     className="relative aspect-square rounded-xl overflow-hidden border border-slate-200 shadow-2xs hover:shadow-md transition-all group bg-slate-50 cursor-pointer"
                   >
                     <img
@@ -357,6 +373,62 @@ export default function TaskDetailPage() {
                     </span>
                   </button>
                 ))}
+              </div>
+            </Card>
+          )}
+
+          {/* 📸 Comprobante de Entrega Digital / POD */}
+          {deliveryProofPhoto && (
+            <Card className="p-6 bg-emerald-50/70 border border-emerald-200/90 shadow-2xs space-y-4">
+              <div className="flex items-center justify-between border-b border-emerald-200/60 pb-3">
+                <h2 className="text-sm font-bold text-emerald-950 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-700" />
+                  Comprobante de Entrega Digital (Prueba de Entrega POD)
+                </h2>
+                <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  Respaldo Digital
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-center">
+                <div className="space-y-2">
+                  <p className="text-xs text-emerald-900 leading-relaxed font-medium">
+                    Esta fotografía fue capturada por el repartidor como constancia de recepción o gestión en el punto de destino.
+                  </p>
+                  {metadata?.delivery_proof_captured_at && (
+                    <p className="text-2xs font-mono text-emerald-800">
+                      Capturado: {new Date(metadata.delivery_proof_captured_at).toLocaleString()}
+                    </p>
+                  )}
+                  <div className="pt-1">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openProofViewer(deliveryProofPhoto)}
+                      leftIcon={<Eye className="h-4 w-4 text-emerald-700" />}
+                      className="bg-white border-emerald-300 text-emerald-900 hover:bg-emerald-100"
+                    >
+                      Ver Fotografía Completa
+                    </Button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => openProofViewer(deliveryProofPhoto)}
+                  className="relative aspect-video rounded-xl overflow-hidden border border-emerald-300 shadow-sm hover:shadow-md transition-all group bg-slate-900 cursor-pointer block"
+                >
+                  <img
+                    src={deliveryProofPhoto}
+                    alt="Comprobante de entrega"
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+                  />
+                  <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-2 font-bold text-xs">
+                    <Eye className="h-4 w-4 drop-shadow" />
+                    <span>Ampliar</span>
+                  </div>
+                </button>
               </div>
             </Card>
           )}
@@ -587,11 +659,11 @@ export default function TaskDetailPage() {
 
       {/* Visor de Fotos en Pantalla Completa */}
       <ImageViewerModal
-        images={referencePhotos}
+        images={viewerImages}
         initialIndex={viewerIndex}
         isOpen={isViewerOpen}
         onClose={() => setIsViewerOpen(false)}
-        title={`Fotos de Referencia - ${task.code}`}
+        title={viewerTitle || `Fotos - ${task.code}`}
       />
     </div>
   )

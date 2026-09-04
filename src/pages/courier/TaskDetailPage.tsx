@@ -58,16 +58,30 @@ export default function CourierTaskDetailPage() {
   const [isStartWorkdayOpen, setIsStartWorkdayOpen] = useState(false)
   const [isViewerOpen, setIsViewerOpen] = useState(false)
   const [viewerIndex, setViewerIndex] = useState(0)
+  const [viewerImages, setViewerImages] = useState<string[]>([])
+  const [viewerTitle, setViewerTitle] = useState('')
 
   const todayTasks = todayTasksData?.data || []
 
-  const metadata = task?.metadata as { reference_photos?: string[] } | null
-  const referencePhotos = Array.isArray(metadata?.reference_photos) && metadata.reference_photos.length > 0
-    ? metadata.reference_photos
-    : (task?.evidence_url ? [task.evidence_url] : [])
+  const metadata = task?.metadata as {
+    reference_photos?: string[]
+    delivery_proof_url?: string
+  } | null
 
-  const openViewer = (idx: number) => {
+  const referencePhotos = Array.isArray(metadata?.reference_photos) ? metadata.reference_photos : []
+  const deliveryProofPhoto = task?.evidence_url || metadata?.delivery_proof_url || null
+
+  const openReferenceViewer = (idx: number) => {
+    setViewerImages(referencePhotos)
     setViewerIndex(idx)
+    setViewerTitle(`Foto de Referencia - ${task?.code}`)
+    setIsViewerOpen(true)
+  }
+
+  const openProofViewer = (proofUrl: string) => {
+    setViewerImages([proofUrl])
+    setViewerIndex(0)
+    setViewerTitle(`Comprobante de Entrega - ${task?.code}`)
     setIsViewerOpen(true)
   }
 
@@ -276,7 +290,7 @@ export default function CourierTaskDetailPage() {
               <button
                 key={idx}
                 type="button"
-                onClick={() => openViewer(idx)}
+                onClick={() => openReferenceViewer(idx)}
                 className="relative aspect-4/3 rounded-xl overflow-hidden border border-sky-200/90 shadow-2xs active:scale-95 transition-all group bg-white cursor-pointer"
               >
                 <img
@@ -292,6 +306,48 @@ export default function CourierTaskDetailPage() {
                 </span>
               </button>
             ))}
+          </div>
+        </Card>
+      )}
+
+      {/* 📸 Comprobante de Entrega Digital / POD */}
+      {deliveryProofPhoto && (
+        <Card className="p-4 bg-emerald-50/80 border border-emerald-200 rounded-2xl shadow-xs space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="p-1.5 rounded-xl bg-emerald-600 text-white shadow-2xs">
+                <CheckCircle2 className="h-4 w-4" />
+              </div>
+              <div>
+                <h2 className="text-xs font-black text-emerald-950 uppercase tracking-wide">
+                  Comprobante de Entrega Digital
+                </h2>
+                <p className="text-[11px] text-emerald-800 font-medium">
+                  Foto de respaldo capturada en la entrega
+                </p>
+              </div>
+            </div>
+            <span className="text-2xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+              POD Registrado
+            </span>
+          </div>
+
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => openProofViewer(deliveryProofPhoto)}
+              className="relative aspect-video max-h-52 w-full rounded-xl overflow-hidden border border-emerald-300 shadow-2xs active:scale-98 transition-all group bg-slate-900 cursor-pointer block"
+            >
+              <img
+                src={deliveryProofPhoto}
+                alt="Comprobante de entrega"
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+              />
+              <div className="absolute inset-0 bg-black/35 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white gap-2 font-bold text-xs">
+                <Eye className="h-4 w-4 drop-shadow" />
+                <span>Toca para ver comprobante completo</span>
+              </div>
+            </button>
           </div>
         </Card>
       )}
@@ -435,11 +491,11 @@ export default function CourierTaskDetailPage() {
 
       {/* Visor a Pantalla Completa con Zoom */}
       <ImageViewerModal
-        images={referencePhotos}
+        images={viewerImages}
         initialIndex={viewerIndex}
         isOpen={isViewerOpen}
         onClose={() => setIsViewerOpen(false)}
-        title={`Producto - ${task.code}`}
+        title={viewerTitle || `Foto - ${task.code}`}
       />
     </div>
   )
