@@ -142,6 +142,7 @@ export interface DailyClosureSummary {
   branch_id: string
   date: string
   total_workdays: number
+  total_initial_cash: number
   total_collections_cash: number
   total_collections_transfer: number
   total_expenses: number

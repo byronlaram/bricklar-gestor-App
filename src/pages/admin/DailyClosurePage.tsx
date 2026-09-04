@@ -130,7 +130,7 @@ export default function AdminDailyClosurePage() {
       ) : (
         <div className="space-y-6">
           {/* Grid de Totales Consolidados */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
             <MetricCard
               title="Motorizados en Turno"
               value={closure?.total_workdays || 0}
@@ -140,8 +140,16 @@ export default function AdminDailyClosurePage() {
             />
 
             <MetricCard
+              title="Fondos Entregados Admin"
+              value={`C$ ${(closure?.total_initial_cash ?? 0).toFixed(2)}`}
+              subtitle="Fondo base y recargas"
+              icon={<Wallet className="h-4 w-4 text-indigo-600" />}
+              accentColor="primary"
+            />
+
+            <MetricCard
               title="Total Cobrado Efectivo"
-              value={`C$ ${(closure?.total_collections_cash ?? 0).toFixed(2)}`}
+              value={`+C$ ${(closure?.total_collections_cash ?? 0).toFixed(2)}`}
               subtitle="Cobros de entregas en ruta"
               icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
               accentColor="success"
@@ -157,7 +165,7 @@ export default function AdminDailyClosurePage() {
 
             <MetricCard
               title="Entregas Previas a Caja"
-              value={`C$ ${(closure?.total_already_received ?? 0).toFixed(2)}`}
+              value={`-C$ ${(closure?.total_already_received ?? 0).toFixed(2)}`}
               subtitle="Efectivo entregado en oficina"
               icon={<HandCoins className="h-4 w-4 text-purple-600" />}
               accentColor="purple"
@@ -220,9 +228,10 @@ export default function AdminDailyClosurePage() {
                     <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-2xs">
                       <th className="py-3.5 px-4">Motorizado</th>
                       <th className="py-3.5 px-3">Sucursal</th>
+                      <th className="py-3.5 px-3">Fondo Inicial (+)</th>
                       <th className="py-3.5 px-3">Cobros (+)</th>
                       <th className="py-3.5 px-3">Gastos (-)</th>
-                      <th className="py-3.5 px-3">Entregado Previo</th>
+                      <th className="py-3.5 px-3">Entregado Previo (-)</th>
                       <th className="py-3.5 px-3">Saldo en Mano</th>
                       <th className="py-3.5 px-3">Liquidado en Caja</th>
                       <th className="py-3.5 px-3">Estado Jornada</th>
@@ -237,6 +246,9 @@ export default function AdminDailyClosurePage() {
                         <td className="py-3 px-3 text-slate-600 font-medium">
                           {w.branchName}
                         </td>
+                        <td className="py-3 px-3 font-semibold text-indigo-700 font-mono">
+                          +C$ {w.initialCash.toFixed(2)}
+                        </td>
                         <td className="py-3 px-3 font-semibold text-emerald-700 font-mono">
                           +C$ {w.collections.toFixed(2)}
                         </td>
@@ -244,7 +256,7 @@ export default function AdminDailyClosurePage() {
                           {w.expenses > 0 ? `-C$ ${w.expenses.toFixed(2)}` : 'C$ 0.00'}
                         </td>
                         <td className="py-3 px-3 font-semibold text-sky-700 font-mono">
-                          {w.alreadyReceived > 0 ? `C$ ${w.alreadyReceived.toFixed(2)}` : 'C$ 0.00'}
+                          {w.alreadyReceived > 0 ? `-C$ ${w.alreadyReceived.toFixed(2)}` : 'C$ 0.00'}
                         </td>
                         <td className="py-3 px-3 font-bold text-slate-900 font-mono bg-slate-50/50">
                           C$ {w.pendingCash.toFixed(2)}

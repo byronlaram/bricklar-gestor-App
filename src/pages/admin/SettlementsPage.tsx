@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   PhoneOff,
   Eye,
+  Wallet,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useSettlements } from '@/modules/settlements/hooks/useSettlements'
@@ -63,7 +64,11 @@ export default function AdminSettlementsPage() {
 
   // Métricas Contables Integrales
   const pendingCount = settlements.filter((s) => s.status === 'pending_review').length
-  
+
+  const totalFundsGiven = settlements.reduce(
+    (acc, s) => acc + ((s.cash_summary?.initialCashNIO ?? 0) + (s.cash_summary?.advancesNIO ?? 0)),
+    0
+  )
   const totalCollections = settlements.reduce(
     (acc, s) => acc + (s.cash_summary?.collectionsNIO ?? s.expected_cash),
     0
@@ -151,11 +156,19 @@ export default function AdminSettlementsPage() {
         </div>
       )}
 
-      {/* Métricas Contables */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* Métricas Contables Integrales */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+        <MetricCard
+          title="Fondos Entregados Admin"
+          value={`C$ ${totalFundsGiven.toFixed(2)}`}
+          subtitle="Fondo inicial y adicionales"
+          icon={<Wallet className="h-4 w-4 text-indigo-600" />}
+          accentColor="primary"
+        />
+
         <MetricCard
           title="Cobros Totales Ruta"
-          value={`C$ ${totalCollections.toFixed(2)}`}
+          value={`+C$ ${totalCollections.toFixed(2)}`}
           subtitle="Cobrado por motorizados"
           icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
           accentColor="success"
@@ -268,6 +281,7 @@ export default function AdminSettlementsPage() {
               <thead>
                 <tr className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 uppercase tracking-wider text-2xs">
                   <th className="py-3.5 px-4">Motorizado</th>
+                  <th className="py-3.5 px-3">Fondo Inicial (+)</th>
                   <th className="py-3.5 px-3">Cobros (+)</th>
                   <th className="py-3.5 px-3">Gastos / Pagos (-)</th>
                   <th className="py-3.5 px-3">Entregado Previo (-)</th>
@@ -281,6 +295,7 @@ export default function AdminSettlementsPage() {
               <tbody className="divide-y divide-slate-100">
                 {settlements.map((s) => {
                   const summary = s.cash_summary
+                  const fundsGiven = (summary?.initialCashNIO ?? 0) + (summary?.advancesNIO ?? 0)
                   const collections = summary?.collectionsNIO ?? s.expected_cash
                   const expenses = summary?.expensesNIO ?? s.total_expenses
                   const alreadyReceived = summary?.alreadyReceivedNIO ?? 0
@@ -295,6 +310,10 @@ export default function AdminSettlementsPage() {
                           {s.courier_profile?.display_name || s.courier_profile?.full_name || 'Motorizado'}
                         </div>
                         <div className="text-2xs text-slate-400 font-mono">{formatDate(s.settlement_date)}</div>
+                      </td>
+
+                      <td className="py-3 px-3 font-semibold text-indigo-700 font-mono">
+                        +C$ {fundsGiven.toFixed(2)}
                       </td>
 
                       <td className="py-3 px-3 font-semibold text-emerald-700 font-mono">

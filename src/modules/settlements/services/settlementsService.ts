@@ -867,6 +867,10 @@ export async function getDailyClosure(
   })
 
   const totalWorkdays = enrichedWorkdays.length
+  const totalInitialCash = enrichedWorkdays.reduce(
+    (acc, w) => acc + (w.initial_cash || 0) + (w.cash_summary?.advancesNIO || 0),
+    0
+  )
   const totalCollectionsCash = enrichedWorkdays.reduce(
     (acc, w) => acc + (w.cash_summary?.collectionsNIO ?? 0),
     0
@@ -910,7 +914,7 @@ export async function getDailyClosure(
       branchName: w.branch?.name || 'Sucursal',
       status: w.status,
       settlementStatus: s?.status || null,
-      initialCash: w.initial_cash || 0,
+      initialCash: (w.initial_cash || 0) + (w.cash_summary?.advancesNIO || 0),
       collections: w.cash_summary?.collectionsNIO || 0,
       expenses: w.cash_summary?.expensesNIO || 0,
       alreadyReceived: w.cash_summary?.alreadyReceivedNIO || 0,
@@ -923,6 +927,7 @@ export async function getDailyClosure(
     branch_id: branchId || '',
     date,
     total_workdays: totalWorkdays,
+    total_initial_cash: totalInitialCash,
     total_collections_cash: totalCollectionsCash,
     total_collections_transfer: totalCollectionsTransfer,
     total_expenses: totalExpenses,
