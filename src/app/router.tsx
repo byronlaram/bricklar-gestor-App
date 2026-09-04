@@ -139,7 +139,7 @@ export function AppRouter() {
             <Route index element={<CourierHomePage />} />
             <Route path="tareas" element={<CourierTasksPage />} />
             <Route path="tareas/:id" element={<CourierTaskDetailPage />} />
-            <Route path="ruta" element={<Navigate to="/motorizado/tareas" replace />} />
+            <Route path="ruta" element={<Navigate to="/motorizado/tareas?view=map" replace />} />
             <Route path="fondos" element={<CourierFundsPage />} />
             <Route path="liquidacion" element={<CourierSettlementPage />} />
             <Route path="buses" element={<CourierBusesPage />} />

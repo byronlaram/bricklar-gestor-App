@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import {
   Play,
   CheckCircle2,
-  Navigation,
   Calendar,
   Search,
   SlidersHorizontal,
@@ -20,6 +19,7 @@ import {
   Bus,
   ChevronRight,
   Camera,
+  Map,
 } from 'lucide-react'
 import { getTaskPhotos } from '@/pages/courier/TasksPage'
 import { useAuth } from '@/modules/auth/useAuth'
@@ -388,15 +388,25 @@ export default function CourierHomePage() {
         <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/motorizado/tareas')}
-            className="flex-1 h-10 sm:h-11 rounded-xl sm:rounded-2xl bg-[#004594] text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm hover:bg-[#083570] active:scale-[0.99] transition cursor-pointer"
+            className="flex-1 h-10 sm:h-11 rounded-xl sm:rounded-2xl bg-[#004594] text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm hover:bg-[#083570] active:scale-[0.99] transition cursor-pointer"
           >
-            <Navigation size={15} />
-            <span>Ver Mis Tareas / Ruta</span>
+            <ClipboardList size={15} />
+            <span>Mis Tareas</span>
+          </button>
+
+          <button
+            onClick={() => navigate('/motorizado/tareas?view=map')}
+            className="h-10 sm:h-11 px-3.5 rounded-xl sm:rounded-2xl bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-indigo-100 transition cursor-pointer shadow-2xs"
+            title="Ver mapa de ruta interactivo"
+          >
+            <Map size={15} />
+            <span>Mapa</span>
           </button>
 
           <button
             onClick={() => setIsEndOpen(true)}
-            className="h-10 sm:h-11 px-3.5 rounded-xl sm:rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-rose-100 transition cursor-pointer shrink-0"
+            className="h-10 sm:h-11 px-3 rounded-xl sm:rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-rose-100 transition cursor-pointer shrink-0"
+            title="Cerrar jornada"
           >
             <StopCircle size={14} />
             <span>Cierre</span>

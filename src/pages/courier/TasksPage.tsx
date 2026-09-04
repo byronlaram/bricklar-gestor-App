@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   DndContext,
   closestCenter,
@@ -37,11 +37,15 @@ import {
   Camera,
   RotateCcw,
   Undo2,
+  Map,
+  ListFilter,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
+import { useCourierLiveLocation } from '@/modules/courier/hooks/useCourierLiveLocation'
+import { CourierRouteMap } from '@/modules/courier/components/CourierRouteMap'
 import type { TaskWithCourier, Task } from '@/modules/tasks/types/task.types'
 import { TaskTypeBadge } from '@/modules/tasks/components/TaskTypeBadge'
 import { TaskStatusBadge } from '@/modules/tasks/components/TaskStatusBadge'
@@ -442,11 +446,26 @@ function TaskCardItem({
 
 export default function CourierTasksPage() {
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { profile } = useAuth()
   const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
   const todayStr = getLocalDateString()
   const toast = useToast()
 
+  const viewMode = (searchParams.get('view') === 'map' ? 'map' : 'list') as 'list' | 'map'
+  const setViewMode = (mode: 'list' | 'map') => {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev)
+      if (mode === 'map') {
+        next.set('view', 'map')
+      } else {
+        next.delete('view')
+      }
+      return next
+    })
+  }
+
+  const { lastPosition } = useCourierLiveLocation()
   const { data: activeWorkday } = useActiveWorkday(profile?.id)
   const [isStartWorkdayOpen, setIsStartWorkdayOpen] = useState(false)
   const [isNewGestionOpen, setIsNewGestionOpen] = useState(false)
@@ -659,6 +678,52 @@ export default function CourierTasksPage() {
         </button>
       </div>
 
+      {/* Selector de Modo de Vista: Lista vs Mapa de Ruta */}
+      <div className="flex items-center justify-center p-1 bg-slate-200/80 rounded-2xl border border-slate-300/70 shadow-2xs">
+        <button
+          type="button"
+          onClick={() => setViewMode('list')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer',
+            viewMode === 'list'
+              ? 'bg-white text-[#0A2540] shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          )}
+        >
+          <ListFilter className="h-4 w-4" />
+          <span>📋 Lista de Entregas</span>
+          <span className={cn(
+            'ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono',
+            viewMode === 'list' ? 'bg-slate-100 text-slate-700' : 'bg-slate-300/70 text-slate-700'
+          )}>
+            {approvedTasks.length}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode('map')}
+          className={cn(
+            'flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer',
+            viewMode === 'map'
+              ? 'bg-[#004594] text-white shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          )}
+        >
+          <Map className="h-4 w-4" />
+          <span>🗺️ Mapa de Ruta</span>
+          {activeTasks.length > 0 && (
+            <span
+              className={cn(
+                'ml-1 px-1.5 py-0.2 rounded-full text-[10px] font-mono font-bold',
+                viewMode === 'map' ? 'bg-white/20 text-white' : 'bg-indigo-100 text-indigo-800'
+              )}
+            >
+              {activeTasks.length}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Alerta de Jornada no iniciada */}
       {(!activeWorkday || activeWorkday.status !== 'open') && (
         <div className="bg-gradient-to-r from-amber-500 to-orange-600 text-white p-4 rounded-3xl shadow-sm flex items-center justify-between gap-3 animate-fade-in">
@@ -685,59 +750,87 @@ export default function CourierTasksPage() {
         </div>
       )}
 
-      {/* 2. Barra de Búsqueda */}
-      <div className="relative">
-        <Input
-          placeholder="Buscar por cliente, título o dirección..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          leftIcon={<Search className="h-4 w-4 text-slate-400" />}
-          className="bg-white"
-        />
-      </div>
-
-      {/* 3. Píldoras de Filtro Rápido */}
-      <div className="flex items-center justify-between gap-2 pt-0.5">
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={cn(
-              'px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer',
-              statusFilter === 'all'
-                ? 'bg-[#004594] text-white shadow-2xs'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-            )}
-          >
-            Todas ({approvedTasks.length})
-          </button>
-          <button
-            onClick={() => setStatusFilter('pending')}
-            className={cn(
-              'px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer',
-              statusFilter === 'pending'
-                ? 'bg-amber-600 text-white shadow-2xs'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-            )}
-          >
-            Pendientes ({activeTasks.length})
-          </button>
-          <button
-            onClick={() => setStatusFilter('completed')}
-            className={cn(
-              'px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer',
-              statusFilter === 'completed'
-                ? 'bg-emerald-600 text-white shadow-2xs'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-            )}
-          >
-            Completadas ({completedTasks.length})
-          </button>
+      {/* MODO MAPA DE RUTA */}
+      {viewMode === 'map' ? (
+        <div className="space-y-3">
+          {isLoading ? (
+            <Skeleton className="h-[520px] rounded-2xl" />
+          ) : (
+            <CourierRouteMap
+              tasks={approvedTasks}
+              courierLocation={
+                lastPosition
+                  ? {
+                      latitude: lastPosition.latitude,
+                      longitude: lastPosition.longitude,
+                      heading: lastPosition.heading,
+                    }
+                  : null
+              }
+              onStartRoute={handleStartRoute}
+              onCancelRoute={handleCancelRoute}
+              onStartManagement={handleStartManagement}
+              onComplete={handleOpenCompleteModal}
+              isChangingStatus={isChangingStatus}
+            />
+          )}
         </div>
+      ) : (
+        /* MODO LISTA DE TAREAS */
+        <div className="space-y-4">
+          {/* 2. Barra de Búsqueda */}
+          <div className="relative">
+            <Input
+              placeholder="Buscar por cliente, título o dirección..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              leftIcon={<Search className="h-4 w-4 text-slate-400" />}
+              className="bg-white"
+            />
+          </div>
 
-        <span className="text-2xs font-bold text-slate-500 font-mono hidden sm:inline">
-          {activeTasks.length} en ruta
-        </span>
-      </div>
+          {/* 3. Píldoras de Filtro Rápido */}
+          <div className="flex items-center justify-between gap-2 pt-0.5">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => setStatusFilter('all')}
+                className={cn(
+                  'px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer',
+                  statusFilter === 'all'
+                    ? 'bg-[#004594] text-white shadow-2xs'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                )}
+              >
+                Todas ({approvedTasks.length})
+              </button>
+              <button
+                onClick={() => setStatusFilter('pending')}
+                className={cn(
+                  'px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer',
+                  statusFilter === 'pending'
+                    ? 'bg-amber-600 text-white shadow-2xs'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                )}
+              >
+                Pendientes ({activeTasks.length})
+              </button>
+              <button
+                onClick={() => setStatusFilter('completed')}
+                className={cn(
+                  'px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer',
+                  statusFilter === 'completed'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                )}
+              >
+                Completadas ({completedTasks.length})
+              </button>
+            </div>
+
+            <span className="text-2xs font-bold text-slate-500 font-mono hidden sm:inline">
+              {activeTasks.length} en ruta
+            </span>
+          </div>
 
       {/* 4. Lista Principal de Tareas */}
       {isLoading ? (
@@ -857,6 +950,8 @@ export default function CourierTasksPage() {
               </div>
             </div>
           )}
+        </div>
+      )}
         </div>
       )}
 
