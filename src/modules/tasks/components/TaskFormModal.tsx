@@ -22,6 +22,8 @@ import {
   Trash2,
   Eye,
   UploadCloud,
+  AlertTriangle,
+  AlertCircle,
 } from 'lucide-react'
 import { cn } from '@/shared/utils/cn'
 import { taskBaseSchema, type TaskBaseInput } from '@/shared/validations/schemas'
@@ -34,6 +36,7 @@ import { BusRouteCombobox } from '@/modules/buses/components/BusRouteCombobox'
 import type { BusRoute } from '@/modules/buses/types/buses.types'
 import { useCouriers } from '../hooks/useCouriers'
 import { uploadTaskReferenceImage } from '../services/tasksService'
+import { checkCourierShiftStatus, type CourierDailyShiftStatus } from '@/modules/workdays/services/workdaysService'
 import { getLocalDateString } from '@/shared/utils/date'
 
 interface TaskFormModalProps {
@@ -77,6 +80,8 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
   const previousTypeRef = useRef<TaskType>('delivery')
   const todayStr = getLocalDateString()
 
+  const isLocked = isEditing && (taskToEdit?.status === 'completed' || taskToEdit?.status === 'cancelled')
+
   const {
     register,
     handleSubmit,
@@ -115,6 +120,34 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
       notes: '',
     },
   })
+
+  const scheduledDate = watch('scheduled_date')
+  const assignedCourierId = watch('assigned_courier_id')
+  const [courierShiftStatus, setCourierShiftStatus] = useState<CourierDailyShiftStatus | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+    if (!assignedCourierId || !scheduledDate) {
+      setCourierShiftStatus(null)
+      return
+    }
+
+    // Para fechas futuras, no hay alerta de turno
+    if (scheduledDate > todayStr) {
+      setCourierShiftStatus(null)
+      return
+    }
+
+    checkCourierShiftStatus(assignedCourierId, scheduledDate)
+      .then((status) => {
+        if (isMounted) setCourierShiftStatus(status)
+      })
+      .catch((err) => console.warn('Error checking courier shift status:', err))
+
+    return () => {
+      isMounted = false
+    }
+  }, [assignedCourierId, scheduledDate, todayStr])
 
   const selectedTaskType = watch('task_type') || 'delivery'
   const config = TASK_TYPE_CONFIGS[selectedTaskType as TaskType] || TASK_TYPE_CONFIGS.delivery
@@ -410,6 +443,21 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
 
           {/* Form Body */}
           <form onSubmit={handleSubmit(onSubmit, onError)} className="space-y-5 overflow-y-auto pr-1 flex-1">
+            {/* Banner de protección contra edición para tareas completadas/canceladas */}
+            {isLocked && (
+              <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-start gap-3 text-xs text-amber-900 dark:text-amber-200 animate-fade-in">
+                <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold">
+                    Tarea {taskToEdit?.status === 'completed' ? 'Completada' : 'Cancelada'} — Edición Protegida
+                  </p>
+                  <p className="text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
+                    La fecha, el motorizado y los movimientos de caja están bloqueados para proteger el arqueo y la auditoría. Si requieres mover una entrega a otra fecha, utiliza el botón <strong className="font-semibold">Reprogramar</strong>.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Selector de Tipo y Título Sugerido */}
             <div className="space-y-4 bg-muted/20 p-4 rounded-xl border border-border/50">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -723,8 +771,9 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                   </label>
                   <input
                     type="date"
+                    disabled={isLocked}
                     {...register('scheduled_date')}
-                    className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground font-medium"
+                    className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground font-medium disabled:opacity-60 disabled:bg-muted/40"
                   />
                   {errors.scheduled_date && (
                     <p className="text-[11px] text-destructive mt-1">{errors.scheduled_date.message}</p>
@@ -736,8 +785,9 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                     Motorizado asignado (Opcional)
                   </label>
                   <select
+                    disabled={isLocked}
                     {...register('assigned_courier_id')}
-                    className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground font-medium"
+                    className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground font-medium disabled:opacity-60 disabled:bg-muted/40"
                   >
                     <option value="">-- Sin asignar --</option>
                     {couriers.map((courier) => (
@@ -748,6 +798,14 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                   </select>
                 </div>
               </div>
+
+              {/* Advertencia contextual si el motorizado ya liquidó su jornada de hoy */}
+              {courierShiftStatus && courierShiftStatus.warning_message && (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200 animate-fade-in">
+                  <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span className="leading-relaxed">{courierShiftStatus.warning_message}</span>
+                </div>
+              )}
             </div>
 
             {/* Sección Movimientos Financieros Previstos */}
@@ -767,9 +825,11 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                 {/* 1. Sin Dinero */}
                 <button
                   type="button"
+                  disabled={isLocked}
                   onClick={() => handleFinancialModeChange('none')}
                   className={cn(
-                    'flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer relative',
+                    'flex flex-col items-start p-3 rounded-xl border text-left transition-all relative',
+                    isLocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer',
                     financialMode === 'none'
                       ? 'bg-slate-900 text-white border-slate-900 shadow-sm ring-2 ring-slate-900/20'
                       : 'bg-background text-foreground border-border hover:bg-muted/40'
@@ -790,9 +850,11 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                 {/* 2. Ingreso (Entrada a Caja) */}
                 <button
                   type="button"
+                  disabled={isLocked}
                   onClick={() => handleFinancialModeChange('income')}
                   className={cn(
-                    'flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer relative',
+                    'flex flex-col items-start p-3 rounded-xl border text-left transition-all relative',
+                    isLocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer',
                     financialMode === 'income'
                       ? 'bg-emerald-50 text-emerald-950 border-emerald-500 shadow-sm ring-2 ring-emerald-500/20'
                       : 'bg-background text-foreground border-border hover:bg-emerald-50/40'
@@ -813,9 +875,11 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                 {/* 3. Egreso (Salida / Pago) */}
                 <button
                   type="button"
+                  disabled={isLocked}
                   onClick={() => handleFinancialModeChange('expense')}
                   className={cn(
-                    'flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer relative',
+                    'flex flex-col items-start p-3 rounded-xl border text-left transition-all relative',
+                    isLocked ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer',
                     financialMode === 'expense'
                       ? 'bg-rose-50 text-rose-950 border-rose-500 shadow-sm ring-2 ring-rose-500/20'
                       : 'bg-background text-foreground border-border hover:bg-rose-50/40'
@@ -854,8 +918,9 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                         type="number"
                         step="0.01"
                         placeholder="0.00"
+                        disabled={isLocked}
                         {...register('expected_collection_amount', { valueAsNumber: true })}
-                        className="w-full px-3 py-1.5 text-sm bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/40 text-slate-900 font-bold"
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/40 text-slate-900 font-bold disabled:opacity-60 disabled:bg-slate-100"
                       />
                       {errors.expected_collection_amount && (
                         <p className="text-[11px] text-destructive mt-1 font-semibold">
@@ -869,8 +934,9 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                         Moneda *
                       </label>
                       <select
+                        disabled={isLocked}
                         {...register('expected_collection_currency')}
-                        className="w-full px-3 py-1.5 text-sm bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/40 text-slate-900 font-semibold"
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-emerald-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/40 text-slate-900 font-semibold disabled:opacity-60 disabled:bg-slate-100"
                       >
                         <option value="NIO">Córdobas (C$)</option>
                         <option value="USD">Dólares (US$)</option>
@@ -900,8 +966,9 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                         type="number"
                         step="0.01"
                         placeholder="0.00"
+                        disabled={isLocked}
                         {...register('expected_payment_amount', { valueAsNumber: true })}
-                        className="w-full px-3 py-1.5 text-sm bg-white border border-rose-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500/40 text-slate-900 font-bold"
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-rose-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500/40 text-slate-900 font-bold disabled:opacity-60 disabled:bg-slate-100"
                       />
                       {errors.expected_payment_amount && (
                         <p className="text-[11px] text-destructive mt-1 font-semibold">
@@ -915,8 +982,9 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                         Moneda *
                       </label>
                       <select
+                        disabled={isLocked}
                         {...register('expected_payment_currency')}
-                        className="w-full px-3 py-1.5 text-sm bg-white border border-rose-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500/40 text-slate-900 font-semibold"
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-rose-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500/40 text-slate-900 font-semibold disabled:opacity-60 disabled:bg-slate-100"
                       >
                         <option value="NIO">Córdobas (C$)</option>
                         <option value="USD">Dólares (US$)</option>
@@ -928,8 +996,9 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                         Forma de Pago
                       </label>
                       <select
+                        disabled={isLocked}
                         {...register('expected_payment_method')}
-                        className="w-full px-3 py-1.5 text-sm bg-white border border-rose-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500/40 text-slate-900 font-semibold"
+                        className="w-full px-3 py-1.5 text-sm bg-white border border-rose-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500/40 text-slate-900 font-semibold disabled:opacity-60 disabled:bg-slate-100"
                       >
                         <option value="cash">Efectivo en Mano</option>
                         <option value="bank_transfer">Transferencia Bancaria</option>

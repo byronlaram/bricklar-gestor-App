@@ -39,6 +39,7 @@ export function StartWorkdayModal({ branchId, isOpen, onClose }: StartWorkdayMod
   const [notes, setNotes] = useState<string>('')
 
   const [preAssignedCash, setPreAssignedCash] = useState<number>(0)
+  const [shiftNumber, setShiftNumber] = useState<number>(1)
   const [validationError, setValidationError] = useState<string | null>(null)
 
   // Cargar configuración de kilometraje y fondo asignado al abrir
@@ -54,15 +55,21 @@ export function StartWorkdayModal({ branchId, isOpen, onClose }: StartWorkdayMod
 
         if (user?.id) {
           const todayStr = getLocalDateString()
-          const { data: wd } = await supabase
+          const { data: todayWorkdays } = await supabase
             .from('workdays')
-            .select('initial_cash')
+            .select('id, initial_cash, status')
             .eq('courier_id', user.id)
             .eq('work_date', todayStr)
-            .maybeSingle()
+            .order('created_at', { ascending: false })
 
-          if (wd && wd.initial_cash > 0) {
-            setPreAssignedCash(wd.initial_cash)
+          const list = todayWorkdays || []
+          const closedCount = list.filter((w) => w.status === 'closed' || w.status === 'pending_settlement').length
+          const currentShift = closedCount + 1
+          setShiftNumber(currentShift)
+
+          const pendingWd = list.find((w) => w.status === 'pending' || (!w.status && (w.initial_cash || 0) > 0))
+          if (pendingWd && (pendingWd.initial_cash || 0) > 0) {
+            setPreAssignedCash(pendingWd.initial_cash || 0)
           } else {
             setPreAssignedCash(0)
           }
@@ -156,8 +163,21 @@ export function StartWorkdayModal({ branchId, isOpen, onClose }: StartWorkdayMod
             <Play className="h-6 w-6" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-foreground">Iniciar Jornada Laboral</h2>
-            <p className="text-xs text-foreground-muted">Registra los datos de inicio para comenzar tus entregas.</p>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-bold text-foreground">
+                {shiftNumber > 1 ? `Iniciar Turno Extraordinario #${shiftNumber}` : 'Iniciar Jornada Laboral'}
+              </h2>
+              {shiftNumber > 1 && (
+                <span className="px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 rounded-full border border-amber-200 dark:border-amber-800">
+                  Extra
+                </span>
+              )}
+            </div>
+            <p className="text-xs text-foreground-muted">
+              {shiftNumber > 1
+                ? 'Registra los datos para este nuevo turno de hoy tras haber liquidado el turno anterior.'
+                : 'Registra los datos de inicio para comenzar tus entregas.'}
+            </p>
           </div>
         </div>
 

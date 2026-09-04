@@ -102,16 +102,19 @@ export async function startWorkday(payload: StartWorkdayPayload): Promise<Workda
 
   const todayStr = getLocalDateString()
 
-  // Verificar si ya existe un registro de jornada para hoy (ej. fondo asignado previamente por admin)
-  const { data: existingRow } = await supabase
+  // Verificar si ya existen registros de jornada para hoy
+  const { data: existingRows } = await supabase
     .from('workdays')
-    .select('id, initial_cash')
+    .select('id, initial_cash, status')
     .eq('courier_id', userId)
     .eq('work_date', todayStr)
-    .maybeSingle()
+    .order('created_at', { ascending: false })
 
-  const finalInitialCash = existingRow && existingRow.initial_cash > 0
-    ? existingRow.initial_cash
+  // Solo reutilizamos una fila existente si está pendiente de apertura (ej. fondo precargado por admin)
+  const pendingRow = (existingRows || []).find((r) => r.status === 'pending' || (!r.status && (r.initial_cash || 0) > 0))
+
+  const finalInitialCash = pendingRow && pendingRow.initial_cash > 0
+    ? pendingRow.initial_cash
     : (payload.initial_cash ?? 0)
 
   let combinedNotes = payload.notes || ''
@@ -120,9 +123,19 @@ export async function startWorkday(payload: StartWorkdayPayload): Promise<Workda
     combinedNotes = combinedNotes ? `${kmNote} | ${combinedNotes}` : kmNote
   }
 
+  // Detectar si es una 2da jornada extraordinaria (si ya existen jornadas cerradas o liquidadas hoy)
+  const previousCompletedCount = (existingRows || []).filter(
+    (r) => r.status === 'closed' || r.status === 'pending_settlement'
+  ).length
+
+  if (previousCompletedCount > 0) {
+    const shiftTag = `[Turno Extraordinario #${previousCompletedCount + 1}]`
+    combinedNotes = combinedNotes ? `${shiftTag} ${combinedNotes}` : shiftTag
+  }
+
   let resultData: Workday
 
-  if (existingRow) {
+  if (pendingRow) {
     const { data, error } = await supabase
       .from('workdays')
       .update({
@@ -133,7 +146,7 @@ export async function startWorkday(payload: StartWorkdayPayload): Promise<Workda
         notes: combinedNotes || null,
         opened_by: userId,
       })
-      .eq('id', existingRow.id)
+      .eq('id', pendingRow.id)
       .select(WORKDAY_SELECT)
       .single()
 
@@ -442,3 +455,82 @@ export async function voidCashMovement(payload: VoidCashMovementPayload): Promis
     console.warn('[Audit] Error logging void event:', auditErr)
   }
 }
+
+// ─── checkCourierShiftStatus ──────────────────────────────────────────────────
+// Evalúa el estado del turno y liquidación de un motorizado para una fecha específica.
+// Si la fecha es futura, se permite asignar libremente sin restricciones.
+
+export interface CourierDailyShiftStatus {
+  courier_id: string
+  date: string
+  has_open_workday: boolean
+  has_pending_settlement: boolean
+  has_closed_workday: boolean
+  workdays_count: number
+  can_assign_safely: boolean
+  warning_message?: string
+}
+
+export async function checkCourierShiftStatus(courierId: string, date: string): Promise<CourierDailyShiftStatus> {
+  const todayStr = getLocalDateString()
+
+  // 1. Fechas futuras: Total libertad de asignación previa
+  if (date > todayStr) {
+    return {
+      courier_id: courierId,
+      date,
+      has_open_workday: false,
+      has_pending_settlement: false,
+      has_closed_workday: false,
+      workdays_count: 0,
+      can_assign_safely: true,
+    }
+  }
+
+  // 2. Fecha de hoy o pasada: Consultar jornadas del motorizado
+  const { data: workdays, error } = await supabase
+    .from('workdays')
+    .select('id, status, work_date, created_at')
+    .eq('courier_id', courierId)
+    .eq('work_date', date)
+    .order('created_at', { ascending: false })
+
+  if (error) {
+    console.warn('[Workdays] Error in checkCourierShiftStatus:', error)
+    return {
+      courier_id: courierId,
+      date,
+      has_open_workday: false,
+      has_pending_settlement: false,
+      has_closed_workday: false,
+      workdays_count: 0,
+      can_assign_safely: true,
+    }
+  }
+
+  const list = workdays || []
+  const hasOpen = list.some((w) => w.status === 'open')
+  const hasPendingSettlement = list.some((w) => w.status === 'pending_settlement')
+  const hasClosed = list.some((w) => w.status === 'closed')
+
+  let warningMessage: string | undefined
+  if (!hasOpen) {
+    if (hasPendingSettlement) {
+      warningMessage = 'Este motorizado ya envió su liquidación a revisión para hoy. Si le asignas una tarea extraordinaria, se requerirá rechazar la liquidación o abrir una 2da jornada (turno extra).'
+    } else if (hasClosed) {
+      warningMessage = 'Este motorizado ya cerró y liquidó su jornada de hoy. Si sale a realizar esta tarea, deberá iniciar una 2da jornada extraordinaria en su app.'
+    }
+  }
+
+  return {
+    courier_id: courierId,
+    date,
+    has_open_workday: hasOpen,
+    has_pending_settlement: hasPendingSettlement,
+    has_closed_workday: hasClosed,
+    workdays_count: list.length,
+    can_assign_safely: hasOpen || (!hasPendingSettlement && !hasClosed),
+    warning_message: warningMessage,
+  }
+}
+

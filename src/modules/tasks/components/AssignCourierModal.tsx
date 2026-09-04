@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
-import { UserPlus, UserX, Loader2 } from 'lucide-react'
+import { UserPlus, UserX, Loader2, AlertCircle } from 'lucide-react'
 import type { TaskWithCourier } from '../types/task.types'
 import { useCouriers } from '../hooks/useCouriers'
 import { useTaskMutations } from '../hooks/useTaskMutations'
+import { checkCourierShiftStatus, type CourierDailyShiftStatus } from '@/modules/workdays/services/workdaysService'
+import { getLocalDateString } from '@/shared/utils/date'
 import {
   Modal,
   ModalContent,
@@ -23,9 +25,11 @@ interface AssignCourierModalProps {
 export function AssignCourierModal({ task, isOpen, onClose }: AssignCourierModalProps) {
   const [selectedCourierId, setSelectedCourierId] = useState<string>('')
   const [reason, setReason] = useState<string>('')
+  const [courierShiftStatus, setCourierShiftStatus] = useState<CourierDailyShiftStatus | null>(null)
 
   const { data: couriers = [], isLoading: isLoadingCouriers } = useCouriers(task?.branch_id)
   const { assignTask, isAssigning } = useTaskMutations()
+  const todayStr = getLocalDateString()
 
   useEffect(() => {
     if (task) {
@@ -33,6 +37,30 @@ export function AssignCourierModal({ task, isOpen, onClose }: AssignCourierModal
       setReason('')
     }
   }, [task])
+
+  useEffect(() => {
+    let isMounted = true
+    if (!selectedCourierId || !task?.scheduled_date) {
+      setCourierShiftStatus(null)
+      return
+    }
+
+    // Fechas futuras: Total libertad sin advertencias
+    if (task.scheduled_date > todayStr) {
+      setCourierShiftStatus(null)
+      return
+    }
+
+    checkCourierShiftStatus(selectedCourierId, task.scheduled_date)
+      .then((status) => {
+        if (isMounted) setCourierShiftStatus(status)
+      })
+      .catch((err) => console.warn('Error checking courier shift status:', err))
+
+    return () => {
+      isMounted = false
+    }
+  }, [selectedCourierId, task?.scheduled_date, todayStr])
 
   if (!task) return null
 
@@ -86,6 +114,14 @@ export function AssignCourierModal({ task, isOpen, onClose }: AssignCourierModal
                 </select>
               )}
             </div>
+
+            {/* Advertencia contextual si el motorizado ya liquidó su jornada de hoy */}
+            {courierShiftStatus && courierShiftStatus.warning_message && (
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 dark:text-amber-200 animate-fade-in">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <span className="leading-relaxed">{courierShiftStatus.warning_message}</span>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <label className="block text-xs font-semibold text-slate-700">
