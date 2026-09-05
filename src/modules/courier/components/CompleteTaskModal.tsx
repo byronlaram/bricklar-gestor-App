@@ -13,12 +13,23 @@ import {
   Camera,
   Image as ImageIcon,
   Trash2,
+  ShieldCheck,
+  ShieldAlert,
+  MapPin,
 } from 'lucide-react'
 import type { TaskWithCourier, TaskPaymentBreakdown } from '@/modules/tasks/types/task.types'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
 import { uploadTaskEvidence } from '@/modules/tasks/services/tasksService'
 import type { PaymentMethod } from '@/shared/types'
 import { useToast } from '@/shared/components/ui'
+import {
+  getDeviceCurrentPosition,
+  buildDeliveryVerification,
+  formatGeoDistance,
+  STANDARD_GEOFENCE_RADIUS_METERS,
+  type GeoCoordinates,
+  type DeliveryGeoVerification,
+} from '@/shared/utils/geoHelper'
 
 interface CompleteTaskModalProps {
   task: TaskWithCourier | null
@@ -77,6 +88,37 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
   const [isUploadingEvidence, setIsUploadingEvidence] = useState(false)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
+
+  // ─── Estados para Geolocalización GPS Antifraude ───
+  const [courierLocation, setCourierLocation] = useState<GeoCoordinates | null>(null)
+  const [isFetchingGps, setIsFetchingGps] = useState(false)
+  const [gpsError, setGpsError] = useState<string | null>(null)
+
+  const fetchGpsLocation = async () => {
+    setIsFetchingGps(true)
+    setGpsError(null)
+    try {
+      const coords = await getDeviceCurrentPosition(6000)
+      if (coords) {
+        setCourierLocation(coords)
+      } else {
+        setGpsError('No se pudo obtener señal GPS')
+      }
+    } catch {
+      setGpsError('Error al obtener GPS')
+    } finally {
+      setIsFetchingGps(false)
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchGpsLocation()
+    } else {
+      setCourierLocation(null)
+      setGpsError(null)
+    }
+  }, [isOpen])
 
   // Inicializar valores al abrir
   useEffect(() => {
@@ -154,6 +196,15 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
     return cash + transfer + cheque
   }, [mixedCash, mixedTransfer, mixedCheque])
 
+  // Verificación de geocerca en tiempo real
+  const geoVerification: DeliveryGeoVerification | null = useMemo(() => {
+    if (!task) return null
+    return buildDeliveryVerification(
+      courierLocation,
+      { latitude: task.latitude, longitude: task.longitude }
+    )
+  }, [courierLocation, task])
+
   // Cálculo de discrepancias
   const expectedPayment = task?.expected_payment_amount ?? 0
   const actualPaymentNum = typeof actualPaidAmount === 'number' ? actualPaidAmount : 0
@@ -201,6 +252,23 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
           setIsUploadingEvidence(false)
         }
       }
+
+      // Obtener o asegurar coordenadas satelitales al momento exacto de finalizar
+      let finalCoords = courierLocation
+      if (!finalCoords && typeof navigator !== 'undefined' && navigator.geolocation) {
+        try {
+          finalCoords = await getDeviceCurrentPosition(2500)
+        } catch {
+          // Ignorar error de GPS fallback
+        }
+      }
+
+      const finalGeoVerification = buildDeliveryVerification(
+        finalCoords,
+        { latitude: task.latitude, longitude: task.longitude }
+      )
+
+      const existingMetadata = (task.metadata || {}) as Record<string, unknown>
 
       if (outcome === 'completed') {
         const paymentBreakdown: TaskPaymentBreakdown = {}
@@ -339,26 +407,30 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
           notes: finalNotes,
           payment_breakdown: paymentBreakdown,
           evidence_url: uploadedEvidenceUrl || undefined,
+          metadata: {
+            ...existingMetadata,
+            delivery_verification: finalGeoVerification,
+          },
         })
 
         toast.success(
           'Tarea Finalizada',
-          `La tarea ${task.code} se completó con éxito.${uploadedEvidenceUrl ? ' Foto de comprobante guardada.' : ''}`
+          `La tarea ${task.code} se completó con éxito.${uploadedEvidenceUrl ? ' Foto de comprobante guardada.' : ''}${finalGeoVerification.is_within_geofence ? ' Geoverificada ✓' : ''}`
         )
       } else if (outcome === 'retry_today') {
-        const metadata = (task.metadata || {}) as Record<string, unknown>
-        const currentRetries = (typeof metadata.retry_count === 'number' ? metadata.retry_count : 0) + 1
+        const currentRetries = (typeof existingMetadata.retry_count === 'number' ? existingMetadata.retry_count : 0) + 1
 
         await changeStatus({
           task_id: task.id,
           new_status: 'assigned',
           notes: `Reintento hoy (${currentRetries}° intento): ${retryReason}${notes.trim() ? ` - Obs: ${notes.trim()}` : ''}`,
           metadata: {
-            ...metadata,
+            ...existingMetadata,
             retry_count: currentRetries,
             last_retry_reason: retryReason,
             last_retry_notes: notes.trim(),
             last_retry_at: new Date().toISOString(),
+            last_geo_verification: finalGeoVerification,
           },
         })
 
@@ -372,6 +444,10 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
           new_status: 'not_completed',
           notes: `Motivo: ${failureReason}. ${notes.trim()}`,
           evidence_url: uploadedEvidenceUrl || undefined,
+          metadata: {
+            ...existingMetadata,
+            failure_geo_verification: finalGeoVerification,
+          },
         })
         toast.warning(
           'Incidencia Registrada',
@@ -382,6 +458,82 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
     } catch (err: unknown) {
       toast.error('Error al actualizar tarea', (err as Error)?.message || 'No se pudo guardar el resultado.')
     }
+  }
+
+  // Subcomponente de Verificación Geográfica Antifraude (Geocerca)
+  const renderGeoVerificationSection = () => {
+    if (outcome !== 'completed') return null
+
+    const hasDestinationCoords =
+      task &&
+      typeof task.latitude === 'number' &&
+      typeof task.longitude === 'number'
+
+    return (
+      <div className="p-3.5 bg-slate-50 border border-slate-200/90 rounded-2xl space-y-2 shadow-2xs">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+            {geoVerification?.is_within_geofence ? (
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+            ) : isFetchingGps ? (
+              <Loader2 className="h-4 w-4 text-indigo-600 animate-spin" />
+            ) : (
+              <MapPin className="h-4 w-4 text-slate-600" />
+            )}
+            <span>Verificación de Geocerca (GPS)</span>
+          </label>
+
+          <button
+            type="button"
+            onClick={fetchGpsLocation}
+            disabled={isFetchingGps}
+            className="text-2xs font-bold text-indigo-600 hover:text-indigo-800 transition cursor-pointer disabled:opacity-50"
+          >
+            {isFetchingGps ? 'Localizando...' : 'Actualizar GPS'}
+          </button>
+        </div>
+
+        {isFetchingGps ? (
+          <div className="flex items-center gap-2 p-2 bg-indigo-50/70 border border-indigo-200 rounded-xl text-2xs text-indigo-900 font-medium">
+            <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-600 shrink-0" />
+            <span>Adquiriendo coordenadas satelitales en tiempo real...</span>
+          </div>
+        ) : courierLocation && hasDestinationCoords ? (
+          geoVerification?.is_within_geofence ? (
+            <div className="flex items-center justify-between p-2.5 bg-emerald-100/75 border border-emerald-300 rounded-xl text-emerald-950">
+              <div className="flex items-center gap-1.5 text-2xs font-bold">
+                <ShieldCheck className="h-4 w-4 text-emerald-700 shrink-0" />
+                <span>Geoverificado en Sitio ✓</span>
+              </div>
+              <span className="text-2xs font-mono font-extrabold bg-emerald-200/90 text-emerald-900 px-2 py-0.5 rounded-md">
+                A {formatGeoDistance(geoVerification?.distance_meters)} del destino
+              </span>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between p-2.5 bg-amber-50 border border-amber-300 rounded-xl text-amber-950">
+              <div className="flex items-center gap-1.5 text-2xs font-bold">
+                <ShieldAlert className="h-4 w-4 text-amber-700 shrink-0" />
+                <span>GPS fuera de radio habitual (&gt;{STANDARD_GEOFENCE_RADIUS_METERS}m)</span>
+              </div>
+              <span className="text-2xs font-mono font-extrabold bg-amber-200/90 text-amber-900 px-2 py-0.5 rounded-md">
+                A {formatGeoDistance(geoVerification?.distance_meters)}
+              </span>
+            </div>
+          )
+        ) : courierLocation ? (
+          <div className="flex items-center justify-between p-2 bg-slate-100 border border-slate-200 rounded-xl text-slate-700">
+            <span className="text-2xs font-medium">Coordenadas del dispositivo capturadas</span>
+            <span className="text-2xs font-mono font-bold text-slate-800">
+              {courierLocation.latitude.toFixed(4)}, {courierLocation.longitude.toFixed(4)}
+            </span>
+          </div>
+        ) : (
+          <div className="p-2 bg-slate-100/80 border border-slate-200 rounded-xl text-2xs text-slate-500 font-medium">
+            {gpsError || 'GPS no disponible (la entrega se registrará sin geocerca).'}
+          </div>
+        )}
+      </div>
+    )
   }
 
   // Subcomponente de Foto de Comprobante / POD
@@ -964,6 +1116,9 @@ export function CompleteTaskModal({ task, isOpen, onClose }: CompleteTaskModalPr
 
               {/* ─── 📸 FOTO DE COMPROBANTE / PRUEBA DE ENTREGA ─── */}
               {renderPhotoSection()}
+
+              {/* ─── 🛡️ VERIFICACIÓN DE GEOCERCA GPS ─── */}
+              {renderGeoVerificationSection()}
 
               {/* Notas de Entrega */}
               <div>

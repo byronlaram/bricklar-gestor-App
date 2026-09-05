@@ -19,6 +19,9 @@ import {
   Eye,
   CalendarClock,
   CheckCircle2,
+  ShieldCheck,
+  ShieldAlert,
+  Navigation,
 } from 'lucide-react'
 import { useTask } from '@/modules/tasks/hooks/useTask'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
@@ -43,6 +46,7 @@ import {
   useToast,
 } from '@/shared/components/ui'
 import { formatDate } from '@/shared/utils/format'
+import { formatGeoDistance, type DeliveryGeoVerification } from '@/shared/utils/geoHelper'
 
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -66,10 +70,12 @@ export default function TaskDetailPage() {
     reference_photos?: string[]
     delivery_proof_url?: string
     delivery_proof_captured_at?: string
+    delivery_verification?: DeliveryGeoVerification
   } | null
 
   const referencePhotos = Array.isArray(metadata?.reference_photos) ? metadata.reference_photos : []
   const deliveryProofPhoto = task?.evidence_url || metadata?.delivery_proof_url || null
+  const geoVerification = metadata?.delivery_verification || null
 
   const openReferenceViewer = (idx: number) => {
     setViewerImages(referencePhotos)
@@ -161,6 +167,19 @@ export default function TaskDetailPage() {
               {task.code}
             </span>
             <TaskStatusBadge status={task.status} />
+            {geoVerification?.verified && (
+              geoVerification.is_within_geofence ? (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-300 font-extrabold text-xs shadow-2xs">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-700" />
+                  Geoverificada ({formatGeoDistance(geoVerification.distance_meters)})
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-amber-50 text-amber-900 border border-amber-300 font-bold text-xs shadow-2xs">
+                  <ShieldAlert className="h-3.5 w-3.5 text-amber-700" />
+                  GPS a {formatGeoDistance(geoVerification.distance_meters)}
+                </span>
+              )
+            )}
             <TaskPriorityBadge priority={task.priority} />
             <TaskTypeBadge type={task.task_type} />
           </div>
@@ -430,6 +449,92 @@ export default function TaskDetailPage() {
                   </div>
                 </button>
               </div>
+            </Card>
+          )}
+
+          {/* 🛡️ Auditoría de Geoverificación Satelital Antifraude (Admin) */}
+          {geoVerification?.verified && (
+            <Card className={`p-6 rounded-2xl shadow-2xs space-y-4 border ${
+              geoVerification.is_within_geofence
+                ? 'bg-emerald-50/70 border-emerald-200/90'
+                : 'bg-amber-50/70 border-amber-200/90'
+            }`}>
+              <div className="flex items-center justify-between border-b border-slate-200/60 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 rounded-xl text-white shadow-2xs ${
+                    geoVerification.is_within_geofence ? 'bg-emerald-600' : 'bg-amber-600'
+                  }`}>
+                    {geoVerification.is_within_geofence ? (
+                      <ShieldCheck className="h-4 w-4" />
+                    ) : (
+                      <ShieldAlert className="h-4 w-4" />
+                    )}
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-900">
+                      {geoVerification.is_within_geofence
+                        ? 'Auditoría Antifraude: Entrega Geoverificada en Sitio ✓'
+                        : 'Auditoría Antifraude: Registro GPS Fuera de Radio'}
+                    </h2>
+                    <p className="text-xs text-slate-600">
+                      Coordenadas capturadas satelitalmente al momento de finalizar la tarea.
+                    </p>
+                  </div>
+                </div>
+
+                <span className={`text-xs font-extrabold px-3 py-1 rounded-full border ${
+                  geoVerification.is_within_geofence
+                    ? 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                    : 'bg-amber-100 text-amber-900 border-amber-300'
+                }`}>
+                  {geoVerification.is_within_geofence ? 'Geocerca Válida' : 'Alerta Geocerca'}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                <div className="p-3 bg-white/90 rounded-xl border border-slate-200/80">
+                  <span className="text-2xs font-bold text-slate-400 uppercase tracking-wider block">
+                    Distancia al Destino
+                  </span>
+                  <p className="text-base font-mono font-black text-slate-900 mt-0.5">
+                    {formatGeoDistance(geoVerification.distance_meters)}
+                  </p>
+                </div>
+
+                <div className="p-3 bg-white/90 rounded-xl border border-slate-200/80">
+                  <span className="text-2xs font-bold text-slate-400 uppercase tracking-wider block">
+                    GPS Repartidor
+                  </span>
+                  <p className="text-xs font-mono font-bold text-slate-800 mt-0.5 truncate">
+                    {geoVerification.courier_lat?.toFixed(5)}, {geoVerification.courier_lng?.toFixed(5)}
+                  </p>
+                </div>
+
+                <div className="p-3 bg-white/90 rounded-xl border border-slate-200/80">
+                  <span className="text-2xs font-bold text-slate-400 uppercase tracking-wider block">
+                    Hora de Captura
+                  </span>
+                  <p className="text-xs font-mono font-bold text-slate-800 mt-0.5">
+                    {geoVerification.captured_at
+                      ? new Date(geoVerification.captured_at).toLocaleTimeString()
+                      : 'No registrada'}
+                  </p>
+                </div>
+              </div>
+
+              {geoVerification.courier_lat && geoVerification.courier_lng && (
+                <div className="pt-1">
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${geoVerification.courier_lat},${geoVerification.courier_lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-700 hover:underline bg-white px-3 py-1.5 rounded-lg border border-indigo-200 shadow-2xs"
+                  >
+                    <Navigation className="h-3.5 w-3.5 text-indigo-600" />
+                    Ver ubicación exacta de la entrega en Google Maps
+                  </a>
+                </div>
+              )}
             </Card>
           )}
 
