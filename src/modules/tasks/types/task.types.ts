@@ -11,6 +11,13 @@ import type {
 export type ApprovalStatus = 'approved' | 'pending' | 'rejected'
 export type CreationOrigin = 'admin' | 'courier_created'
 
+export interface CustomerFeedback {
+  rating: number // 1 to 5
+  comment?: string | null
+  tags?: string[]
+  submitted_at: string
+}
+
 // ─── Entidad principal: Task ──────────────────────────────────────────────────
 
 export interface Task {

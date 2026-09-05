@@ -22,9 +22,11 @@ import {
   ShieldCheck,
   ShieldAlert,
   Navigation,
+  Star,
 } from 'lucide-react'
 import { useTask } from '@/modules/tasks/hooks/useTask'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
+import type { CustomerFeedback } from '@/modules/tasks/types/task.types'
 import { TaskStatusBadge } from '@/modules/tasks/components/TaskStatusBadge'
 import { TaskPriorityBadge } from '@/modules/tasks/components/TaskPriorityBadge'
 import { TaskTypeBadge } from '@/modules/tasks/components/TaskTypeBadge'
@@ -71,11 +73,13 @@ export default function TaskDetailPage() {
     delivery_proof_url?: string
     delivery_proof_captured_at?: string
     delivery_verification?: DeliveryGeoVerification
+    customer_feedback?: CustomerFeedback
   } | null
 
   const referencePhotos = Array.isArray(metadata?.reference_photos) ? metadata.reference_photos : []
   const deliveryProofPhoto = task?.evidence_url || metadata?.delivery_proof_url || null
   const geoVerification = metadata?.delivery_verification || null
+  const customerFeedback = metadata?.customer_feedback || null
 
   const openReferenceViewer = (idx: number) => {
     setViewerImages(referencePhotos)
@@ -713,6 +717,59 @@ export default function TaskDetailPage() {
               </div>
             )}
           </Card>
+
+          {/* Card Calificación del Cliente */}
+          {customerFeedback && (
+            <Card className="p-5 bg-white border-amber-200/80 shadow-2xs space-y-3.5 bg-gradient-to-br from-amber-50/40 to-white">
+              <div className="flex items-center justify-between border-b border-amber-100 pb-2.5">
+                <div className="flex items-center gap-1.5">
+                  <Star className="h-4 w-4 text-amber-500 fill-amber-500" />
+                  <h3 className="text-xs font-black uppercase tracking-wider text-amber-950">
+                    Calificación del Cliente
+                  </h3>
+                </div>
+                <span className="text-2xs font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 font-mono">
+                  {customerFeedback.rating} / 5 ⭐
+                </span>
+              </div>
+
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((s) => (
+                  <Star
+                    key={s}
+                    className={`h-5 w-5 ${
+                      s <= customerFeedback.rating
+                        ? 'text-amber-400 fill-amber-400'
+                        : 'text-slate-200'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              {customerFeedback.tags && customerFeedback.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {customerFeedback.tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="px-2.5 py-0.5 rounded-full text-2xs font-bold bg-white text-slate-800 border border-amber-200 shadow-2xs"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              {customerFeedback.comment && (
+                <p className="text-xs text-slate-700 bg-white/90 p-3 rounded-xl border border-amber-200/70 italic leading-relaxed">
+                  "{customerFeedback.comment}"
+                </p>
+              )}
+
+              <span className="text-3xs text-slate-400 block pt-1">
+                Registrado el {formatDate(customerFeedback.submitted_at)}
+              </span>
+            </Card>
+          )}
 
           {/* Componente Historial */}
           <TaskHistoryPanel history={history} assignments={assignments} />

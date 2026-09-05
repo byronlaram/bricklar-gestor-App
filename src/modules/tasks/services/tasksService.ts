@@ -1291,4 +1291,57 @@ export async function getPublicTaskTracking(
   }
 }
 
+export async function submitTaskCustomerFeedback(
+  taskCodeOrId: string,
+  feedback: {
+    rating: number
+    comment?: string
+    tags?: string[]
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskCodeOrId)
+
+    // 1. Obtener la metadata actual
+    let query = supabase.from('tasks').select('id, status, metadata')
+    if (isUuid) {
+      query = query.eq('id', taskCodeOrId)
+    } else {
+      query = query.ilike('code', taskCodeOrId.trim())
+    }
+
+    const { data: task, error: fetchErr } = await query.maybeSingle()
+    if (fetchErr || !task) {
+      return { success: false, error: 'No se encontró la entrega para calificar.' }
+    }
+
+    const currentMetadata = (task.metadata as Record<string, any>) || {}
+    const updatedMetadata = {
+      ...currentMetadata,
+      customer_feedback: {
+        rating: Math.min(5, Math.max(1, feedback.rating)),
+        comment: feedback.comment?.trim() || null,
+        tags: feedback.tags || [],
+        submitted_at: new Date().toISOString(),
+      },
+    }
+
+    // 2. Guardar en Supabase
+    const { error: updateErr } = await supabase
+      .from('tasks')
+      .update({ metadata: updatedMetadata })
+      .eq('id', task.id)
+
+    if (updateErr) {
+      console.error('[PublicTracking] Error updating feedback:', updateErr)
+      return { success: false, error: 'Error al registrar la calificación.' }
+    }
+
+    return { success: true }
+  } catch (err: any) {
+    console.error('[PublicTracking] Unexpected error submitting feedback:', err)
+    return { success: false, error: err?.message || 'Error inesperado.' }
+  }
+}
+
 

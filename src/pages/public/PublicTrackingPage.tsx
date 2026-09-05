@@ -18,9 +18,12 @@ import {
   BellRing,
   ShieldCheck,
   Radio,
+  Star,
+  Send,
+  Sparkles,
 } from 'lucide-react'
 import { supabase } from '@/shared/lib/supabaseClient'
-import { getPublicTaskTracking } from '@/modules/tasks/services/tasksService'
+import { getPublicTaskTracking, submitTaskCustomerFeedback } from '@/modules/tasks/services/tasksService'
 import type { PublicTaskTrackingData } from '@/modules/tasks/services/tasksService'
 import {
   Card,
@@ -44,6 +47,14 @@ export default function PublicTrackingPage() {
     timestamp: string
   } | null>(null)
   const [isCopied, setIsCopied] = useState(false)
+
+  // Estado para la Calificación y Feedback del Cliente
+  const [ratingStars, setRatingStars] = useState<number>(5)
+  const [hoverStars, setHoverStars] = useState<number>(0)
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [ratingComment, setRatingComment] = useState<string>('')
+  const [isSubmittingRating, setIsSubmittingRating] = useState<boolean>(false)
+  const [justSubmittedRating, setJustSubmittedRating] = useState<boolean>(false)
 
   const mapContainerRef = useRef<HTMLDivElement | null>(null)
   const mapInstanceRef = useRef<L.Map | null>(null)
@@ -265,6 +276,36 @@ export default function PublicTrackingPage() {
       // ignore
     }
   }
+
+  const handleToggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    )
+  }
+
+  const handleSubmitRating = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!task?.code && !task?.id) return
+    setIsSubmittingRating(true)
+    const res = await submitTaskCustomerFeedback(taskCodeOrId || task.code || task.id, {
+      rating: ratingStars,
+      comment: ratingComment,
+      tags: selectedTags,
+    })
+    setIsSubmittingRating(false)
+    if (res.success) {
+      setJustSubmittedRating(true)
+      refetch()
+    }
+  }
+
+  const availableTags = useMemo(() => {
+    const stars = hoverStars || ratingStars
+    if (stars >= 4) {
+      return ['⚡ Súper Rápido', '🤝 Muy Amable', '📦 Paquete Impecable', '🕒 Muy Puntual', '✨ Excelente Comunicación']
+    }
+    return ['⏳ Demorado', '📦 Paquete Maltratado', '📞 Difícil Contacto', '💬 Trato Regular']
+  }, [ratingStars, hoverStars])
 
   // Estado y descripción amigable del pedido
   const statusMeta = useMemo(() => {
@@ -782,6 +823,170 @@ export default function PublicTrackingPage() {
                 </div>
               </Card>
             </div>
+
+            {/* ─── CALIFICACIÓN Y RESEÑA DEL CLIENTE (1-5 Estrellas) ─── */}
+            {task.status === 'completed' && (
+              <Card className="p-6 sm:p-7 bg-white border border-slate-200 rounded-3xl shadow-sm space-y-5">
+                {task.metadata?.customer_feedback || justSubmittedRating ? (
+                  /* Estado: Ya calificado */
+                  <div className="text-center py-4 space-y-3">
+                    <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center mx-auto border border-emerald-200">
+                      <Sparkles className="h-7 w-7 text-emerald-600" />
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="text-lg sm:text-xl font-black text-slate-900">
+                        ¡Gracias por calificar tu entrega!
+                      </h3>
+                      <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto">
+                        Tu opinión nos ayuda a mantener el mejor estándar de servicio para todos nuestros clientes.
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-center gap-1.5 pt-2">
+                      {[1, 2, 3, 4, 5].map((star) => {
+                        const feedbackRating =
+                          (task.metadata?.customer_feedback as any)?.rating || ratingStars
+                        return (
+                          <Star
+                            key={star}
+                            className={`h-7 w-7 ${
+                              star <= feedbackRating
+                                ? 'text-amber-400 fill-amber-400'
+                                : 'text-slate-200'
+                            }`}
+                          />
+                        )
+                      })}
+                    </div>
+
+                    {((task.metadata?.customer_feedback as any)?.tags?.length > 0 || selectedTags.length > 0) && (
+                      <div className="flex flex-wrap items-center justify-center gap-1.5 pt-2">
+                        {((task.metadata?.customer_feedback as any)?.tags || selectedTags).map((tag: string) => (
+                          <span
+                            key={tag}
+                            className="px-3 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-800 border border-indigo-200"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {((task.metadata?.customer_feedback as any)?.comment || ratingComment) && (
+                      <p className="text-xs text-slate-600 italic max-w-md mx-auto bg-slate-50 p-3 rounded-xl border border-slate-200 mt-2">
+                        "{((task.metadata?.customer_feedback as any)?.comment || ratingComment)}"
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  /* Formulario de Calificación interactivo */
+                  <form onSubmit={handleSubmitRating} className="space-y-5">
+                    <div className="text-center space-y-1">
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 border border-amber-200 text-amber-900 text-2xs font-extrabold uppercase tracking-wider mb-1">
+                        <Star className="h-3.5 w-3.5 text-amber-500 fill-amber-500" />
+                        Tu Opinión es Muy Importante
+                      </div>
+                      <h3 className="text-lg sm:text-xl font-black text-slate-900">
+                        ¿Cómo calificarías la entrega de tu pedido?
+                      </h3>
+                      <p className="text-xs text-slate-500">
+                        Califica la atención de {task.courier?.full_name || 'tu motorizado asignado'}.
+                      </p>
+                    </div>
+
+                    {/* Selector interactivo de estrellas */}
+                    <div className="flex flex-col items-center justify-center gap-2">
+                      <div className="flex items-center gap-2 sm:gap-3">
+                        {[1, 2, 3, 4, 5].map((star) => {
+                          const isHovered = hoverStars >= star
+                          const isSelected = ratingStars >= star && hoverStars === 0
+                          const isActive = isHovered || isSelected
+
+                          return (
+                            <button
+                              key={star}
+                              type="button"
+                              onClick={() => setRatingStars(star)}
+                              onMouseEnter={() => setHoverStars(star)}
+                              onMouseLeave={() => setHoverStars(0)}
+                              className="p-1 sm:p-2 rounded-xl transition transform hover:scale-125 focus:outline-none cursor-pointer"
+                              title={`${star} estrellas`}
+                            >
+                              <Star
+                                className={`h-8 w-8 sm:h-10 sm:w-10 transition-colors ${
+                                  isActive
+                                    ? 'text-amber-400 fill-amber-400 drop-shadow-sm'
+                                    : 'text-slate-200 hover:text-slate-300'
+                                }`}
+                              />
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      <span className="text-xs sm:text-sm font-bold text-slate-700 min-h-[1.5rem]">
+                        {(hoverStars || ratingStars) === 5 && '🌟 ¡Excelente servicio!'}
+                        {(hoverStars || ratingStars) === 4 && '👍 Muy buen servicio'}
+                        {(hoverStars || ratingStars) === 3 && '👌 Buen servicio'}
+                        {(hoverStars || ratingStars) === 2 && '😐 Regular'}
+                        {(hoverStars || ratingStars) === 1 && '👎 Insatisfecho'}
+                      </span>
+                    </div>
+
+                    {/* Tags Rápidos seleccionables */}
+                    <div className="space-y-2">
+                      <span className="text-2xs uppercase tracking-wider font-extrabold text-slate-400 block text-center">
+                        ¿Qué destacarías de la entrega?
+                      </span>
+                      <div className="flex flex-wrap items-center justify-center gap-2">
+                        {availableTags.map((tag) => {
+                          const isSelected = selectedTags.includes(tag)
+                          return (
+                            <button
+                              key={tag}
+                              type="button"
+                              onClick={() => handleToggleTag(tag)}
+                              className={`px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer border flex items-center gap-1.5 ${
+                                isSelected
+                                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                  : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
+                              }`}
+                            >
+                              {tag}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Comentario Opcional */}
+                    <div className="space-y-1.5">
+                      <textarea
+                        value={ratingComment}
+                        onChange={(e) => setRatingComment(e.target.value)}
+                        placeholder="Escribe un comentario adicional sobre el servicio o repartidor (opcional)..."
+                        rows={2}
+                        className="w-full px-4 py-2.5 rounded-2xl border border-slate-200 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-slate-50/50"
+                      />
+                    </div>
+
+                    {/* Botón de Enviar */}
+                    <div className="text-center">
+                      <Button
+                        type="submit"
+                        variant="primary"
+                        size="md"
+                        disabled={isSubmittingRating}
+                        rightIcon={<Send className="h-4 w-4" />}
+                        className="px-8 shadow-sm font-bold"
+                      >
+                        {isSubmittingRating ? 'Enviando Calificación...' : 'Enviar Calificación'}
+                      </Button>
+                    </div>
+                  </form>
+                )}
+              </Card>
+            )}
           </div>
         )}
       </main>
