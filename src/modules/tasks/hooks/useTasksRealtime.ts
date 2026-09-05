@@ -8,6 +8,7 @@ import {
   onLocalBroadcast,
   type RealtimeSyncPayload,
 } from '@/shared/lib/realtimeSync'
+import { sendNativeNotification } from '@/shared/utils/webPushService'
 
 interface TaskPayloadRow {
   id?: string
@@ -112,11 +113,21 @@ export function useTasksRealtime() {
             'Nueva tarea asignada',
             `Se ha añadido a tu ruta la tarea${codeStr}${titleStr}`
           )
+          sendNativeNotification({
+            title: 'Nueva Tarea Asignada',
+            body: `Se ha añadido a tu ruta la tarea${codeStr}${titleStr}`,
+            url: '/motorizado/tareas',
+          })
         } else if (payload.action === 'assign' && isTargetCourier && !wasTargetCourier) {
           toastRef.current.info(
             'Nueva tarea asignada',
             `Se te ha asignado la tarea${codeStr}${titleStr}`
           )
+          sendNativeNotification({
+            title: 'Nueva Tarea Asignada',
+            body: `Se te ha asignado la tarea${codeStr}${titleStr}`,
+            url: '/motorizado/tareas',
+          })
         } else if (payload.action === 'assign' && wasTargetCourier && !isTargetCourier) {
           toastRef.current.warning(
             'Tarea reasignada',
@@ -127,11 +138,21 @@ export function useTasksRealtime() {
             'Gestión aprobada',
             `Tu gestión${codeStr} ha sido aprobada por administración.`
           )
+          sendNativeNotification({
+            title: 'Gestión Aprobada',
+            body: `Tu gestión${codeStr} ha sido aprobada por administración.`,
+            url: '/motorizado/tareas',
+          })
         } else if (payload.action === 'reject' && isTargetCourier) {
           toastRef.current.error(
             'Gestión rechazada',
             `Tu gestión${codeStr} ha sido rechazada por administración.`
           )
+          sendNativeNotification({
+            title: 'Gestión Rechazada',
+            body: `Tu gestión${codeStr} ha sido rechazada por administración.`,
+            url: '/motorizado/tareas',
+          })
         }
       }
     }

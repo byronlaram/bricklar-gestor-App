@@ -19,11 +19,18 @@ import {
 } from '@/modules/notifications/services/notificationsService'
 import type { AppNotification } from '@/modules/notifications/types/notifications.types'
 import {
+  getNotificationPermissionState,
+  requestPushNotificationPermission,
+  playNotificationChime,
+  sendNativeNotification,
+} from '@/shared/utils/webPushService'
+import {
   Card,
   CardTitle,
   Button,
   Skeleton,
   EmptyState,
+  useToast,
 } from '@/shared/components/ui'
 import { cn } from '@/shared/utils/cn'
 
@@ -60,10 +67,40 @@ const TYPE_CONFIG: Record<
 export default function CourierNotificationsPage() {
   const { profile } = useAuth()
   const navigate = useNavigate()
+  const toast = useToast()
   const queryClient = useQueryClient()
   const userId = profile?.id ?? ''
 
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'task' | 'settlement'>('all')
+  const [permissionState, setPermissionState] = useState<NotificationPermission>(() =>
+    getNotificationPermissionState()
+  )
+
+  const handleEnablePush = async () => {
+    const granted = await requestPushNotificationPermission()
+    if (granted) {
+      setPermissionState('granted')
+      toast.success(
+        'Alertas Activadas',
+        'Ahora recibirás avisos sonoros de nuevas tareas en tu teléfono.'
+      )
+    } else {
+      toast.warning(
+        'Permiso Requerido',
+        'Por favor permite las notificaciones en los ajustes de tu navegador.'
+      )
+    }
+  }
+
+  const handleTestSound = () => {
+    playNotificationChime()
+    sendNativeNotification({
+      title: 'Prueba de Alerta Bricklar',
+      body: 'El sistema de sonido y vibración está funcionando correctamente.',
+      url: '/motorizado/alertas',
+    })
+    toast.info('Sonido Emitido', 'Se ha reproducido la señal acústica de prueba.')
+  }
 
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['notifications', userId],
@@ -142,6 +179,45 @@ export default function CourierNotificationsPage() {
           </Button>
         )}
       </div>
+
+      {/* Banner de Permisos de Notificación Push Nativa */}
+      {permissionState !== 'granted' ? (
+        <div className="bg-gradient-to-r from-sky-50 to-indigo-50 border border-sky-200 rounded-2xl p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 animate-fade-in">
+          <div className="flex items-start gap-3">
+            <div className="p-2 bg-sky-500/10 text-sky-600 rounded-xl shrink-0 mt-0.5">
+              <Bell className="h-5 w-5" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-900">Activar Alertas Nativas en este Dispositivo</p>
+              <p className="text-[11px] text-slate-600 mt-0.5">
+                Recibe sonido y vibración cuando se te asigne una nueva tarea o se apruebe tu liquidación.
+              </p>
+            </div>
+          </div>
+
+          <Button
+            onClick={handleEnablePush}
+            variant="primary"
+            size="sm"
+            className="shrink-0 bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs"
+          >
+            Activar Alertas
+          </Button>
+        </div>
+      ) : (
+        <div className="bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5 shadow-2xs flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-xs font-bold text-emerald-900">
+            <CheckCheck className="h-4 w-4 text-emerald-600" />
+            <span>Alertas nativas y sonido activados en este teléfono</span>
+          </div>
+          <button
+            onClick={handleTestSound}
+            className="text-[11px] font-bold text-emerald-700 hover:text-emerald-800 underline cursor-pointer"
+          >
+            Probar Sonido
+          </button>
+        </div>
+      )}
 
       {/* Tabs / Filtros Rápidos */}
       <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
