@@ -3,6 +3,7 @@ import { calculateWorkdayCashSummary } from '@/modules/workdays/utils/workdayCal
 import { getLocalDateString } from '@/shared/utils/date'
 import { broadcastSyncEvent } from '@/shared/lib/realtimeSync'
 import { createNotification } from '@/modules/notifications/services/notificationsService'
+import { logAuditEvent } from '@/shared/services/auditService'
 import type {
   Settlement,
   CashMovement,
@@ -463,6 +464,22 @@ export async function approveSettlement(payload: ApproveSettlementPayload): Prom
     })
   }
 
+  logAuditEvent({
+    action: 'APPROVE',
+    entityType: 'settlements',
+    entityId: payload.settlement_id,
+    entityCode: `LIQ-${payload.settlement_id.slice(0, 8).toUpperCase()}`,
+    branchId: (data as any)?.branch_id,
+    actorUserId: adminId,
+    changes: {
+      action: 'approve_settlement',
+      actual_cash: payload.actual_cash,
+      difference,
+      notes: payload.notes || null,
+      adjustment_reason: payload.adjustment_reason_type || null,
+    },
+  })
+
   return data as unknown as Settlement
 }
 
@@ -517,18 +534,30 @@ export async function rejectSettlement(payload: RejectSettlementPayload): Promis
   }
 
   // Notificar al motorizado sobre la observación/rechazo de liquidación
-  const targetCourierId = current?.courier_id || (data as any)?.courier_id
-  if (targetCourierId && targetCourierId !== adminId) {
+  if (current?.courier_id && current.courier_id !== adminId) {
     await createNotification({
-      userId: targetCourierId,
+      userId: current.courier_id,
       title: 'Liquidación Observada',
-      body: `Tu liquidación del día ${current?.settlement_date || (data as any)?.settlement_date} requiere revisión: ${reasonText}`,
+      body: `Tu liquidación requiere corrección: ${reasonText}`,
       type: 'warning',
-      workdayId: workdayId,
-      branchId: current?.branch_id || (data as any)?.branch_id,
+      workdayId: current.workday_id,
+      branchId: current.branch_id,
       createdBy: adminId,
     })
   }
+
+  logAuditEvent({
+    action: 'REJECT',
+    entityType: 'settlements',
+    entityId: payload.settlement_id,
+    entityCode: `LIQ-${payload.settlement_id.slice(0, 8).toUpperCase()}`,
+    branchId: current?.branch_id,
+    actorUserId: adminId,
+    changes: {
+      action: 'reject_settlement',
+      reason: reasonText,
+    },
+  })
 
   return data as unknown as Settlement
 }

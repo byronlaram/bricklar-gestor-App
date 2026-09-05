@@ -21,6 +21,7 @@ import type { TaskStatus } from '@/shared/types'
 import { ALLOWED_TRANSITIONS, COURIER_ALLOWED_TRANSITIONS } from '@/shared/types'
 import { compressImage } from '@/shared/utils/imageCompressor'
 import { createNotification } from '@/modules/notifications/services/notificationsService'
+import { logAuditEvent } from '@/shared/services/auditService'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -301,6 +302,21 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
     }
   }
 
+  logAuditEvent({
+    action: 'CREATE',
+    entityType: 'tasks',
+    entityId: data?.id,
+    entityCode: data?.code,
+    branchId: data?.branch_id,
+    actorUserId: userId,
+    changes: {
+      title: data?.title,
+      task_type: data?.task_type,
+      assigned_courier_id: courierId,
+      scheduled_date: data?.scheduled_date,
+    },
+  })
+
   return data as unknown as Task
 }
 
@@ -505,6 +521,22 @@ export async function assignTask(payload: AssignCourierPayload): Promise<Task> {
       createdBy: userId,
     })
   }
+
+  logAuditEvent({
+    action: 'UPDATE',
+    entityType: 'tasks',
+    entityId: data?.id,
+    entityCode: data?.code,
+    branchId: data?.branch_id,
+    actorUserId: userId,
+    changes: {
+      action: 'assign_courier',
+      courier_id,
+      previous_courier_id: task.assigned_courier_id,
+      reason,
+      status: newStatus,
+    },
+  })
 
   return data as unknown as Task
 }
@@ -835,6 +867,20 @@ export async function approveTask(taskId: string, notes?: string): Promise<Task>
     })
   }
 
+  logAuditEvent({
+    action: 'APPROVE',
+    entityType: 'tasks',
+    entityId: (data as any)?.id || taskId,
+    entityCode: (data as any)?.code,
+    branchId: (data as any)?.branch_id,
+    actorUserId: adminId,
+    changes: {
+      action: 'approve_task',
+      notes: notes || null,
+      approved_at: now,
+    },
+  })
+
   return data as unknown as Task
 }
 
@@ -907,6 +953,20 @@ export async function rejectTask(taskId: string, rejectionReason: string): Promi
       createdBy: adminId,
     })
   }
+
+  logAuditEvent({
+    action: 'REJECT',
+    entityType: 'tasks',
+    entityId: (data as any)?.id || taskId,
+    entityCode: currentTask?.code || (data as any)?.code,
+    branchId: currentTask?.branch_id || (data as any)?.branch_id,
+    actorUserId: adminId,
+    changes: {
+      action: 'reject_task',
+      rejection_reason: cleanReason,
+      previous_status: currentStatus,
+    },
+  })
 
   return data as unknown as Task
 }

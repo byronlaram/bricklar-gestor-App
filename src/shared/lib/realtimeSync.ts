@@ -13,7 +13,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 export const GLOBAL_REALTIME_CHANNEL = 'bricklar_global_realtime'
 export const BROWSER_BROADCAST_CHANNEL = 'bricklar_tasks_sync'
 
-export type RealtimeSyncDomain = 'tasks' | 'workdays' | 'settlements' | 'cash_movements' | 'notifications'
+export type RealtimeSyncDomain = 'tasks' | 'workdays' | 'settlements' | 'cash_movements' | 'notifications' | 'audit_logs'
 
 export interface RealtimeSyncPayload {
   domain: RealtimeSyncDomain

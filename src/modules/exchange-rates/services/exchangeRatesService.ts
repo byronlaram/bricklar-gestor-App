@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/lib/supabaseClient'
+import { logAuditEvent } from '@/shared/services/auditService'
 import type { ExchangeRate, SaveExchangeRatePayload, ExchangeRateFilters } from '../types/exchangeRates.types'
 
 /**
@@ -207,13 +208,28 @@ export async function saveExchangeRate(
       id: resultId,
       branch_id,
       rate_date,
-      nio_per_usd,
+      nio_per_usd: Number(nio_per_usd),
       source,
       notes,
       created_at: new Date().toISOString(),
       created_by: userId,
     }
   }
+
+  logAuditEvent({
+    action: existing?.id ? 'UPDATE' : 'CREATE',
+    entityType: 'exchange_rates',
+    entityId: resultId,
+    entityCode: `TC-${rate_date}`,
+    branchId: branch_id,
+    actorUserId: userId,
+    changes: {
+      nio_per_usd: Number(nio_per_usd),
+      source,
+      notes,
+      rate_date,
+    },
+  })
 
   const row = fullRow as any
   return {
