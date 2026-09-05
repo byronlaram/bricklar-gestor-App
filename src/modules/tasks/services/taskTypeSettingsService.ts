@@ -52,12 +52,36 @@ export async function getTaskTypesSettings(): Promise<Record<TaskType, CustomTas
     if (!error && data?.value_json) {
       const parsed = data.value_json as Record<string, Partial<CustomTaskTypeConfig>>
       if (typeof parsed === 'object' && parsed !== null) {
-        const merged = { ...defaults }
+        const merged: Record<TaskType, CustomTaskTypeConfig> = { ...defaults }
         for (const [typeKey, customVal] of Object.entries(parsed)) {
-          if (merged[typeKey as TaskType] && customVal) {
-            merged[typeKey as TaskType] = {
-              ...merged[typeKey as TaskType],
-              ...customVal,
+          if (customVal && typeof customVal === 'object') {
+            if (merged[typeKey as TaskType]) {
+              merged[typeKey as TaskType] = {
+                ...merged[typeKey as TaskType],
+                ...customVal,
+              }
+            } else {
+              // Nueva gestión personalizada creada por el usuario
+              merged[typeKey as TaskType] = {
+                type: typeKey as TaskType,
+                label: customVal.label || typeKey,
+                suggestedTitle: customVal.suggestedTitle || customVal.label || typeKey,
+                nature: customVal.nature || 'neutral',
+                enabled: customVal.enabled !== false,
+                entityType: customVal.entityType || 'custom',
+                defaultRequiresCollection: customVal.defaultRequiresCollection || false,
+                defaultRequiresPayment: customVal.defaultRequiresPayment || false,
+                defaultPaymentMethod: customVal.defaultPaymentMethod,
+                descriptionPlaceholder: customVal.descriptionPlaceholder || 'Detalles de la gestión...',
+                addressLabel: customVal.addressLabel || 'Dirección / Destino',
+                addressPlaceholder: customVal.addressPlaceholder || 'Ej: Altamira...',
+                contactNameLabel: customVal.contactNameLabel || 'Contacto / Titular',
+                contactNamePlaceholder: customVal.contactNamePlaceholder || 'Ej: Juan Pérez',
+                referenceNumberLabel: customVal.referenceNumberLabel || 'N° de Referencia',
+                referenceNumberPlaceholder: customVal.referenceNumberPlaceholder || 'Ej: REF-001',
+                fastModeFields: customVal.fastModeFields || ['contact_name', 'address', 'phone', 'financial'],
+                ...customVal,
+              } as CustomTaskTypeConfig
             }
           }
         }
@@ -73,12 +97,28 @@ export async function getTaskTypesSettings(): Promise<Record<TaskType, CustomTas
     const local = localStorage.getItem(SETTINGS_KEY)
     if (local) {
       const parsed = JSON.parse(local) as Record<string, Partial<CustomTaskTypeConfig>>
-      const merged = { ...defaults }
+      const merged: Record<TaskType, CustomTaskTypeConfig> = { ...defaults }
       for (const [typeKey, customVal] of Object.entries(parsed)) {
-        if (merged[typeKey as TaskType] && customVal) {
-          merged[typeKey as TaskType] = {
-            ...merged[typeKey as TaskType],
-            ...customVal,
+        if (customVal && typeof customVal === 'object') {
+          if (merged[typeKey as TaskType]) {
+            merged[typeKey as TaskType] = {
+              ...merged[typeKey as TaskType],
+              ...customVal,
+            }
+          } else {
+            // Nueva gestión personalizada creada
+            merged[typeKey as TaskType] = {
+              type: typeKey as TaskType,
+              label: customVal.label || typeKey,
+              suggestedTitle: customVal.suggestedTitle || customVal.label || typeKey,
+              nature: customVal.nature || 'neutral',
+              enabled: customVal.enabled !== false,
+              entityType: customVal.entityType || 'custom',
+              defaultRequiresCollection: customVal.defaultRequiresCollection || false,
+              defaultRequiresPayment: customVal.defaultRequiresPayment || false,
+              defaultPaymentMethod: customVal.defaultPaymentMethod,
+              ...customVal,
+            } as CustomTaskTypeConfig
           }
         }
       }

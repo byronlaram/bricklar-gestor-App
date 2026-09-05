@@ -25,6 +25,7 @@ export function useTaskTypesConfig() {
       saveTaskTypesSettings(newConfigs, profile?.id),
     onSuccess: (_, variables) => {
       queryClient.setQueryData(TASK_TYPES_CONFIG_QUERY_KEY, variables)
+      queryClient.invalidateQueries({ queryKey: TASK_TYPES_CONFIG_QUERY_KEY })
     },
   })
 
