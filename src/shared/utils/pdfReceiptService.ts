@@ -714,3 +714,212 @@ export function printDailyClosureReceipt(data: DailyClosureReceiptData): void {
   printWindow.document.write(htmlContent)
   printWindow.document.close()
 }
+
+export interface ExecutiveDashboardReceiptData {
+  branchName: string
+  date: string
+  generatedBy?: string | null
+  totalTasks: number
+  completedTasks: number
+  completionRate: number
+  inRouteTasks: number
+  pendingTasks: number
+  failedTasks: number
+  activeCouriers: number
+  totalCashNIO: number
+  totalTransferNIO: number
+  totalCollectionsUSD: number
+  totalExpensesNIO: number
+  netCashNIO: number
+  courierRanking: Array<{
+    name: string
+    completed: number
+    totalAssigned: number
+    completionRate: number
+    totalCollectedNIO: number
+    status: string
+  }>
+}
+
+export function generateExecutiveDashboardReceipt(data: ExecutiveDashboardReceiptData) {
+  const printWindow = window.open('', '_blank', 'width=950,height=1100')
+  if (!printWindow) {
+    alert('Por favor, permite las ventanas emergentes para generar el informe ejecutivo.')
+    return
+  }
+
+  const htmlContent = `
+    <!DOCTYPE html>
+    <html lang="es">
+      <head>
+        <meta charset="utf-8" />
+        <title>Informe Ejecutivo - ${data.branchName} - ${data.date}</title>
+        <style>
+          ${CORPORATE_CSS}
+        </style>
+      </head>
+      <body>
+        <div class="receipt-card">
+          <!-- Membrete Corporativo -->
+          <div class="receipt-header">
+            <div class="brand">
+              <div class="brand-logo">
+                <svg viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+                </svg>
+              </div>
+              <div class="brand-info">
+                <h1>BRICKLAR LOGÍSTICA</h1>
+                <p>GESTIÓN DE ENTREGAS, FLOTA Y COBRANZAS</p>
+              </div>
+            </div>
+            <div class="doc-meta">
+              <div class="doc-badge">INFORME EJECUTIVO</div>
+              <div class="doc-id">FECHA: ${data.date}</div>
+              <div class="doc-date">SUCURSAL: ${data.branchName.toUpperCase()}</div>
+            </div>
+          </div>
+
+          <!-- Métricas Clave de Eficiencia -->
+          <div class="metrics-grid" style="grid-template-columns: repeat(4, 1fr);">
+            <div class="metric-box highlight">
+              <div class="metric-label">Efectividad de Entrega</div>
+              <div class="metric-val">${data.completionRate.toFixed(1)}%</div>
+              <div style="font-size: 10px; color: #166534; font-weight: 600; margin-top: 2px;">
+                ${data.completedTasks} de ${data.totalTasks} tareas
+              </div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Recaudación Total (C$)</div>
+              <div class="metric-val" style="color: #0f172a;">C$ ${(data.totalCashNIO + data.totalTransferNIO).toFixed(2)}</div>
+              <div style="font-size: 10px; color: #64748b; margin-top: 2px;">
+                Efectivo: C$ ${data.totalCashNIO.toFixed(2)}
+              </div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Recaudación ($ USD)</div>
+              <div class="metric-val" style="color: #0284c7;">$ ${data.totalCollectionsUSD.toFixed(2)}</div>
+              <div style="font-size: 10px; color: #64748b; margin-top: 2px;">Cobros en dólares</div>
+            </div>
+            <div class="metric-box">
+              <div class="metric-label">Neto en Bóveda / Caja</div>
+              <div class="metric-val" style="color: #0f172a;">C$ ${data.netCashNIO.toFixed(2)}</div>
+              <div style="font-size: 10px; color: #e11d48; margin-top: 2px;">
+                Gastos: -C$ ${data.totalExpensesNIO.toFixed(2)}
+              </div>
+            </div>
+          </div>
+
+          <!-- Resumen de Estados Operativos -->
+          <div class="section-title">DESGLOSE DE OPERACIONES Y GESTIÓN</div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Indicador Operativo</th>
+                <th style="text-align: center;">Cantidad</th>
+                <th style="text-align: right;">% Sobre Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>Entregas / Gestiones Completadas con Éxito</strong></td>
+                <td style="text-align: center;"><span class="badge badge-success">${data.completedTasks}</span></td>
+                <td style="text-align: right; font-weight: 700;">${data.totalTasks > 0 ? ((data.completedTasks / data.totalTasks) * 100).toFixed(1) : 0}%</td>
+              </tr>
+              <tr>
+                <td>Tareas en Tránsito / En Gestión de Ruta</td>
+                <td style="text-align: center;"><span class="badge" style="background:#e0f2fe; color:#0369a1;">${data.inRouteTasks}</span></td>
+                <td style="text-align: right;">${data.totalTasks > 0 ? ((data.inRouteTasks / data.totalTasks) * 100).toFixed(1) : 0}%</td>
+              </tr>
+              <tr>
+                <td>Tareas Pendientes de Asignación / Despacho</td>
+                <td style="text-align: center;"><span class="badge badge-warning">${data.pendingTasks}</span></td>
+                <td style="text-align: right;">${data.totalTasks > 0 ? ((data.pendingTasks / data.totalTasks) * 100).toFixed(1) : 0}%</td>
+              </tr>
+              <tr>
+                <td>Tareas No Completadas / Canceladas / Incidencias</td>
+                <td style="text-align: center;"><span class="badge badge-danger">${data.failedTasks}</span></td>
+                <td style="text-align: right; color: #e11d48;">${data.totalTasks > 0 ? ((data.failedTasks / data.totalTasks) * 100).toFixed(1) : 0}%</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <!-- Ranking de Rendimiento de Motorizados -->
+          <div class="section-title">TABLA DE RENDIMIENTO Y PRODUCTIVIDAD DE MOTORIZADOS</div>
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="width: 40px; text-align: center;">#</th>
+                <th>Motorizado / Repartidor</th>
+                <th style="text-align: center;">Completadas</th>
+                <th style="text-align: center;">Tasa Éxito</th>
+                <th style="text-align: right;">Recaudado (C$)</th>
+                <th style="text-align: center;">Estado Jornada</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${
+                data.courierRanking.length === 0
+                  ? `<tr><td colspan="6" style="text-align: center; color: #94a3b8; padding: 12px;">No se registraron jornadas o entregas para esta fecha.</td></tr>`
+                  : data.courierRanking
+                      .map(
+                        (c, idx) => `
+                    <tr>
+                      <td style="text-align: center; font-weight: 700; color: ${idx === 0 ? '#b45309' : idx === 1 ? '#475569' : idx === 2 ? '#b45309' : '#94a3b8'};">
+                        ${idx === 0 ? '🥇 1' : idx === 1 ? '🥈 2' : idx === 2 ? '🥉 3' : (idx + 1).toString()}
+                      </td>
+                      <td><strong>${c.name}</strong></td>
+                      <td style="text-align: center; font-weight: 600;">${c.completed} / ${c.totalAssigned}</td>
+                      <td style="text-align: center;">
+                        <span class="badge ${c.completionRate >= 90 ? 'badge-success' : c.completionRate >= 70 ? 'badge-warning' : 'badge-danger'}">
+                          ${c.completionRate.toFixed(0)}%
+                        </span>
+                      </td>
+                      <td style="text-align: right; font-weight: 700; font-family: monospace;">C$ ${c.totalCollectedNIO.toFixed(2)}</td>
+                      <td style="text-align: center;">
+                        <span class="badge ${c.status === 'open' ? 'badge-warning' : 'badge-success'}">
+                          ${c.status === 'open' ? 'En Ruta' : 'Cerrada'}
+                        </span>
+                      </td>
+                    </tr>
+                  `
+                      )
+                      .join('')
+              }
+            </tbody>
+          </table>
+
+          <!-- Firmas Oficiales -->
+          <div class="signatures">
+            <div class="signature-box">
+              <div class="signature-title">${data.generatedBy || 'Supervisor de Operaciones'}</div>
+              <div class="signature-sub">Firma de Emisión Operativa</div>
+            </div>
+            <div class="signature-box">
+              <div class="signature-title">Gerencia General / Dirección</div>
+              <div class="signature-sub">Firma y Visto Bueno Ejecutivo</div>
+            </div>
+          </div>
+
+          <!-- Footer Legal -->
+          <div class="footer-legal">
+            Informe Ejecutivo de Rendimiento generado automáticamente por Bricklar Gestor el ${new Date().toLocaleDateString('es-NI')} a las ${new Date().toLocaleTimeString('es-NI')}. Documento corporativo de auditoría.
+          </div>
+        </div>
+
+        <script>
+          window.onload = function() {
+            setTimeout(function() {
+              window.print();
+            }, 300);
+          };
+        </script>
+      </body>
+    </html>
+  `
+
+  printWindow.document.open()
+  printWindow.document.write(htmlContent)
+  printWindow.document.close()
+}
+

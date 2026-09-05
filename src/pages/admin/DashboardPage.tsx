@@ -4,17 +4,19 @@ import {
   CheckCircle2,
   Clock,
   AlertCircle,
-  Bike,
   DollarSign,
   TrendingUp,
   BarChart3,
   ArrowRight,
   CalendarCheck2,
   PackageCheck,
-  Package,
   Layers,
   Building2,
   Calendar,
+  Award,
+  Printer,
+  ChevronRight,
+  Sparkles,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -36,6 +38,7 @@ import {
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
 import { formatDate } from '@/shared/utils/format'
+import { generateExecutiveDashboardReceipt } from '@/shared/utils/pdfReceiptService'
 
 // ─── Queries de KPI ──────────────────────────────────────────────────────────
 
@@ -43,7 +46,9 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
   try {
     let tasksQuery = supabase
       .from('tasks')
-      .select('id, status, financial_status, created_at, scheduled_date, branch_id, assigned_courier_id, requires_collection, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_payment, expected_payment_amount, expected_payment_currency, metadata')
+      .select(
+        'id, title, status, financial_status, created_at, scheduled_date, branch_id, assigned_courier_id, requires_collection, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_payment, expected_payment_amount, expected_payment_currency, metadata'
+      )
       .eq('scheduled_date', targetDate)
 
     let workdaysQuery = supabase
@@ -63,15 +68,22 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
       settlementsQuery = settlementsQuery.in('branch_id', branchIds)
     }
 
-    const [tasksRes, workdaysRes, settlementsRes] = await Promise.all([
+    const couriersQuery = supabase
+      .from('profiles')
+      .select('id, full_name, display_name, email, phone, avatar_url, role')
+      .eq('role', 'courier')
+
+    const [tasksRes, workdaysRes, settlementsRes, couriersRes] = await Promise.all([
       tasksQuery,
       workdaysQuery,
       settlementsQuery,
+      couriersQuery,
     ])
 
     const tasks = tasksRes.data ?? []
     const workdays = workdaysRes.data ?? []
     const settlements = settlementsRes.data ?? []
+    const couriers = couriersRes.data ?? []
 
     const workdayIds = workdays.map((w) => w.id)
 
@@ -92,6 +104,7 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
       workdays,
       settlements,
       movements,
+      couriers,
     }
   } catch (err) {
     console.error('[Dashboard] Error fetching dashboard data:', err)
@@ -100,6 +113,7 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
       workdays: [],
       settlements: [],
       movements: [],
+      couriers: [],
     }
   }
 }
@@ -140,8 +154,8 @@ function TaskStatusBar({ tasks, dateLabel }: { tasks: { status: string }[]; date
     <Card className="p-5 space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <CardTitle className="text-base">Distribución de Tareas ({dateLabel || 'Fecha Seleccionada'})</CardTitle>
-          <CardDescription>Resumen gráfico del progreso operativo</CardDescription>
+          <CardTitle className="text-base">Distribución Operativa ({dateLabel || 'Fecha Seleccionada'})</CardTitle>
+          <CardDescription>Resumen visual del flujo y estado de despachos</CardDescription>
         </div>
         <Badge variant="neutral" size="md">
           {total} tareas totales
@@ -183,6 +197,179 @@ function TaskStatusBar({ tasks, dateLabel }: { tasks: { status: string }[]; date
   )
 }
 
+// ─── Componente Ranking de Motorizados ──────────────────────────────────────
+
+interface CourierPerformance {
+  id: string
+  name: string
+  email: string
+  avatarUrl?: string | null
+  totalAssigned: number
+  completed: number
+  inRoute: number
+  notCompleted: number
+  completionRate: number
+  totalCollectedNIO: number
+  totalCollectedUSD: number
+  workdayStatus: 'open' | 'closed' | 'none'
+  workdayId?: string
+}
+
+function CourierLeaderboard({ couriers }: { couriers: CourierPerformance[] }) {
+  if (couriers.length === 0) {
+    return (
+      <div className="text-center py-8 text-xs text-slate-500 bg-slate-50 rounded-xl border border-slate-200/60">
+        No se registran actividades o entregas asignadas para motorizados en esta fecha.
+      </div>
+    )
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-left border-collapse">
+        <thead>
+          <tr className="border-b border-slate-200 bg-slate-50/75 text-2xs font-extrabold uppercase tracking-wider text-slate-500">
+            <th className="py-3 px-3 w-12 text-center">Pos</th>
+            <th className="py-3 px-4">Motorizado</th>
+            <th className="py-3 px-3 text-center">Efectividad</th>
+            <th className="py-3 px-3 text-center">Entregas</th>
+            <th className="py-3 px-4 text-right">Recaudado (C$)</th>
+            <th className="py-3 px-4 text-center">Estado Turno</th>
+            <th className="py-3 px-3 text-right">Acción</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100 text-xs">
+          {couriers.map((c, index) => {
+            const isTop1 = index === 0 && c.completed > 0
+            const isTop2 = index === 1 && c.completed > 0
+            const isTop3 = index === 2 && c.completed > 0
+
+            return (
+              <tr
+                key={c.id}
+                className="hover:bg-slate-50/80 transition-colors group"
+              >
+                {/* Posición / Medalla */}
+                <td className="py-3.5 px-3 text-center font-bold">
+                  {isTop1 ? (
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-100 text-amber-800 text-xs font-black shadow-2xs border border-amber-300">
+                      🥇 1
+                    </span>
+                  ) : isTop2 ? (
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-slate-200 text-slate-800 text-xs font-black shadow-2xs border border-slate-300">
+                      🥈 2
+                    </span>
+                  ) : isTop3 ? (
+                    <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-amber-700/15 text-amber-900 text-xs font-black shadow-2xs border border-amber-700/30">
+                      🥉 3
+                    </span>
+                  ) : (
+                    <span className="text-slate-400 font-mono font-semibold">{index + 1}</span>
+                  )}
+                </td>
+
+                {/* Perfil Motorizado */}
+                <td className="py-3.5 px-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-full bg-sky-100 text-sky-800 font-bold flex items-center justify-center shrink-0 border border-sky-200 text-xs">
+                      {c.avatarUrl ? (
+                        <img src={c.avatarUrl} alt={c.name} className="w-full h-full rounded-full object-cover" />
+                      ) : (
+                        c.name.substring(0, 2).toUpperCase()
+                      )}
+                    </div>
+                    <div>
+                      <div className="font-bold text-slate-900 group-hover:text-accent transition-colors">
+                        {c.name}
+                      </div>
+                      <div className="text-2xs text-slate-500">{c.email}</div>
+                    </div>
+                  </div>
+                </td>
+
+                {/* Barra y % de Efectividad */}
+                <td className="py-3.5 px-3 text-center">
+                  <div className="inline-flex flex-col items-center gap-1 w-24">
+                    <div className="flex items-center justify-between w-full text-2xs font-extrabold font-mono">
+                      <span
+                        className={
+                          c.completionRate >= 90
+                            ? 'text-emerald-700'
+                            : c.completionRate >= 70
+                            ? 'text-amber-700'
+                            : 'text-slate-600'
+                        }
+                      >
+                        {c.completionRate.toFixed(0)}%
+                      </span>
+                      <span className="text-slate-400 text-3xs">{c.completed}/{c.totalAssigned}</span>
+                    </div>
+                    <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
+                      <div
+                        className={`h-full rounded-full transition-all ${
+                          c.completionRate >= 90
+                            ? 'bg-emerald-500'
+                            : c.completionRate >= 70
+                            ? 'bg-amber-400'
+                            : 'bg-rose-400'
+                        }`}
+                        style={{ width: `${Math.min(100, c.completionRate)}%` }}
+                      />
+                    </div>
+                  </div>
+                </td>
+
+                {/* Cantidad Entregas */}
+                <td className="py-3.5 px-3 text-center font-bold text-slate-800">
+                  <span className="bg-slate-100 px-2.5 py-1 rounded-lg text-slate-800 font-mono text-2xs border border-slate-200">
+                    {c.completed} completadas
+                  </span>
+                </td>
+
+                {/* Recaudación Total */}
+                <td className="py-3.5 px-4 text-right font-mono font-bold text-slate-900">
+                  C$ {c.totalCollectedNIO.toFixed(2)}
+                  {c.totalCollectedUSD > 0 && (
+                    <div className="text-2xs text-sky-700 font-semibold font-sans">
+                      + ${c.totalCollectedUSD.toFixed(2)} USD
+                    </div>
+                  )}
+                </td>
+
+                {/* Estado Jornada */}
+                <td className="py-3.5 px-4 text-center">
+                  {c.workdayStatus === 'open' ? (
+                    <Badge variant="pending" size="sm" showDot>
+                      En Ruta (Abierta)
+                    </Badge>
+                  ) : c.workdayStatus === 'closed' ? (
+                    <Badge variant="completed" size="sm">
+                      Jornada Cerrada
+                    </Badge>
+                  ) : (
+                    <Badge variant="neutral" size="sm">
+                      Sin Turno
+                    </Badge>
+                  )}
+                </td>
+
+                {/* Botón Ver Tareas */}
+                <td className="py-3.5 px-3 text-right">
+                  <Link to={`/admin/tareas?courier_id=${c.id}`}>
+                    <Button variant="ghost" size="sm" className="gap-1 text-slate-600 hover:text-accent h-7 px-2 text-xs">
+                      Ver <ChevronRight className="h-3 w-3" />
+                    </Button>
+                  </Link>
+                </td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 // ─── Página Principal Dashboard Rediseñada ──────────────────────────────────
 
 export default function DashboardPage() {
@@ -190,12 +377,21 @@ export default function DashboardPage() {
   const { data: branches = [] } = useBranches()
   const todayStr = getLocalDateString()
 
-  const defaultBranch = profile?.primary_branch_id || (profile?.branch_ids && profile.branch_ids.length === 1 ? profile.branch_ids[0] : 'all')
+  // Calcular ayer en formato YYYY-MM-DD
+  const yesterdayStr = useMemo(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 1)
+    return d.toISOString().split('T')[0]
+  }, [])
+
+  const defaultBranch =
+    profile?.primary_branch_id || (profile?.branch_ids && profile.branch_ids.length === 1 ? profile.branch_ids[0] : 'all')
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>(defaultBranch)
   const [selectedDate, setSelectedDate] = useState<string>(todayStr)
 
   const isToday = selectedDate === todayStr
+  const isYesterday = selectedDate === yesterdayStr
 
   // Sucursales permitidas para el usuario según su rol
   const userBranches = useMemo(() => {
@@ -213,38 +409,51 @@ export default function DashboardPage() {
     return []
   }, [selectedBranchId, profile?.branch_ids, profile?.role])
 
+  const activeBranchName = useMemo(() => {
+    if (selectedBranchId === 'all') return 'Todas las Sucursales'
+    return branches.find((b) => b.id === selectedBranchId)?.name || 'Sucursal Principal'
+  }, [selectedBranchId, branches])
+
   const { data, isLoading } = useDashboard(effectiveBranchIds, selectedDate)
+
+  // ─── Cálculos y Métricas Consolidadas ─────────────────────────────────────────
 
   const kpis = useMemo(() => {
     const tasks = data?.tasks ?? []
     const workdays = data?.workdays ?? []
     const settlements = data?.settlements ?? []
     const movements = data?.movements ?? []
+    const couriers = data?.couriers ?? []
 
     const completedTasks = tasks.filter((t) => t.status === 'completed')
+    const totalTasks = tasks.length
+    const completionRate = totalTasks > 0 ? (completedTasks.length / totalTasks) * 100 : 0
 
     const settlementMap = new Map<string, any>()
     settlements.forEach((s) => settlementMap.set(s.workday_id, s))
 
-    // Calcular por cada jornada individual sus tareas y movimientos correspondientes
+    // Resumen de jornadas individuales
     const workdaySummaries = workdays.map((w) => {
       const wTasks = completedTasks.filter((t) => t.assigned_courier_id === w.courier_id)
       const wMovements = movements.filter((m) => m.workday_id === w.id)
       return calculateWorkdayCashSummary(w.initial_cash || 0, wTasks, wMovements)
     })
 
-    // Total recaudado en efectivo por tareas completadas
-    const totalCash = workdaySummaries.reduce((acc, s) => acc + s.collectionsNIO, 0)
+    // Total recaudado en efectivo NIO por tareas completadas
+    const totalCashNIO = workdaySummaries.reduce((acc, s) => acc + s.collectionsNIO, 0)
 
-    // Total transferencias recibidas
-    const totalTransfer = completedTasks.reduce((acc, t) => {
+    // Total transferencias recibidas NIO
+    const totalTransferNIO = completedTasks.reduce((acc, t) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const pb = (t as any).metadata?.payment_breakdown
-      if (pb?.transfer_amount && pb.transfer_amount > 0) return acc + pb.transfer_amount
+      if (pb?.transfer_amount && pb.transfer_amount > 0 && pb.currency !== 'USD') {
+        return acc + pb.transfer_amount
+      }
       if (
         t.requires_collection &&
         t.expected_payment_method &&
         t.expected_payment_method !== 'cash' &&
+        t.expected_collection_currency !== 'USD' &&
         (!pb || !pb.cash_amount)
       ) {
         return acc + (t.expected_collection_amount || 0)
@@ -252,8 +461,18 @@ export default function DashboardPage() {
       return acc
     }, 0)
 
+    // Total recaudación en USD ($)
+    const totalCollectionsUSD = completedTasks.reduce((acc, t) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const pb = (t as any).metadata?.payment_breakdown
+      if (pb?.currency === 'USD' || t.expected_collection_currency === 'USD') {
+        return acc + (t.expected_collection_amount || pb?.cash_amount || 0)
+      }
+      return acc
+    }, 0)
+
     // Total compras y gastos en calle desembolsados
-    const totalExpenses = workdaySummaries.reduce((acc, s) => acc + s.expensesNIO, 0)
+    const totalExpensesNIO = workdaySummaries.reduce((acc, s) => acc + s.expensesNIO, 0)
 
     // Entregas previas a caja
     const totalAlreadyReceived = workdaySummaries.reduce((acc, s) => acc + s.alreadyReceivedNIO, 0)
@@ -262,35 +481,103 @@ export default function DashboardPage() {
     const netReceivedInVault = workdays.reduce((acc, w, idx) => {
       const s = settlementMap.get(w.id)
       const priorReceived = workdaySummaries[idx]?.alreadyReceivedNIO || 0
-      const finalSettlementReceived = s && s.status === 'approved' ? (s.actual_cash || 0) : 0
+      const finalSettlementReceived = s && s.status === 'approved' ? s.actual_cash || 0 : 0
       return acc + priorReceived + finalSettlementReceived
     }, 0)
 
     // Neto consolidado de operaciones (Cobros en efectivo - Gastos)
-    const netOperationsCash = totalCash - totalExpenses
+    const netOperationsCash = totalCashNIO - totalExpensesNIO
     const netCash = netReceivedInVault > 0 ? netReceivedInVault : Math.max(0, netOperationsCash)
 
+    // ─── Ranking de Motorizados ──────────────────────────────────────────────
+    const courierStatsMap = new Map<string, CourierPerformance>()
+
+    // Registrar todos los motorizados disponibles
+    couriers.forEach((c) => {
+      courierStatsMap.set(c.id, {
+        id: c.id,
+        name: c.display_name || c.full_name || c.email,
+        email: c.email,
+        avatarUrl: c.avatar_url,
+        totalAssigned: 0,
+        completed: 0,
+        inRoute: 0,
+        notCompleted: 0,
+        completionRate: 0,
+        totalCollectedNIO: 0,
+        totalCollectedUSD: 0,
+        workdayStatus: 'none',
+      })
+    })
+
+    // Actualizar con datos de jornadas de la fecha
+    workdays.forEach((w) => {
+      const existing = courierStatsMap.get(w.courier_id)
+      if (existing) {
+        existing.workdayStatus = w.status === 'open' ? 'open' : 'closed'
+        existing.workdayId = w.id
+      }
+    })
+
+    // Actualizar con tareas de la fecha
+    tasks.forEach((t) => {
+      if (!t.assigned_courier_id) return
+      const courier = courierStatsMap.get(t.assigned_courier_id)
+      if (!courier) return
+
+      courier.totalAssigned += 1
+      if (t.status === 'completed') {
+        courier.completed += 1
+        if (t.requires_collection && t.expected_collection_amount) {
+          if (t.expected_collection_currency === 'USD') {
+            courier.totalCollectedUSD += t.expected_collection_amount
+          } else {
+            courier.totalCollectedNIO += t.expected_collection_amount
+          }
+        }
+      } else if (['en_route', 'in_progress'].includes(t.status)) {
+        courier.inRoute += 1
+      } else if (['not_completed', 'cancelled'].includes(t.status)) {
+        courier.notCompleted += 1
+      }
+    })
+
+    // Calcular tasa de cumplimiento individual y filtrar motorizados con actividad o jornada
+    const courierRankings: CourierPerformance[] = Array.from(courierStatsMap.values())
+      .map((c) => ({
+        ...c,
+        completionRate: c.totalAssigned > 0 ? (c.completed / c.totalAssigned) * 100 : 0,
+      }))
+      .filter((c) => c.totalAssigned > 0 || c.workdayStatus !== 'none')
+      .sort((a, b) => {
+        // Ordenar primero por completadas descendente, luego por efectividad
+        if (b.completed !== a.completed) return b.completed - a.completed
+        return b.completionRate - a.completionRate
+      })
+
     return {
-      totalTasks: tasks.length,
+      totalTasks,
       pending: tasks.filter((t) => ['pending', 'assigned'].includes(t.status)).length,
       inRoute: tasks.filter((t) => ['en_route', 'in_progress'].includes(t.status)).length,
       completed: completedTasks.length,
       notCompleted: tasks.filter((t) => t.status === 'not_completed').length,
+      completionRate,
       activeCouriers: workdays.filter((w) => w.status === 'open').length,
-      totalCash,
-      totalTransfer,
-      totalExpenses,
+      totalCashNIO,
+      totalTransferNIO,
+      totalCollectionsUSD,
+      totalExpensesNIO,
       totalAlreadyReceived,
       netReceivedInVault,
       netCash,
       pendingSettlements: settlements.filter(
         (s) => s.status === 'pending_review' || s.status === 'pending_settlement'
       ).length,
+      courierRankings,
     }
   }, [data])
 
   const dateFormatted = useMemo(() => {
-    // Parse YYYY-MM-DD safely
     const [year, month, day] = selectedDate.split('-').map(Number)
     const dateObj = new Date(year, month - 1, day)
     return dateObj.toLocaleDateString('es-NI', {
@@ -301,26 +588,84 @@ export default function DashboardPage() {
     })
   }, [selectedDate])
 
+  // ─── Exportar Informe Ejecutivo PDF ──────────────────────────────────────────
+
+  const handleExportExecutiveReport = () => {
+    if (!kpis) return
+
+    generateExecutiveDashboardReceipt({
+      branchName: activeBranchName,
+      date: formatDate(selectedDate),
+      generatedBy: profile?.full_name || 'Administrador Operativo',
+      totalTasks: kpis.totalTasks,
+      completedTasks: kpis.completed,
+      completionRate: kpis.completionRate,
+      inRouteTasks: kpis.inRoute,
+      pendingTasks: kpis.pending,
+      failedTasks: kpis.notCompleted,
+      activeCouriers: kpis.activeCouriers,
+      totalCashNIO: kpis.totalCashNIO,
+      totalTransferNIO: kpis.totalTransferNIO,
+      totalCollectionsUSD: kpis.totalCollectionsUSD,
+      totalExpensesNIO: kpis.totalExpensesNIO,
+      netCashNIO: kpis.netCash,
+      courierRanking: kpis.courierRankings.map((c) => ({
+        name: c.name,
+        completed: c.completed,
+        totalAssigned: c.totalAssigned,
+        completionRate: c.completionRate,
+        totalCollectedNIO: c.totalCollectedNIO,
+        status: c.workdayStatus,
+      })),
+    })
+  }
+
   return (
     <div className="space-y-8 animate-fade-in">
       {/* Hero Banner / Saludo Operativo */}
       <BentoCard isHero className="p-6 sm:p-8 space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
+          <div className="space-y-1.5">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/15 text-accent text-2xs font-bold uppercase tracking-wider">
-              <Layers className="h-3.5 w-3.5" /> Centro de Operaciones Administrador
+              <Layers className="h-3.5 w-3.5" /> Centro de Analíticas y Operaciones
             </div>
-            <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight">
+            <h2 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
               Bienvenido, {profile?.full_name ?? 'Administrador'}
             </h2>
             <p className="text-xs sm:text-sm text-slate-600 capitalize">
-              {dateFormatted} {isToday && '(Hoy)'}
+              {dateFormatted} {isToday && '(Hoy)'} • {activeBranchName}
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Accesos Rápidos de Fecha */}
+            <div className="inline-flex rounded-xl bg-slate-100 p-1 border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setSelectedDate(todayStr)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  isToday
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Hoy
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedDate(yesterdayStr)}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all ${
+                  isYesterday
+                    ? 'bg-white text-slate-900 shadow-2xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Ayer
+              </button>
+            </div>
+
             {/* Selector de Fecha */}
-            <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs">
+            <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
               <Calendar className="h-4 w-4 text-accent shrink-0" />
               <input
                 type="date"
@@ -333,9 +678,8 @@ export default function DashboardPage() {
 
             {/* Selector de Sucursal */}
             {userBranches.length > 0 && (
-              <div className="flex items-center gap-2 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-2xs">
+              <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-2xs">
                 <Building2 className="h-4 w-4 text-accent shrink-0" />
-                <span className="text-xs font-bold text-slate-500 hidden sm:inline">Sucursal:</span>
                 <select
                   value={selectedBranchId}
                   onChange={(e) => setSelectedBranchId(e.target.value)}
@@ -352,11 +696,16 @@ export default function DashboardPage() {
               </div>
             )}
 
-            <Link to="/admin/tareas">
-              <Button variant="primary" size="sm" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
-                Ver Listado de Tareas
-              </Button>
-            </Link>
+            {/* Botón Imprimir Informe Ejecutivo */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExportExecutiveReport}
+              leftIcon={<Printer className="h-3.5 w-3.5 text-slate-700" />}
+              className="bg-white hover:bg-slate-50"
+            >
+              Informe PDF
+            </Button>
           </div>
         </div>
       </BentoCard>
@@ -374,23 +723,26 @@ export default function DashboardPage() {
         </div>
       ) : (
         <div className="space-y-8">
-          {/* SECCIÓN 1: OPERACIONES DEL DÍA (MetricCards) */}
+          {/* SECCIÓN 1: EFICIENCIA Y OPERACIONES DEL DÍA */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                {isToday ? 'Operaciones del Día (Hoy)' : `Operaciones del ${formatDate(selectedDate)}`}
-              </h3>
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-accent" />
+                <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                  Eficiencia Operativa & Despacho ({formatDate(selectedDate)})
+                </h3>
+              </div>
               <Badge variant={isToday ? 'assigned' : 'neutral'} size="sm">
-                {isToday ? 'Actualización en vivo' : formatDate(selectedDate)}
+                {isToday ? 'Actualización en tiempo real' : formatDate(selectedDate)}
               </Badge>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Link to={`/admin/tareas`}>
+              <Link to="/admin/tareas">
                 <MetricCard
-                  title={isToday ? 'Tareas Registradas Hoy' : 'Tareas Registradas'}
+                  title={isToday ? 'Tareas Agendadas Hoy' : 'Tareas Agendadas'}
                   value={kpis.totalTasks}
-                  subtitle={`${kpis.totalTasks} asignadas para esta fecha`}
+                  subtitle={`${kpis.pending} pendientes de despacho`}
                   icon={<ClipboardList className="h-5 w-5 text-accent" />}
                   accentColor="accent"
                   className="hover:shadow-card-hover cursor-pointer"
@@ -399,9 +751,9 @@ export default function DashboardPage() {
 
               <Link to="/admin/tareas">
                 <MetricCard
-                  title="Entregas Completadas"
-                  value={kpis.completed}
-                  subtitle="Finalizadas sin incidencias"
+                  title="Efectividad de Entrega"
+                  value={`${kpis.completionRate.toFixed(1)}%`}
+                  subtitle={`${kpis.completed} entregadas con éxito`}
                   icon={<CheckCircle2 className="h-5 w-5 text-emerald-600" />}
                   accentColor="success"
                   className="hover:shadow-card-hover cursor-pointer"
@@ -410,9 +762,9 @@ export default function DashboardPage() {
 
               <Link to="/admin/tareas">
                 <MetricCard
-                  title="En Ruta / Gestión"
+                  title="En Tránsito / Gestión"
                   value={kpis.inRoute}
-                  subtitle="Motorizados en tránsito"
+                  subtitle="Motorizados en calle"
                   icon={<Clock className="h-5 w-5 text-purple-600" />}
                   accentColor="purple"
                   className="hover:shadow-card-hover cursor-pointer"
@@ -421,9 +773,9 @@ export default function DashboardPage() {
 
               <Link to="/admin/tareas">
                 <MetricCard
-                  title="No Completadas / Canceladas"
+                  title="Incidencias / No Completadas"
                   value={kpis.notCompleted}
-                  subtitle="Incidencias registradas"
+                  subtitle="Fallidas o canceladas"
                   icon={<AlertCircle className="h-5 w-5 text-destructive" />}
                   accentColor="destructive"
                   className="hover:shadow-card-hover cursor-pointer"
@@ -432,54 +784,55 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <Divider />
-
-          {/* SECCIÓN 2: PERSONAL Y RECAUDACIÓN (MetricCards) */}
+          {/* SECCIÓN 2: DESGLOSE FINANCIERO Y MULTIMONEDA */}
           <div className="space-y-4">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-              Personal & Estado Financiero ({formatDate(selectedDate)})
-            </h3>
+            <div className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-emerald-600" />
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                Desglose Financiero y Cobranzas Multimoneda ({formatDate(selectedDate)})
+              </h3>
+            </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <Link to="/admin/jornadas">
-                <MetricCard
-                  title="Motorizados Activos"
-                  value={kpis.activeCouriers}
-                  subtitle="Jornadas abiertas en la fecha"
-                  icon={<Bike className="h-5 w-5 text-purple-600" />}
-                  accentColor="purple"
-                  className="hover:shadow-card-hover cursor-pointer"
-                />
-              </Link>
-
               <Link to="/admin/liquidaciones">
                 <MetricCard
-                  title="Liquidaciones Pendientes"
-                  value={kpis.pendingSettlements}
-                  subtitle="Pendientes de aprobación"
-                  icon={<Package className="h-5 w-5 text-amber-500" />}
-                  accentColor="warning"
-                  className="hover:shadow-card-hover cursor-pointer"
-                />
-              </Link>
-
-              <Link to="/admin/liquidaciones">
-                <MetricCard
-                  title="Recaudado en Efectivo"
-                  value={`C$ ${(Number(kpis.totalCash) || 0).toFixed(2)}`}
-                  subtitle="Monto reportado en caja"
+                  title="Efectivo en Córdobas"
+                  value={`C$ ${kpis.totalCashNIO.toFixed(2)}`}
+                  subtitle="Recaudado por motorizados"
                   icon={<DollarSign className="h-5 w-5 text-emerald-600" />}
                   accentColor="success"
                   className="hover:shadow-card-hover cursor-pointer"
                 />
               </Link>
 
+              <Link to="/admin/liquidaciones">
+                <MetricCard
+                  title="Transferencias Bancarias"
+                  value={`C$ ${kpis.totalTransferNIO.toFixed(2)}`}
+                  subtitle="Pagos digitales verificados"
+                  icon={<TrendingUp className="h-5 w-5 text-sky-600" />}
+                  accentColor="accent"
+                  className="hover:shadow-card-hover cursor-pointer"
+                />
+              </Link>
+
+              <Link to="/admin/liquidaciones">
+                <MetricCard
+                  title="Recaudación Dólares ($)"
+                  value={`$ ${kpis.totalCollectionsUSD.toFixed(2)}`}
+                  subtitle="Cobros en divisa extranjera"
+                  icon={<DollarSign className="h-5 w-5 text-violet-600" />}
+                  accentColor="purple"
+                  className="hover:shadow-card-hover cursor-pointer"
+                />
+              </Link>
+
               <Link to="/admin/cierre-diario">
                 <MetricCard
-                  title="Neto Consolidado"
-                  value={`C$ ${(Number(kpis.netCash) || 0).toFixed(2)}`}
-                  subtitle={`Transf: C$ ${(Number(kpis.totalTransfer) || 0).toFixed(2)}`}
-                  icon={<TrendingUp className="h-5 w-5 text-primary" />}
+                  title="Neto en Bóveda / Caja"
+                  value={`C$ ${kpis.netCash.toFixed(2)}`}
+                  subtitle={`Gastos: -C$ ${kpis.totalExpensesNIO.toFixed(2)}`}
+                  icon={<Award className="h-5 w-5 text-primary" />}
                   accentColor="primary"
                   className="hover:shadow-card-hover cursor-pointer"
                 />
@@ -487,7 +840,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* SECCIÓN 3: DISTRIBUCIÓN O ESTADO VACÍO */}
+          {/* SECCIÓN 3: DISTRIBUCIÓN OPERATIVA O EMPTY STATE */}
           {data && data.tasks && data.tasks.length > 0 ? (
             <TaskStatusBar tasks={data.tasks} dateLabel={isToday ? 'Hoy' : formatDate(selectedDate)} />
           ) : (
@@ -497,7 +850,9 @@ export default function DashboardPage() {
               icon={<PackageCheck className="h-7 w-7 text-slate-400" />}
               action={
                 <Link to="/admin/tareas">
-                  <Button variant="primary" size="sm">Crear Nueva Tarea</Button>
+                  <Button variant="primary" size="sm">
+                    Crear Nueva Tarea
+                  </Button>
                 </Link>
               }
             />
@@ -505,7 +860,37 @@ export default function DashboardPage() {
 
           <Divider />
 
-          {/* SECCIÓN 4: ACCESOS RÁPIDOS A MÓDULOS */}
+          {/* SECCIÓN 4: RANKING Y PRODUCTIVIDAD DE MOTORIZADOS */}
+          <Card className="p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <Award className="h-4 w-4 text-amber-500" />
+                  <CardTitle className="text-base">Ranking y Rendimiento de Motorizados</CardTitle>
+                </div>
+                <CardDescription>
+                  Productividad, porcentaje de efectividad de entrega y recaudación acumulada
+                </CardDescription>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Badge variant="assigned" size="md">
+                  {kpis.activeCouriers} en ruta activa
+                </Badge>
+                <Link to="/admin/jornadas">
+                  <Button variant="outline" size="sm">
+                    Ver Jornadas
+                  </Button>
+                </Link>
+              </div>
+            </div>
+
+            <CourierLeaderboard couriers={kpis.courierRankings} />
+          </Card>
+
+          <Divider />
+
+          {/* SECCIÓN 5: ACCESOS RÁPIDOS A MÓDULOS */}
           <div className="space-y-4">
             <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
               Accesos Rápidos de Administración
@@ -517,7 +902,9 @@ export default function DashboardPage() {
                   <div className="h-10 w-10 rounded-xl bg-sky-50 text-accent flex items-center justify-center border border-sky-100">
                     <ClipboardList className="h-5 w-5" />
                   </div>
-                  <Badge variant="assigned" size="sm">Operaciones</Badge>
+                  <Badge variant="assigned" size="sm">
+                    Operaciones
+                  </Badge>
                 </div>
                 <div className="space-y-1">
                   <CardTitle className="text-base">Gestión de Tareas</CardTitle>
@@ -527,7 +914,12 @@ export default function DashboardPage() {
                 </div>
                 <div className="pt-2">
                   <Link to="/admin/tareas">
-                    <Button variant="outline" size="sm" className="w-full justify-between" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-between"
+                      rightIcon={<ArrowRight className="h-3.5 w-3.5" />}
+                    >
                       Ir a Tareas
                     </Button>
                   </Link>
@@ -539,7 +931,9 @@ export default function DashboardPage() {
                   <div className="h-10 w-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center border border-purple-100">
                     <CalendarCheck2 className="h-5 w-5" />
                   </div>
-                  <Badge variant="en_route" size="sm">Jornadas</Badge>
+                  <Badge variant="en_route" size="sm">
+                    Jornadas
+                  </Badge>
                 </div>
                 <div className="space-y-1">
                   <CardTitle className="text-base">Control de Fondos</CardTitle>
@@ -549,7 +943,12 @@ export default function DashboardPage() {
                 </div>
                 <div className="pt-2">
                   <Link to="/admin/jornadas">
-                    <Button variant="outline" size="sm" className="w-full justify-between" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-between"
+                      rightIcon={<ArrowRight className="h-3.5 w-3.5" />}
+                    >
                       Ver Jornadas
                     </Button>
                   </Link>
@@ -561,7 +960,9 @@ export default function DashboardPage() {
                   <div className="h-10 w-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
                     <BarChart3 className="h-5 w-5" />
                   </div>
-                  <Badge variant="completed" size="sm">Reportes</Badge>
+                  <Badge variant="completed" size="sm">
+                    Reportes
+                  </Badge>
                 </div>
                 <div className="space-y-1">
                   <CardTitle className="text-base">Reportes Ejecutivos</CardTitle>
@@ -571,7 +972,12 @@ export default function DashboardPage() {
                 </div>
                 <div className="pt-2">
                   <Link to="/admin/reportes">
-                    <Button variant="outline" size="sm" className="w-full justify-between" rightIcon={<ArrowRight className="h-3.5 w-3.5" />}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full justify-between"
+                      rightIcon={<ArrowRight className="h-3.5 w-3.5" />}
+                    >
                       Ver Reportes
                     </Button>
                   </Link>
