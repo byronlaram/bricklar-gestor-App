@@ -1,5 +1,6 @@
 import type { TaskType } from '@/shared/types'
 import { TASK_TYPE_LABELS } from '@/shared/types'
+import { useTaskTypesConfig } from '../hooks/useTaskTypesConfig'
 import { cn } from '@/shared/utils/cn'
 import {
   Truck,
@@ -11,6 +12,7 @@ import {
   Receipt,
   Fuel,
   FileText,
+  HelpCircle,
 } from 'lucide-react'
 
 interface TaskTypeBadgeProps {
@@ -19,7 +21,7 @@ interface TaskTypeBadgeProps {
   showIcon?: boolean
 }
 
-const TYPE_ICONS: Record<TaskType, React.ElementType> = {
+const TYPE_ICONS: Record<string, React.ElementType> = {
   delivery: Truck,
   bus_shipment: Bus,
   logistics_shipment: Package,
@@ -32,8 +34,10 @@ const TYPE_ICONS: Record<TaskType, React.ElementType> = {
 }
 
 export function TaskTypeBadge({ type, className, showIcon = true }: TaskTypeBadgeProps) {
-  const Icon = TYPE_ICONS[type] || FileText
-  const label = TASK_TYPE_LABELS[type] || type
+  const { configs } = useTaskTypesConfig()
+  const customConfig = configs[type]
+  const Icon = TYPE_ICONS[type] || HelpCircle
+  const label = customConfig?.label || TASK_TYPE_LABELS[type] || type
 
   return (
     <span

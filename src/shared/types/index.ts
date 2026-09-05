@@ -14,7 +14,8 @@ export type TaskType =
   | 'credit_payment'
   | 'service_payment'
   | 'fuel'
-  | 'other_errand';
+  | 'other_errand'
+  | (string & {});
 
 export type TaskStatus =
   | 'pending'
@@ -88,7 +89,7 @@ export type PaymentMethod =
   | 'other';
 
 // Labels en español para enums
-export const TASK_TYPE_LABELS: Record<TaskType, string> = {
+export const TASK_TYPE_LABELS: Record<string, string> = {
   delivery: 'Entrega',
   bus_shipment: 'Encomienda por bus',
   logistics_shipment: 'Encomienda logística',

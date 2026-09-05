@@ -29,9 +29,10 @@ import { cn } from '@/shared/utils/cn'
 import { taskBaseSchema, type TaskBaseInput } from '@/shared/validations/schemas'
 import type { TaskWithCourier } from '../types/task.types'
 import { useTaskMutations } from '../hooks/useTaskMutations'
-import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS, type PaymentMethod, type TaskType } from '@/shared/types'
+import { TASK_PRIORITY_LABELS, type PaymentMethod, type TaskType } from '@/shared/types'
 import { ConfirmDialog, useToast, ImageViewerModal } from '@/shared/components/ui'
 import { TASK_TYPE_CONFIGS } from '../config/taskTypeConfig'
+import { useTaskTypesConfig } from '../hooks/useTaskTypesConfig'
 import { BusRouteCombobox } from '@/modules/buses/components/BusRouteCombobox'
 import type { BusRoute } from '@/modules/buses/types/buses.types'
 import { useCouriers } from '../hooks/useCouriers'
@@ -150,8 +151,10 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
     }
   }, [assignedCourierId, scheduledDate, todayStr])
 
+  const { configs: taskConfigs } = useTaskTypesConfig()
+
   const selectedTaskType = watch('task_type') || 'delivery'
-  const config = TASK_TYPE_CONFIGS[selectedTaskType as TaskType] || TASK_TYPE_CONFIGS.delivery
+  const config = (taskConfigs && taskConfigs[selectedTaskType as TaskType]) || TASK_TYPE_CONFIGS[selectedTaskType as TaskType] || TASK_TYPE_CONFIGS.delivery
 
   const requiresCollection = watch('requires_collection')
   const requiresPayment = watch('requires_payment')
@@ -193,7 +196,7 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
     if (!isOpen) return
 
     if (previousTypeRef.current !== selectedTaskType) {
-      const prevConfig = TASK_TYPE_CONFIGS[previousTypeRef.current]
+      const prevConfig = (taskConfigs && taskConfigs[previousTypeRef.current]) || TASK_TYPE_CONFIGS[previousTypeRef.current]
       const currentTitle = watch('title')
 
       // Si el título está vacío o coincide con la sugerencia anterior, se actualiza a la nueva sugerencia
@@ -218,7 +221,7 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
 
       previousTypeRef.current = selectedTaskType
     }
-  }, [selectedTaskType, isOpen, isEditing, setValue, watch, config])
+  }, [selectedTaskType, isOpen, isEditing, setValue, watch, config, taskConfigs])
 
   // Reset del formulario al abrir o cambiar de tarea a editar
   useEffect(() => {
@@ -529,11 +532,13 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                     {...register('task_type')}
                     className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground font-medium"
                   >
-                    {Object.entries(TASK_TYPE_LABELS).map(([val, label]) => (
-                      <option key={val} value={val}>
-                        {label}
-                      </option>
-                    ))}
+                    {Object.entries(taskConfigs || TASK_TYPE_CONFIGS)
+                      .filter(([_, cfg]) => (cfg as any).enabled !== false)
+                      .map(([val, cfg]) => (
+                        <option key={val} value={val}>
+                          {(cfg as any).label}
+                        </option>
+                      ))}
                   </select>
                 </div>
 

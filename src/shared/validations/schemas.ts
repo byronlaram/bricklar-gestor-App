@@ -94,10 +94,7 @@ const optionalStringSchema = z.preprocess((val) => {
 }, z.string().max(500).nullable().optional())
 
 export const taskBaseSchema = z.object({
-  task_type: z.enum([
-    'delivery', 'bus_shipment', 'logistics_shipment', 'purchase',
-    'bank_deposit', 'credit_payment', 'service_payment', 'fuel', 'other_errand',
-  ], { message: 'Tipo de tarea requerido' }),
+  task_type: z.string().min(1, 'Tipo de tarea requerido'),
   title: z.string().min(3, 'El título debe tener al menos 3 caracteres').max(200),
   description: z.string().min(5, 'La descripción es obligatoria').max(2000),
   scheduled_date: dateSchema,
