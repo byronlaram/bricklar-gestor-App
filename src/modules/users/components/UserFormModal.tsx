@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
-import { X, UserPlus, Edit3, Loader2, ShieldCheck, Mail, KeyRound } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { X, UserPlus, Edit3, Loader2, ShieldCheck, Mail, KeyRound, Camera, Trash2, Upload } from 'lucide-react'
 import type { UserProfileExtended } from '../types/users.types'
 import type { UserRole } from '@/shared/types'
 import { USER_ROLE_LABELS } from '@/shared/types'
 import { useUserMutations } from '../hooks/useUsers'
 import { useAuth } from '@/modules/auth/useAuth'
-import { ConfirmDialog, useToast } from '@/shared/components/ui'
+import { Avatar, ConfirmDialog, useToast, Button } from '@/shared/components/ui'
 import { TempPasswordModal } from './TempPasswordModal'
+import { uploadUserAvatar } from '../services/usersService'
 
 interface UserFormModalProps {
   userToEdit?: UserProfileExtended | null
@@ -19,11 +20,14 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
   const isEditing = !!userToEdit
   const { isGeneralAdmin } = useAuth()
   const toast = useToast()
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [fullName, setFullName] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [avatarUrl, setAvatarUrl] = useState('')
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
   const [phone, setPhone] = useState('')
   const [role, setRole] = useState<UserRole>('courier')
   const [selectedBranches, setSelectedBranches] = useState<string[]>([])
@@ -48,6 +52,7 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
       setPassword('')
       setFullName(userToEdit.full_name)
       setDisplayName(userToEdit.display_name || userToEdit.full_name)
+      setAvatarUrl(userToEdit.avatar_url || '')
       setPhone(userToEdit.phone || '')
       setRole(userToEdit.role)
       setSelectedBranches(userToEdit.branch_ids || [])
@@ -56,6 +61,7 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
       setPassword('')
       setFullName('')
       setDisplayName('')
+      setAvatarUrl('')
       setPhone('')
       setRole('courier')
       setSelectedBranches(branches.map((b) => b.id))
@@ -68,6 +74,32 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
     setSelectedBranches((prev) =>
       prev.includes(branchId) ? prev.filter((id) => id !== branchId) : [...prev, branchId]
     )
+  }
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error('La foto de perfil no debe superar los 5 MB.')
+      return
+    }
+
+    setIsUploadingAvatar(true)
+    try {
+      const publicUrl = await uploadUserAvatar(file, userToEdit?.id)
+      setAvatarUrl(publicUrl)
+      toast.success('Foto cargada', 'Se guardará al actualizar el perfil del empleado.')
+    } catch (err: any) {
+      toast.error('Error al subir foto', err?.message || 'No se pudo subir el archivo.')
+    } finally {
+      setIsUploadingAvatar(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRemoveAvatar = () => {
+    setAvatarUrl('')
   }
 
   const handleSendResetLink = async () => {
@@ -94,21 +126,25 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
           payload: {
             full_name: fullName,
             display_name: displayName || fullName,
+            avatar_url: avatarUrl || null,
             phone: phone || undefined,
             role,
             branch_ids: selectedBranches,
           },
         })
+        toast.success('Usuario actualizado', `Perfil de ${fullName} guardado exitosamente.`)
       } else {
         await createUser({
           email,
           password,
           full_name: fullName,
           display_name: displayName || fullName,
+          avatar_url: avatarUrl || null,
           phone: phone || undefined,
           role,
           branch_ids: selectedBranches,
         })
+        toast.success('Usuario creado', `Cuenta para ${fullName} creada correctamente.`)
       }
       onClose()
     } catch (err) {
@@ -116,7 +152,7 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
     }
   }
 
-  const isLoading = isCreating || isUpdating
+  const isLoading = isCreating || isUpdating || isUploadingAvatar
   const errorMessage = (createError || updateError) as Error | null
 
   return (
@@ -136,17 +172,65 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
             </div>
             <div>
               <h2 className="text-base font-semibold text-foreground">
-                {isEditing ? `Editar Usuario — ${userToEdit.full_name}` : 'Nuevo Usuario'}
+                {isEditing ? `Editar Perfil — ${userToEdit.full_name}` : 'Nuevo Empleado / Usuario'}
               </h2>
               <p className="text-xs text-foreground-muted">
                 {isEditing
-                  ? 'Modifique el rol, datos personales o sucursales.'
-                  : 'Cree las credenciales y rol del nuevo usuario.'}
+                  ? 'Modifique datos personales, foto, rol o sucursales.'
+                  : 'Cree las credenciales, foto y rol del nuevo empleado.'}
               </p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Foto de Perfil / Avatar del Empleado */}
+            <div className="p-3 bg-muted/20 border border-border/80 rounded-xl flex items-center gap-4">
+              <div className="relative group shrink-0">
+                <Avatar
+                  src={avatarUrl || undefined}
+                  name={displayName || fullName || 'Empleado'}
+                  size="lg"
+                  className="h-14 w-14 text-sm ring-2 ring-border shadow-2xs"
+                />
+                {avatarUrl && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveAvatar}
+                    className="absolute -top-1 -right-1 p-1 rounded-full bg-rose-600 text-white shadow-xs hover:bg-rose-700 transition cursor-pointer"
+                    title="Quitar foto"
+                  >
+                    <Trash2 className="h-2.5 w-2.5" />
+                  </button>
+                )}
+              </div>
+
+              <div className="space-y-1 flex-1">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleAvatarUpload}
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/30 rounded-lg transition cursor-pointer disabled:opacity-50"
+                >
+                  {isUploadingAvatar ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Camera className="h-3 w-3" />
+                  )}
+                  {avatarUrl ? 'Cambiar Foto' : 'Subir Foto del Empleado'}
+                </button>
+                <p className="text-[10px] text-foreground-muted">
+                  Visible en las tareas asignadas y en el portal de seguimiento del cliente.
+                </p>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-foreground mb-1">
@@ -188,7 +272,7 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
                 <input
                   type="text"
                   required
-                  placeholder="Ej: Carlos Mendoza"
+                  placeholder="Ej: Carlos Gómez"
                   value={fullName}
                   onChange={(e) => setFullName(e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
@@ -201,7 +285,7 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
                 </label>
                 <input
                   type="text"
-                  placeholder="Ej: Carlos M."
+                  placeholder="Ej: Carlos G."
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
                   className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
@@ -212,23 +296,8 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-foreground mb-1">
-                  Rol del Sistema <span className="text-destructive">*</span>
+                  Teléfono / WhatsApp
                 </label>
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as UserRole)}
-                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
-                >
-                  {Object.entries(USER_ROLE_LABELS).map(([val, label]) => (
-                    <option key={val} value={val}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">Teléfono</label>
                 <input
                   type="text"
                   placeholder="Ej: 8888-8888"
@@ -237,55 +306,81 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
                   className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
                 />
               </div>
-            </div>
 
-            {/* Sucursales Asignadas */}
-            <div>
-              <label className="block text-xs font-semibold text-foreground mb-1.5">
-                Sucursales Autorizadas
-              </label>
-              <div className="grid grid-cols-2 gap-2 p-3 bg-muted/30 border border-border/50 rounded-xl">
-                {branches.map((b) => (
-                  <label key={b.id} className="flex items-center gap-2 cursor-pointer text-xs">
-                    <input
-                      type="checkbox"
-                      checked={selectedBranches.includes(b.id)}
-                      onChange={() => handleBranchToggle(b.id)}
-                      className="h-4 w-4 rounded text-accent focus:ring-accent accent-accent"
-                    />
-                    <span className="text-foreground font-medium">{b.name} ({b.code})</span>
-                  </label>
-                ))}
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1">
+                  Rol del Usuario <span className="text-destructive">*</span>
+                </label>
+                <select
+                  value={role}
+                  onChange={(e) => setRole(e.target.value as UserRole)}
+                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground cursor-pointer"
+                >
+                  <option value="courier">Motorizado / Conductor</option>
+                  <option value="junior_admin">Administrador Junior</option>
+                  {isGeneralAdmin && <option value="general_admin">Administrador General</option>}
+                </select>
               </div>
             </div>
 
-            {/* Sección Seguridad y Acceso (Solo Administrador General en Edición) */}
-            {isEditing && isGeneralAdmin && userToEdit && (
-              <div className="space-y-3 pt-3 border-t border-border/40">
-                <h3 className="text-xs font-bold text-foreground uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
-                  <ShieldCheck className="h-3.5 w-3.5 text-accent" />
-                  Seguridad y Acceso
-                </h3>
+            {/* Selector de Sucursales Asignadas */}
+            {branches.length > 0 && (
+              <div>
+                <label className="block text-xs font-semibold text-foreground mb-1.5">
+                  Sucursales Asignadas
+                </label>
+                <div className="grid grid-cols-2 gap-2 bg-muted/20 p-3 rounded-lg border border-border max-h-36 overflow-y-auto">
+                  {branches.map((branch) => {
+                    const isChecked = selectedBranches.includes(branch.id)
+                    return (
+                      <label
+                        key={branch.id}
+                        className="flex items-center gap-2 text-xs text-foreground cursor-pointer hover:text-accent select-none"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleBranchToggle(branch.id)}
+                          className="rounded text-accent focus:ring-accent/50 cursor-pointer"
+                        />
+                        <span className="truncate">{branch.name}</span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <button
-                    type="button"
-                    disabled={isSendingResetLink}
-                    onClick={() => setShowResetConfirm(true)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition cursor-pointer"
-                  >
-                    <Mail className="h-3.5 w-3.5 text-slate-600" />
-                    Enviar Enlace de Recuperación
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowTempPasswordModal(true)}
-                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-lg transition cursor-pointer"
-                  >
-                    <KeyRound className="h-3.5 w-3.5 text-amber-600" />
-                    Generar Contraseña Temporal
-                  </button>
+            {/* Opciones de Seguridad para edición (Solo si está editando) */}
+            {isEditing && userToEdit && (
+              <div className="pt-2 border-t border-border/60">
+                <div className="flex flex-wrap items-center justify-between gap-2 p-3 bg-muted/40 rounded-xl border border-border">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck className="h-4 w-4 text-accent" />
+                    <div>
+                      <p className="text-xs font-semibold text-foreground">Gestión de Contraseña</p>
+                      <p className="text-[10px] text-foreground-muted">Opciones de acceso del usuario</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowResetConfirm(true)}
+                      disabled={isSendingResetLink}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-foreground hover:bg-muted rounded-lg border border-border transition cursor-pointer"
+                    >
+                      <Mail className="h-3 w-3" />
+                      Enviar Enlace
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowTempPasswordModal(true)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 hover:bg-amber-100 dark:hover:bg-amber-900/40 rounded-lg border border-amber-200 dark:border-amber-800 transition cursor-pointer"
+                    >
+                      <KeyRound className="h-3 w-3" />
+                      Clave Temporal
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -294,51 +389,36 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
               <p className="text-xs text-destructive font-medium">{errorMessage.message}</p>
             )}
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border/40">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-xs font-medium text-foreground-muted hover:text-foreground border border-border rounded-lg transition cursor-pointer"
-              >
+            <div className="flex justify-end gap-3 pt-3 border-t border-border">
+              <Button type="button" variant="outline" size="sm" onClick={onClose}>
                 Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 text-xs font-semibold text-white bg-accent hover:bg-accent/90 disabled:opacity-50 rounded-lg shadow-sm transition cursor-pointer"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Guardando...
-                  </>
-                ) : isEditing ? (
-                  'Guardar Cambios'
-                ) : (
-                  'Crear Usuario'
-                )}
-              </button>
+              </Button>
+              <Button type="submit" variant="primary" size="sm" disabled={isLoading}>
+                {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />}
+                {isEditing ? 'Guardar Cambios' : 'Crear Usuario'}
+              </Button>
             </div>
           </form>
         </div>
       </div>
 
-      {/* Confirmación para enviar enlace de recuperación */}
+      {/* Confirmación para Enviar Enlace de Recuperación */}
       <ConfirmDialog
         isOpen={showResetConfirm}
-        onClose={() => setShowResetConfirm(false)}
+        title="¿Enviar enlace de recuperación?"
+        message={`Se enviará un correo a "${userToEdit?.email}" con instrucciones para que el usuario restablezca su contraseña.`}
+        confirmText="Enviar Enlace"
+        cancelText="Cancelar"
+        variant="info"
+        isLoading={isSendingResetLink}
         onConfirm={handleSendResetLink}
-        title="Enviar Enlace de Recuperación"
-        description={`¿Desea enviar un enlace de recuperación de contraseña al correo ${userToEdit?.email}?`}
-        confirmText="Sí, enviar enlace"
-        variant="primary"
+        onCancel={() => setShowResetConfirm(false)}
       />
 
-      {/* Modal para contraseña temporal */}
+      {/* Modal para Asignar Contraseña Temporal */}
       {userToEdit && (
         <TempPasswordModal
-          userId={userToEdit.id}
-          userName={userToEdit.full_name}
+          user={userToEdit}
           isOpen={showTempPasswordModal}
           onClose={() => setShowTempPasswordModal(false)}
         />

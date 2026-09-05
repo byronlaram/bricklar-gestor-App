@@ -109,7 +109,7 @@ export function AppRouter() {
             <Route path="tareas" element={<AdminTasksPage />} />
             <Route path="tareas/:id" element={<AdminTaskDetailPage />} />
             <Route path="usuarios" element={
-              <RouteGuard allowedRoles={['general_admin']}>
+              <RouteGuard allowedRoles={['general_admin', 'junior_admin']}>
                 <AdminUsersPage />
               </RouteGuard>
             } />

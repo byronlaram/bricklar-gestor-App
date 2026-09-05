@@ -21,6 +21,7 @@ export interface CreateUserPayload {
   password: string
   full_name: string
   display_name?: string
+  avatar_url?: string | null
   phone?: string
   role: UserRole
   branch_ids: string[]
@@ -29,6 +30,7 @@ export interface CreateUserPayload {
 export interface UpdateUserPayload {
   full_name?: string
   display_name?: string
+  avatar_url?: string | null
   phone?: string
   role?: UserRole
   is_active?: boolean

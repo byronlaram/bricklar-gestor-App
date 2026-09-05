@@ -1,11 +1,39 @@
 import { supabase } from '@/shared/lib/supabaseClient'
 import type { Database } from '@/shared/lib/database.types'
+import { compressImage } from '@/shared/utils/imageCompressor'
 import type {
   UserProfileExtended,
   CreateUserPayload,
   UpdateUserPayload,
   UserFilters,
 } from '../types/users.types'
+
+export async function uploadUserAvatar(file: File, userId?: string): Promise<string> {
+  if (!file) throw new Error('No se ha seleccionado ninguna foto.')
+
+  // Optimizar tamaño del avatar (máx 500x500 px)
+  const optimized = await compressImage(file, 500, 500, 0.85)
+  const rawExt = (optimized.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const fileExt = ['png', 'jpg', 'jpeg', 'webp'].includes(rawExt) ? rawExt : 'jpg'
+  const fileName = `avatar_${userId || 'user'}_${Date.now()}.${fileExt}`
+  const filePath = `avatars/${fileName}`
+
+  const { error: uploadError } = await supabase.storage
+    .from('task-evidences')
+    .upload(filePath, optimized, { cacheControl: '86400', upsert: true })
+
+  if (uploadError) {
+    console.warn('[Users] Avatar storage upload warning (fallback to DataURL):', uploadError.message)
+    return new Promise((resolve) => {
+      const reader = new FileReader()
+      reader.onloadend = () => resolve(reader.result as string)
+      reader.readAsDataURL(optimized)
+    })
+  }
+
+  const { data: urlData } = supabase.storage.from('task-evidences').getPublicUrl(filePath)
+  return urlData.publicUrl
+}
 
 export async function getUsers(filters: UserFilters = {}): Promise<UserProfileExtended[]> {
   const { search, role, is_active } = filters
@@ -83,6 +111,7 @@ export async function updateUser(id: string, payload: UpdateUserPayload): Promis
 
   if (payload.full_name !== undefined) updateData.full_name = payload.full_name
   if (payload.display_name !== undefined) updateData.display_name = payload.display_name
+  if (payload.avatar_url !== undefined) updateData.avatar_url = payload.avatar_url
   if (payload.phone !== undefined) updateData.phone = payload.phone
   if (payload.role !== undefined) updateData.role = payload.role
   if (payload.is_active !== undefined) updateData.is_active = payload.is_active

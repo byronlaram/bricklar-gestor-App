@@ -69,7 +69,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Administración',
     items: [
-      { to: '/admin/usuarios', label: 'Usuarios', icon: <Users size={18} />, roles: ['general_admin'] },
+      { to: '/admin/usuarios', label: 'Usuarios', icon: <Users size={18} />, roles: ['general_admin', 'junior_admin'] },
       { to: '/admin/sucursales', label: 'Sucursales', icon: <Building2 size={18} />, roles: ['general_admin'] },
       { to: '/admin/auditoria', label: 'Auditoría', icon: <Shield size={18} />, roles: ['general_admin'] },
       { to: '/admin/configuracion', label: 'Configuración', icon: <Settings size={18} />, roles: ['general_admin', 'junior_admin'] },
