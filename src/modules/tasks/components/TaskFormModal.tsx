@@ -296,8 +296,6 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
     }
   }, [isOpen, taskToEdit, reset, todayStr, isEditing])
 
-  if (!isOpen) return null
-
   const processAndUploadFiles = async (files: File[]) => {
     if (!files || files.length === 0) return
 
@@ -469,6 +467,8 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
 
   const isLoading = isCreating || isUpdating
 
+  if (!isOpen) return null
+
   return (
     <>
       <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
@@ -481,10 +481,12 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-foreground">
-                  {isEditing ? `Editar Tarea — ${taskToEdit.code}` : 'Nueva Tarea'}
+                  {isEditing ? `Editar Tarea — ${taskToEdit?.code || ''}` : 'Nueva Tarea'}
                 </h2>
                 <p className="text-xs text-foreground-muted">
-                  {config.label} — Formulario Adaptativo Inteligente
+                  {isEditing
+                    ? 'Modifica los parámetros de la tarea seleccionada.'
+                    : 'Crea una nueva gestión operativa y asígnala al equipo de reparto.'}
                 </p>
               </div>
             </div>
