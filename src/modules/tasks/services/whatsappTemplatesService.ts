@@ -83,15 +83,39 @@ export async function saveWhatsAppTemplatesSettings(
   }
 
   try {
-    const { error } = await supabase.from('app_settings').upsert({
-      key: SETTINGS_KEY,
-      value_json: settings as any,
-      updated_by: userId,
-      updated_at: new Date().toISOString(),
-    })
+    const { data: existing } = await supabase
+      .from('app_settings')
+      .select('id')
+      .eq('key', SETTINGS_KEY)
+      .maybeSingle()
 
-    if (error) {
-      console.warn('[Settings] DB error saving whatsapp settings:', error)
+    if (existing) {
+      const { error } = await supabase
+        .from('app_settings')
+        .update({
+          value_json: settings as any,
+          updated_by: userId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id)
+
+      if (error) {
+        console.warn('[Settings] DB error updating whatsapp settings:', error)
+      }
+    } else {
+      const { error } = await supabase
+        .from('app_settings')
+        .insert({
+          key: SETTINGS_KEY,
+          value_json: settings as any,
+          description: 'Plantillas de mensajes automáticos de WhatsApp',
+          updated_by: userId,
+          updated_at: new Date().toISOString(),
+        })
+
+      if (error) {
+        console.warn('[Settings] DB error inserting whatsapp settings:', error)
+      }
     }
   } catch (err) {
     console.warn('[Settings] Error saving whatsapp settings to DB:', err)

@@ -100,13 +100,43 @@ export async function getVehicles(branchId?: string): Promise<Vehicle[]> {
   }
 }
 
+async function saveFleetSettingToDb(key: string, value: any, description: string): Promise<void> {
+  try {
+    const { data: existing } = await supabase
+      .from('app_settings')
+      .select('id')
+      .eq('key', key)
+      .maybeSingle()
+
+    if (existing) {
+      await supabase
+        .from('app_settings')
+        .update({
+          value_json: value as any,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', existing.id)
+    } else {
+      await supabase
+        .from('app_settings')
+        .insert({
+          key,
+          value_json: value as any,
+          description,
+          updated_at: new Date().toISOString(),
+        })
+    }
+  } catch (err) {
+    console.warn('[Fleet] DB save error for key:', key, err)
+  }
+}
+
 /**
  * Guarda o actualiza un vehículo en la flota
  */
 export async function saveVehicle(payload: Partial<Vehicle>): Promise<Vehicle> {
   const allVehicles = await getVehicles()
   const now = new Date().toISOString()
-  const todayDate = now.split('T')[0]
 
   let savedVehicle: Vehicle
 
@@ -128,24 +158,10 @@ export async function saveVehicle(payload: Partial<Vehicle>): Promise<Vehicle> {
       plate: payload.plate?.toUpperCase().trim() || 'M-000000',
       brand: payload.brand?.trim() || 'Desconocida',
       model: payload.model?.trim() || 'Moped',
-      year: payload.year || new Date().getFullYear(),
-      color: payload.color?.trim() || 'Negro',
-      assigned_courier_id: payload.assigned_courier_id || null,
-      assigned_courier_name: payload.assigned_courier_name || null,
-      branch_id: payload.branch_id || '',
-      current_odometer: Number(payload.current_odometer) || 0,
-      oil_change_interval_km: Number(payload.oil_change_interval_km) || 2500,
-      last_oil_change_km: Number(payload.last_oil_change_km) || Number(payload.current_odometer) || 0,
-      last_oil_change_date: payload.last_oil_change_date || todayDate,
-      general_service_interval_km: Number(payload.general_service_interval_km) || 5000,
-      last_general_service_km: Number(payload.last_general_service_km) || Number(payload.current_odometer) || 0,
-      last_general_service_date: payload.last_general_service_date || todayDate,
-      status: payload.status || 'active',
-      notes: payload.notes || null,
       created_at: now,
       updated_at: now,
-    }
-    allVehicles.unshift(savedVehicle)
+    } as Vehicle
+    allVehicles.push(savedVehicle)
   }
 
   // Guardar en localStorage
@@ -156,12 +172,11 @@ export async function saveVehicle(payload: Partial<Vehicle>): Promise<Vehicle> {
   }
 
   // Guardar en Supabase app_settings
-  await supabase.from('app_settings').upsert({
-    key: FLEET_STORAGE_KEY,
-    value_json: allVehicles as any,
-    description: 'Registro maestro de vehículos y motocicletas de la flota',
-    updated_at: now,
-  })
+  await saveFleetSettingToDb(
+    FLEET_STORAGE_KEY,
+    allVehicles,
+    'Registro maestro de vehículos y motocicletas de la flota'
+  )
 
   return savedVehicle
 }
@@ -172,7 +187,6 @@ export async function saveVehicle(payload: Partial<Vehicle>): Promise<Vehicle> {
 export async function deleteVehicle(id: string): Promise<void> {
   const allVehicles = await getVehicles()
   const filtered = allVehicles.filter((v) => v.id !== id)
-  const now = new Date().toISOString()
 
   try {
     localStorage.setItem(FLEET_STORAGE_KEY, JSON.stringify(filtered))
@@ -180,12 +194,11 @@ export async function deleteVehicle(id: string): Promise<void> {
     console.warn('[Fleet] localStorage delete error:', e)
   }
 
-  await supabase.from('app_settings').upsert({
-    key: FLEET_STORAGE_KEY,
-    value_json: filtered as any,
-    description: 'Registro maestro de vehículos y motocicletas de la flota',
-    updated_at: now,
-  })
+  await saveFleetSettingToDb(
+    FLEET_STORAGE_KEY,
+    filtered,
+    'Registro maestro de vehículos y motocicletas de la flota'
+  )
 }
 
 /**
@@ -252,12 +265,11 @@ export async function addMaintenanceRecord(
   }
 
   // Guardar en Supabase app_settings
-  await supabase.from('app_settings').upsert({
-    key: FLEET_MAINTENANCE_KEY,
-    value_json: allRecords as any,
-    description: 'Bitácora histórica de servicios mecánicos y mantenimientos de flota',
-    updated_at: now,
-  })
+  await saveFleetSettingToDb(
+    FLEET_MAINTENANCE_KEY,
+    allRecords,
+    'Bitácora histórica de servicios mecánicos y mantenimientos de flota'
+  )
 
   // Si fue cambio de aceite o mantenimiento general, actualizar el kilometraje base en el vehículo
   const allVehicles = await getVehicles()
@@ -286,12 +298,11 @@ export async function addMaintenanceRecord(
     } catch {
       // ignore
     }
-    await supabase.from('app_settings').upsert({
-      key: FLEET_STORAGE_KEY,
-      value_json: allVehicles as any,
-      description: 'Registro maestro de vehículos y motocicletas de la flota',
-      updated_at: now,
-    })
+    await saveFleetSettingToDb(
+      FLEET_STORAGE_KEY,
+      allVehicles,
+      'Registro maestro de vehículos y motocicletas de la flota'
+    )
   }
 
   return newRecord

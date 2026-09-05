@@ -83,21 +83,41 @@ export async function saveCompanySettings(
 
   // 2. Guardar en Supabase app_settings
   try {
-    const { error } = await supabase
+    const { data: existing } = await supabase
       .from('app_settings')
-      .upsert(
-        {
-          key: SETTINGS_KEY,
+      .select('id')
+      .eq('key', SETTINGS_KEY)
+      .maybeSingle()
+
+    if (existing) {
+      const { error } = await supabase
+        .from('app_settings')
+        .update({
           value_json: settings as any,
           updated_at: new Date().toISOString(),
           updated_by: userId || null,
-        },
-        { onConflict: 'key' }
-      )
+        })
+        .eq('id', existing.id)
 
-    if (error) {
-      console.error('[CompanySettings] Error upserting to Supabase:', error)
-      throw new Error(error.message)
+      if (error) {
+        console.error('[CompanySettings] Error updating Supabase:', error)
+        throw new Error(error.message)
+      }
+    } else {
+      const { error } = await supabase
+        .from('app_settings')
+        .insert({
+          key: SETTINGS_KEY,
+          value_json: settings as any,
+          description: 'Configuración de marca e información de la empresa',
+          updated_at: new Date().toISOString(),
+          updated_by: userId || null,
+        })
+
+      if (error) {
+        console.error('[CompanySettings] Error inserting into Supabase:', error)
+        throw new Error(error.message)
+      }
     }
   } catch (err: any) {
     console.error('[CompanySettings] Failed to save in DB:', err)
