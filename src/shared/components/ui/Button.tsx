@@ -89,7 +89,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         aria-busy={isLoading}
         className={cn(
           // Base compartida
-          'inline-flex items-center justify-center font-bold transition-all duration-150 ease-in-out select-none cursor-pointer',
+          'inline-flex items-center justify-center font-bold transition-all duration-150 ease-in-out select-none cursor-pointer whitespace-nowrap',
           // Accesibilidad focus visible
           'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:ring-offset-2',
           // Deshabilitado

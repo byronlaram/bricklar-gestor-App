@@ -227,7 +227,7 @@ export function TaskTypesSettingsTab() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5 shrink-0">
           <Button
             variant="primary"
             size="sm"
@@ -235,7 +235,7 @@ export function TaskTypesSettingsTab() {
               setShowCreateModal(true)
               handleSelectNatureInCreate('expense')
             }}
-            className="gap-1.5"
+            className="gap-1.5 px-3.5 shrink-0 whitespace-nowrap"
           >
             <Plus className="h-4 w-4" />
             Nueva Gestión
@@ -245,7 +245,7 @@ export function TaskTypesSettingsTab() {
             type="button"
             onClick={() => setShowResetConfirm(true)}
             disabled={isSaving}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-foreground-muted hover:text-foreground bg-muted/40 hover:bg-muted border border-border rounded-lg transition shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-foreground-muted hover:text-foreground bg-muted/40 hover:bg-muted border border-border rounded-lg transition shrink-0 cursor-pointer whitespace-nowrap"
           >
             <RotateCcw className="h-3.5 w-3.5" />
             Restablecer Recomendados
