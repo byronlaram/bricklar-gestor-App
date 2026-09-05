@@ -24,17 +24,14 @@ import {
   UploadCloud,
   AlertTriangle,
   AlertCircle,
-  Clipboard,
 } from 'lucide-react'
 import { cn } from '@/shared/utils/cn'
 import { taskBaseSchema, type TaskBaseInput } from '@/shared/validations/schemas'
 import type { TaskWithCourier } from '../types/task.types'
 import { useTaskMutations } from '../hooks/useTaskMutations'
-import { TASK_PRIORITY_LABELS, type PaymentMethod, type TaskType } from '@/shared/types'
+import { TASK_TYPE_LABELS, TASK_PRIORITY_LABELS, type PaymentMethod, type TaskType } from '@/shared/types'
 import { ConfirmDialog, useToast, ImageViewerModal } from '@/shared/components/ui'
 import { TASK_TYPE_CONFIGS } from '../config/taskTypeConfig'
-import { useTaskTypesConfig } from '../hooks/useTaskTypesConfig'
-import type { TaskNature } from '../services/taskTypeSettingsService'
 import { BusRouteCombobox } from '@/modules/buses/components/BusRouteCombobox'
 import type { BusRoute } from '@/modules/buses/types/buses.types'
 import { useCouriers } from '../hooks/useCouriers'
@@ -153,12 +150,8 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
     }
   }, [assignedCourierId, scheduledDate, todayStr])
 
-  const { configs: taskConfigs, activeConfigs } = useTaskTypesConfig()
-
   const selectedTaskType = watch('task_type') || 'delivery'
-  const config = taskConfigs[selectedTaskType as TaskType] || TASK_TYPE_CONFIGS[selectedTaskType as TaskType] || TASK_TYPE_CONFIGS.delivery
-
-  const taskNature: TaskNature = config.nature || 'neutral'
+  const config = TASK_TYPE_CONFIGS[selectedTaskType as TaskType] || TASK_TYPE_CONFIGS.delivery
 
   const requiresCollection = watch('requires_collection')
   const requiresPayment = watch('requires_payment')
@@ -195,40 +188,12 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
     }
   }
 
-  // Cambiar naturaleza y seleccionar automáticamente la primera gestión correspondiente
-  const handleNatureSelect = (nature: TaskNature) => {
-    if (isEditing) return
-
-    // Buscar si el tipo actual ya es de esa naturaleza
-    if (config.nature === nature) return
-
-    // Encontrar la primera gestión activa que coincida con la naturaleza seleccionada
-    const matchingEntry = Object.entries(activeConfigs).find(([_, cfg]) => cfg.nature === nature)
-    if (matchingEntry) {
-      const newType = matchingEntry[0] as TaskType
-      setValue('task_type', newType, { shouldDirty: true })
-      setValue('title', matchingEntry[1].suggestedTitle, { shouldDirty: true })
-      isTitleCustomized.current = false
-
-      if (nature === 'income') {
-        handleFinancialModeChange('income')
-      } else if (nature === 'expense') {
-        handleFinancialModeChange('expense')
-        if (matchingEntry[1].defaultPaymentMethod) {
-          setValue('expected_payment_method', matchingEntry[1].defaultPaymentMethod)
-        }
-      } else {
-        handleFinancialModeChange('none')
-      }
-    }
-  }
-
   // Auto-sugerir título y predeterminar movimiento financiero según el tipo de tarea
   useEffect(() => {
     if (!isOpen) return
 
     if (previousTypeRef.current !== selectedTaskType) {
-      const prevConfig = taskConfigs[previousTypeRef.current] || TASK_TYPE_CONFIGS[previousTypeRef.current]
+      const prevConfig = TASK_TYPE_CONFIGS[previousTypeRef.current]
       const currentTitle = watch('title')
 
       // Si el título está vacío o coincide con la sugerencia anterior, se actualiza a la nueva sugerencia
@@ -239,21 +204,21 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
 
       // Aplicar valores financieros por defecto según el tipo de tarea si no es edición
       if (!isEditing) {
-        if (config.nature === 'income' || config.defaultRequiresCollection) {
+        if (config.defaultRequiresCollection) {
           handleFinancialModeChange('income')
-        } else if (config.nature === 'expense' || config.defaultRequiresPayment) {
+        } else if (config.defaultRequiresPayment) {
           handleFinancialModeChange('expense')
-          if (config.defaultPaymentMethod) {
-            setValue('expected_payment_method', config.defaultPaymentMethod)
-          }
         } else {
           handleFinancialModeChange('none')
+        }
+        if (config.defaultPaymentMethod) {
+          setValue('expected_payment_method', config.defaultPaymentMethod)
         }
       }
 
       previousTypeRef.current = selectedTaskType
     }
-  }, [selectedTaskType, isOpen, isEditing, setValue, watch, config, taskConfigs])
+  }, [selectedTaskType, isOpen, isEditing, setValue, watch, config])
 
   // Reset del formulario al abrir o cambiar de tarea a editar
   useEffect(() => {
@@ -331,21 +296,19 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
     }
   }, [isOpen, taskToEdit, reset, todayStr, isEditing])
 
-  const processAndUploadFiles = async (files: File[] | FileList) => {
-    const validFiles = Array.from(files).filter((file) => file.type.startsWith('image/'))
-    if (validFiles.length === 0) {
-      toast.error('El archivo pegado o seleccionado no es una imagen válida.')
-      return
-    }
+  if (!isOpen) return null
+
+  const processAndUploadFiles = async (files: File[]) => {
+    if (!files || files.length === 0) return
 
     setIsUploadingPhoto(true)
     try {
-      const uploadPromises = validFiles.map((file) => uploadTaskReferenceImage(file))
+      const uploadPromises = files.map((file) => uploadTaskReferenceImage(file))
       const urls = await Promise.all(uploadPromises)
       setReferencePhotos((prev) => [...prev, ...urls])
       toast.success(
         urls.length === 1
-          ? 'Foto de referencia adjuntada'
+          ? 'Foto adjuntada'
           : `${urls.length} fotos adjuntadas correctamente.`
       )
     } catch (err: unknown) {
@@ -357,7 +320,13 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
     }
   }
 
-  // Listener para capturar pegado de imágenes con Ctrl+V desde cualquier parte del modal
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files || files.length === 0) return
+    await processAndUploadFiles(Array.from(files))
+  }
+
+  // Listener para Pegar Imágenes desde el Portapapeles (Ctrl + V)
   useEffect(() => {
     if (!isOpen) return
 
@@ -368,13 +337,9 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
       const imageFiles: File[] = []
       for (let i = 0; i < items.length; i++) {
         const item = items[i]
-        if (item.type.startsWith('image/')) {
+        if (item.type.indexOf('image') !== -1) {
           const file = item.getAsFile()
-          if (file) {
-            const ext = item.type.split('/')[1] || 'png'
-            const namedFile = new File([file], `pegar_ref_${Date.now()}_${i}.${ext}`, { type: file.type })
-            imageFiles.push(namedFile)
-          }
+          if (file) imageFiles.push(file)
         }
       }
 
@@ -390,32 +355,25 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
     }
   }, [isOpen])
 
-  if (!isOpen) return null
-
-  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files
-    if (!files || files.length === 0) return
-    await processAndUploadFiles(files)
-  }
-
-  const handleDropPhotos = async (e: React.DragEvent) => {
+  // Soporte de Arrastrar y Soltar (Drag & Drop)
+  const handleDropPhotos = (e: React.DragEvent) => {
     e.preventDefault()
-    e.stopPropagation()
     setIsDraggingPhoto(false)
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      await processAndUploadFiles(e.dataTransfer.files)
+      const imageFiles = Array.from(e.dataTransfer.files).filter((f) => f.type.startsWith('image/'))
+      if (imageFiles.length > 0) {
+        processAndUploadFiles(imageFiles)
+      }
     }
   }
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
-    e.stopPropagation()
     setIsDraggingPhoto(true)
   }
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault()
-    e.stopPropagation()
     setIsDraggingPhoto(false)
   }
 
@@ -557,106 +515,23 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
               </div>
             )}
 
-            {/* Selector de Naturaleza y Tipo de Gestión */}
+            {/* Selector de Tipo, Prioridad y Sucursal */}
             <div className="space-y-4 bg-muted/20 p-4 rounded-xl border border-border/50">
-              {/* Selector Visual de Naturaleza de la Tarea */}
-              {!isEditing && (
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-xs font-bold text-foreground uppercase tracking-wider">
-                      Naturaleza de la Gestión
-                    </label>
-                    <span className="text-[11px] text-foreground-muted">
-                      Define el flujo recomendado
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleNatureSelect('income')}
-                      className={cn(
-                        'flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border text-xs font-bold transition cursor-pointer',
-                        taskNature === 'income'
-                          ? 'bg-emerald-500/15 border-emerald-500 text-emerald-700 dark:text-emerald-300 shadow-2xs ring-1 ring-emerald-500/30'
-                          : 'bg-background border-border text-foreground-muted hover:bg-muted/40'
-                      )}
-                    >
-                      <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-600" />
-                      <span>🟢 Ingreso</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleNatureSelect('expense')}
-                      className={cn(
-                        'flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border text-xs font-bold transition cursor-pointer',
-                        taskNature === 'expense'
-                          ? 'bg-rose-500/15 border-rose-500 text-rose-700 dark:text-rose-300 shadow-2xs ring-1 ring-rose-500/30'
-                          : 'bg-background border-border text-foreground-muted hover:bg-muted/40'
-                      )}
-                    >
-                      <ArrowUpRight className="h-3.5 w-3.5 text-rose-600" />
-                      <span>🔴 Egreso</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => handleNatureSelect('neutral')}
-                      className={cn(
-                        'flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg border text-xs font-bold transition cursor-pointer',
-                        taskNature === 'neutral'
-                          ? 'bg-slate-500/15 border-slate-500 text-slate-700 dark:text-slate-300 shadow-2xs ring-1 ring-slate-500/30'
-                          : 'bg-background border-border text-foreground-muted hover:bg-muted/40'
-                      )}
-                    >
-                      <Ban className="h-3.5 w-3.5 text-slate-500" />
-                      <span>⚪ Neutro</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="block text-xs font-semibold text-foreground">
-                      Tipo de Gestión <span className="text-destructive">*</span>
-                    </label>
-                  </div>
+                  <label className="block text-xs font-semibold text-foreground mb-1">
+                    Tipo de Gestión <span className="text-destructive">*</span>
+                  </label>
                   <select
                     disabled={isEditing}
                     {...register('task_type')}
-                    className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground font-medium cursor-pointer"
+                    className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground font-medium"
                   >
-                    <optgroup label="🟢 Ingresos (Cobros a Clientes)">
-                      {Object.entries(taskConfigs)
-                        .filter(([_, cfg]) => cfg.nature === 'income' && cfg.enabled !== false)
-                        .map(([val, cfg]) => (
-                          <option key={val} value={val}>
-                            {cfg.label}
-                          </option>
-                        ))}
-                    </optgroup>
-
-                    <optgroup label="🔴 Egresos (Compras / Pagos / Servicios)">
-                      {Object.entries(taskConfigs)
-                        .filter(([_, cfg]) => cfg.nature === 'expense' && cfg.enabled !== false)
-                        .map(([val, cfg]) => (
-                          <option key={val} value={val}>
-                            {cfg.label}
-                          </option>
-                        ))}
-                    </optgroup>
-
-                    <optgroup label="⚪ Neutros (Logística / Trámites)">
-                      {Object.entries(taskConfigs)
-                        .filter(([_, cfg]) => cfg.nature === 'neutral' && cfg.enabled !== false)
-                        .map(([val, cfg]) => (
-                          <option key={val} value={val}>
-                            {cfg.label}
-                          </option>
-                        ))}
-                    </optgroup>
+                    {Object.entries(TASK_TYPE_LABELS).map(([val, label]) => (
+                      <option key={val} value={val}>
+                        {label}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -866,7 +741,7 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
 
             {/* Sección Fotos de Referencia para el Motorizado */}
             <div className="space-y-3 pt-3 border-t border-border/40">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center justify-between">
                 <div>
                   <h3 className="text-xs font-bold text-foreground flex items-center gap-1.5 uppercase tracking-wider">
                     <Camera className="h-4 w-4 text-accent" />
@@ -886,34 +761,27 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                   className="hidden"
                 />
 
-                <div className="flex items-center gap-2">
-                  <span className="hidden sm:inline-flex items-center gap-1 text-[10px] font-semibold text-foreground-muted bg-muted/60 px-2 py-1 rounded-lg border border-border/50">
-                    <Clipboard className="h-3 w-3 text-accent" />
-                    Pega con <kbd className="px-1 py-0.5 text-[9px] font-mono bg-background border border-border rounded font-bold">Ctrl+V</kbd>
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploadingPhoto}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/30 rounded-xl transition cursor-pointer disabled:opacity-50 shrink-0"
-                  >
-                    {isUploadingPhoto ? (
-                      <>
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        Subiendo...
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="h-3.5 w-3.5" />
-                        Adjuntar Fotos
-                      </>
-                    )}
-                  </button>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingPhoto}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-accent bg-accent/10 hover:bg-accent/20 border border-accent/30 rounded-xl transition cursor-pointer disabled:opacity-50"
+                >
+                  {isUploadingPhoto ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Subiendo...
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-3.5 w-3.5" />
+                      Adjuntar Fotos
+                    </>
+                  )}
+                </button>
               </div>
 
-              {/* Galería de Fotos Subidas o Dropzone Activo */}
+              {/* Galería de Fotos Subidas */}
               {referencePhotos.length > 0 ? (
                 <div className="space-y-2.5">
                   <div
@@ -1087,11 +955,6 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                     <span className="text-xs font-bold flex items-center gap-1.5">
                       <Ban className="h-3.5 w-3.5 opacity-70" />
                       Sin Dinero
-                      {taskNature === 'neutral' && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-slate-500/20 text-slate-300">
-                          Sugerido
-                        </span>
-                      )}
                     </span>
                     <span className={cn('h-2 w-2 rounded-full', financialMode === 'none' ? 'bg-white' : 'bg-border')} />
                   </div>
@@ -1117,11 +980,6 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                     <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
                       <ArrowDownLeft className="h-3.5 w-3.5 text-emerald-600" />
                       Ingreso (Entrada)
-                      {taskNature === 'income' && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-600 text-white">
-                          Sugerido
-                        </span>
-                      )}
                     </span>
                     <span className={cn('h-2 w-2 rounded-full', financialMode === 'income' ? 'bg-emerald-600' : 'bg-border')} />
                   </div>
@@ -1147,11 +1005,6 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                     <span className="text-xs font-bold text-rose-700 flex items-center gap-1.5">
                       <ArrowUpRight className="h-3.5 w-3.5 text-rose-600" />
                       Egreso (Salida)
-                      {taskNature === 'expense' && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-rose-600 text-white">
-                          Sugerido
-                        </span>
-                      )}
                     </span>
                     <span className={cn('h-2 w-2 rounded-full', financialMode === 'expense' ? 'bg-rose-600' : 'bg-border')} />
                   </div>

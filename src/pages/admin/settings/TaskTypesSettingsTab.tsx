@@ -17,6 +17,8 @@ import {
   ToggleLeft,
   ToggleRight,
   Loader2,
+  Plus,
+  Sparkles,
 } from 'lucide-react'
 import { useTaskTypesConfig } from '@/modules/tasks/hooks/useTaskTypesConfig'
 import {
@@ -49,6 +51,83 @@ export function TaskTypesSettingsTab() {
   const [editForm, setEditForm] = useState<CustomTaskTypeConfig | null>(null)
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
+
+  // Estado para Crear Nueva Gestión
+  const [showCreateModal, setShowCreateModal] = useState(false)
+  const [newLabel, setNewLabel] = useState('')
+  const [newNature, setNewNature] = useState<TaskNature>('expense')
+  const [newSuggestedTitle, setNewSuggestedTitle] = useState('')
+  const [newRequiresCollection, setNewRequiresCollection] = useState(false)
+  const [newRequiresPayment, setNewRequiresPayment] = useState(true)
+  const [newPaymentMethod, setNewPaymentMethod] = useState<'cash' | 'bank_transfer' | 'mobile_wallet'>('cash')
+
+  // Aplicar configuración recomendada automáticamente según la naturaleza elegida
+  const handleSelectNatureInCreate = (nature: TaskNature) => {
+    setNewNature(nature)
+    if (nature === 'income') {
+      setNewRequiresCollection(true)
+      setNewRequiresPayment(false)
+      if (!newSuggestedTitle || newSuggestedTitle.startsWith('Gestión') || newSuggestedTitle.startsWith('Pago') || newSuggestedTitle.startsWith('Compra')) {
+        setNewSuggestedTitle(newLabel ? `Cobro / ${newLabel}` : 'Cobro de Gestión')
+      }
+    } else if (nature === 'expense') {
+      setNewRequiresCollection(false)
+      setNewRequiresPayment(true)
+      setNewPaymentMethod('cash')
+      if (!newSuggestedTitle || newSuggestedTitle.startsWith('Cobro') || newSuggestedTitle.startsWith('Gestión')) {
+        setNewSuggestedTitle(newLabel ? `Pago / ${newLabel}` : 'Pago de Insumos')
+      }
+    } else {
+      setNewRequiresCollection(false)
+      setNewRequiresPayment(false)
+      if (!newSuggestedTitle || newSuggestedTitle.startsWith('Cobro') || newSuggestedTitle.startsWith('Pago')) {
+        setNewSuggestedTitle(newLabel ? `Trámite: ${newLabel}` : 'Gestión Operativa')
+      }
+    }
+  }
+
+  const handleCreateNewGestion = async () => {
+    if (!newLabel.trim()) {
+      toast.error('Nombre requerido', 'Por favor ingresa un nombre para la nueva gestión.')
+      return
+    }
+
+    const slug = `custom_${newLabel.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now().toString().slice(-4)}` as TaskType
+
+    const newConfig: CustomTaskTypeConfig = {
+      type: slug,
+      label: newLabel.trim(),
+      suggestedTitle: newSuggestedTitle.trim() || newLabel.trim(),
+      entityType: 'custom',
+      defaultRequiresCollection: newRequiresCollection,
+      defaultRequiresPayment: newRequiresPayment,
+      defaultPaymentMethod: newRequiresPayment ? newPaymentMethod : undefined,
+      nature: newNature,
+      enabled: true,
+      descriptionPlaceholder: `Detalla las especificaciones de ${newLabel.trim()}...`,
+      addressLabel: 'Dirección / Destino',
+      addressPlaceholder: 'Ej: Altamira, de los semáforos...',
+      contactNameLabel: 'Contacto / Titular',
+      contactNamePlaceholder: 'Ej: Juan Pérez / Lic. Mendoza',
+      referenceNumberLabel: 'N° de Referencia / Trámite',
+      referenceNumberPlaceholder: 'Ej: REF-001',
+      fastModeFields: ['contact_name', 'address', 'phone', 'financial'],
+    }
+
+    try {
+      const updated = {
+        ...configs,
+        [slug]: newConfig,
+      }
+      await saveConfigs(updated)
+      toast.success('Nueva Gestión Creada', `La gestión "${newLabel}" ha sido guardada con su configuración recomendada.`)
+      setShowCreateModal(false)
+      setNewLabel('')
+      setNewSuggestedTitle('')
+    } catch (err: any) {
+      toast.error('Error al crear', err?.message || 'No se pudo registrar la nueva gestión.')
+    }
+  }
 
   // Abrir modal de edición
   const handleStartEdit = (typeKey: TaskType) => {
@@ -148,15 +227,30 @@ export function TaskTypesSettingsTab() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => setShowResetConfirm(true)}
-          disabled={isSaving}
-          className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-foreground-muted hover:text-foreground bg-muted/40 hover:bg-muted border border-border rounded-lg transition shrink-0 cursor-pointer"
-        >
-          <RotateCcw className="h-3.5 w-3.5" />
-          Restablecer Recomendados
-        </button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => {
+              setShowCreateModal(true)
+              handleSelectNatureInCreate('expense')
+            }}
+            className="gap-1.5"
+          >
+            <Plus className="h-4 w-4" />
+            Nueva Gestión
+          </Button>
+
+          <button
+            type="button"
+            onClick={() => setShowResetConfirm(true)}
+            disabled={isSaving}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-foreground-muted hover:text-foreground bg-muted/40 hover:bg-muted border border-border rounded-lg transition shrink-0 cursor-pointer"
+          >
+            <RotateCcw className="h-3.5 w-3.5" />
+            Restablecer Recomendados
+          </button>
+        </div>
       </div>
 
       {/* Selector de Pestañas por Naturaleza */}
@@ -557,6 +651,227 @@ export function TaskTypesSettingsTab() {
               >
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 Guardar Configuración
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal para Crear Nueva Gestión con Configuración Recomendada */}
+      {showCreateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+          <div className="bg-card border border-border rounded-2xl max-w-xl w-full max-h-[90vh] overflow-hidden flex flex-col shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-border bg-muted/30">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-accent/10 text-accent">
+                  <Plus className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-foreground">Crear Nueva Gestión / Tipo de Tarea</h3>
+                  <p className="text-xs text-foreground-muted">
+                    Define la naturaleza para obtener las configuraciones recomendadas automáticamente.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCreateModal(false)}
+                className="p-1 text-foreground-muted hover:text-foreground rounded-lg hover:bg-muted transition cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Form Body */}
+            <div className="p-5 overflow-y-auto space-y-4">
+              {/* Nombre de la Gestión */}
+              <div>
+                <label className="block text-xs font-bold text-foreground mb-1">
+                  Nombre de la Gestión <span className="text-destructive">*</span>
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Trámite Notarial, Retiro de Insumos, Inspección..."
+                  value={newLabel}
+                  onChange={(e) => {
+                    setNewLabel(e.target.value)
+                    if (!newSuggestedTitle || newSuggestedTitle.startsWith('Cobro') || newSuggestedTitle.startsWith('Pago') || newSuggestedTitle.startsWith('Trámite')) {
+                      if (newNature === 'income') setNewSuggestedTitle(e.target.value ? `Cobro / ${e.target.value}` : '')
+                      else if (newNature === 'expense') setNewSuggestedTitle(e.target.value ? `Pago / ${e.target.value}` : '')
+                      else setNewSuggestedTitle(e.target.value ? `Trámite: ${e.target.value}` : '')
+                    }
+                  }}
+                  className="w-full px-3 py-2 text-sm bg-background border border-border rounded-xl text-foreground focus:outline-none focus:ring-2 focus:ring-accent/40 font-medium"
+                />
+              </div>
+
+              {/* Selector de Naturaleza Financiera */}
+              <div>
+                <label className="block text-xs font-bold text-foreground mb-2">
+                  1. Selecciona la Naturaleza de la Gestión <span className="text-destructive">*</span>
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectNatureInCreate('income')}
+                    className={cn(
+                      'flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition cursor-pointer',
+                      newNature === 'income'
+                        ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30'
+                        : 'border-border bg-card hover:bg-muted/30'
+                    )}
+                  >
+                    <ArrowDownLeft className="h-5 w-5 text-emerald-500" />
+                    <span className="text-xs font-bold text-foreground">Ingreso</span>
+                    <span className="text-[10px] text-foreground-muted">Entrada de dinero (Cobro al cliente)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectNatureInCreate('expense')}
+                    className={cn(
+                      'flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition cursor-pointer',
+                      newNature === 'expense'
+                        ? 'border-rose-500 bg-rose-500/10 ring-2 ring-rose-500/30'
+                        : 'border-border bg-card hover:bg-muted/30'
+                    )}
+                  >
+                    <ArrowUpRight className="h-5 w-5 text-rose-500" />
+                    <span className="text-xs font-bold text-foreground">Egreso</span>
+                    <span className="text-[10px] text-foreground-muted">Salida de dinero (Compras / Pagos)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectNatureInCreate('neutral')}
+                    className={cn(
+                      'flex flex-col items-center gap-1.5 p-3 rounded-xl border text-center transition cursor-pointer',
+                      newNature === 'neutral'
+                        ? 'border-slate-400 bg-slate-500/10 ring-2 ring-slate-400/30'
+                        : 'border-border bg-card hover:bg-muted/30'
+                    )}
+                  >
+                    <Ban className="h-5 w-5 text-slate-400" />
+                    <span className="text-xs font-bold text-foreground">Neutro</span>
+                    <span className="text-[10px] text-foreground-muted">Sin dinero (Trámite / Logística)</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Banner de Recomendación Inteligente */}
+              <div className={cn(
+                'p-3.5 rounded-xl border space-y-2',
+                newNature === 'income'
+                  ? 'bg-emerald-500/5 border-emerald-500/30'
+                  : newNature === 'expense'
+                  ? 'bg-rose-500/5 border-rose-500/30'
+                  : 'bg-slate-500/5 border-slate-500/30'
+              )}>
+                <div className="flex items-center gap-2">
+                  <Sparkles className={cn(
+                    'h-4 w-4',
+                    newNature === 'income' ? 'text-emerald-500' : newNature === 'expense' ? 'text-rose-500' : 'text-slate-400'
+                  )} />
+                  <span className="text-xs font-bold text-foreground">
+                    Configuración Recomendada por el Sistema
+                  </span>
+                </div>
+                <p className="text-[11px] text-foreground-muted leading-relaxed">
+                  {newNature === 'income' &&
+                    'Al seleccionar "Ingreso", el sistema activará automáticamente el modo de Cobro Requerido para recibir dinero en caja/liquidación.'}
+                  {newNature === 'expense' &&
+                    'Al seleccionar "Egreso", el sistema preconfigurará el requerimiento de Desembolso / Pago en efectivo para el motorizado.'}
+                  {newNature === 'neutral' &&
+                    'Al seleccionar "Neutro", el sistema registrará la tarea sin flujo financiero predeterminado (gestión meramente operativa).'}
+                </p>
+              </div>
+
+              {/* Título Sugerido */}
+              <div>
+                <label className="block text-xs font-medium text-foreground-muted mb-1">
+                  Título Sugerido por Defecto
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej: Cobro / Factura..."
+                  value={newSuggestedTitle}
+                  onChange={(e) => setNewSuggestedTitle(e.target.value)}
+                  className="w-full px-3 py-1.5 text-xs bg-background border border-border rounded-lg text-foreground focus:outline-none"
+                />
+              </div>
+
+              {/* Ajustes Financieros */}
+              <div className="pt-2 border-t border-border/50 space-y-3">
+                <span className="block text-xs font-bold text-foreground uppercase tracking-wider text-slate-400">
+                  Comportamiento Financiero Inicial
+                </span>
+
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newRequiresCollection}
+                      onChange={(e) => {
+                        setNewRequiresCollection(e.target.checked)
+                        if (e.target.checked) setNewRequiresPayment(false)
+                      }}
+                      className="rounded border-border text-emerald-600 focus:ring-emerald-500/30"
+                    />
+                    <span>Requerir Cobro por Defecto (Entrada a Liquidación)</span>
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs text-foreground cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={newRequiresPayment}
+                      onChange={(e) => {
+                        setNewRequiresPayment(e.target.checked)
+                        if (e.target.checked) setNewRequiresCollection(false)
+                      }}
+                      className="rounded border-border text-rose-600 focus:ring-rose-500/30"
+                    />
+                    <span>Requerir Pago / Compra por Defecto (Salida de Caja Chica)</span>
+                  </label>
+                </div>
+
+                {newRequiresPayment && (
+                  <div>
+                    <label className="block text-[11px] font-medium text-foreground-muted mb-1">
+                      Método de Pago Sugerido
+                    </label>
+                    <select
+                      value={newPaymentMethod}
+                      onChange={(e) => setNewPaymentMethod(e.target.value as any)}
+                      className="w-full px-3 py-1.5 text-xs bg-background border border-border rounded-lg text-foreground focus:outline-none"
+                    >
+                      <option value="cash">Efectivo en Mano</option>
+                      <option value="bank_transfer">Transferencia Bancaria</option>
+                      <option value="mobile_wallet">Billetera Móvil</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer Modal */}
+            <div className="flex items-center justify-end gap-3 px-5 py-3 border-t border-border bg-muted/20">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCreateModal(false)}
+              >
+                Cancelar
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={handleCreateNewGestion}
+                disabled={isSaving || !newLabel.trim()}
+                className="gap-1.5"
+              >
+                {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+                Crear y Guardar Gestión
               </Button>
             </div>
           </div>
