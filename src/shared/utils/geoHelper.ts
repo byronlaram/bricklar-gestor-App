@@ -169,10 +169,26 @@ export function parseCoordinatesFromMapsUrl(
   input: string | null | undefined
 ): { latitude: number; longitude: number } | null {
   if (!input || typeof input !== 'string') return null
-  const trimmed = input.trim()
+  let text = input.trim()
 
-  // 1. Directo "lat, lng" ej: "12.1364, -86.2514"
-  const directMatch = trimmed.match(/^(-?\d+(\.\d+)?)\s*,\s*(-?\d+(\.\d+)?)$/)
+  try {
+    text = decodeURIComponent(text)
+  } catch {
+    // Ignorar error de decodificación
+  }
+
+  // 1. Google Maps data pattern: !3d12.136453!4d-86.251423
+  const dataMatch = text.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/i)
+  if (dataMatch) {
+    const lat = parseFloat(dataMatch[1])
+    const lng = parseFloat(dataMatch[2])
+    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { latitude: lat, longitude: lng }
+    }
+  }
+
+  // 2. Directo "lat, lng" ej: "12.1364, -86.2514" o "12.1364,-86.2514"
+  const directMatch = text.match(/^(-?\d+(\.\d+)?)\s*,\s*(-?\d+(\.\d+)?)$/)
   if (directMatch) {
     const lat = parseFloat(directMatch[1])
     const lng = parseFloat(directMatch[3])
@@ -181,8 +197,8 @@ export function parseCoordinatesFromMapsUrl(
     }
   }
 
-  // 2. URL con /@lat,lng o ?q=lat,lng o &q=lat,lng o /place/lat,lng o ll=lat,lng o destination=lat,lng
-  const urlCoordMatch = trimmed.match(/(?:@|q=|ll=|loc:|place\/|destination=)(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/i)
+  // 3. URL con /@lat,lng o ?q=lat,lng o &q=lat,lng o query=lat,lng o /place/lat,lng o ll=lat,lng o destination=lat,lng o daddr=lat,lng o search/lat,lng o dir//lat,lng
+  const urlCoordMatch = text.match(/(?:@|q=|query=|ll=|loc:|place\/|destination=|daddr=|search\/|dir\/+)(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/i)
   if (urlCoordMatch) {
     const lat = parseFloat(urlCoordMatch[1])
     const lng = parseFloat(urlCoordMatch[2])
@@ -191,8 +207,8 @@ export function parseCoordinatesFromMapsUrl(
     }
   }
 
-  // 3. Patrón decimal en cualquier parte del texto
-  const anyCoordMatch = trimmed.match(/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/)
+  // 4. Patrón decimal en cualquier parte del texto
+  const anyCoordMatch = text.match(/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/)
   if (anyCoordMatch) {
     const lat = parseFloat(anyCoordMatch[1])
     const lng = parseFloat(anyCoordMatch[2])

@@ -50,12 +50,29 @@ export function normalizeTaskFromDB<T extends Record<string, any>>(task: T): T {
     }
   }
 
-  // Si no tiene coordenadas explícitas pero tiene maps_url, extraerlas automáticamente
-  if (((task as any).latitude == null || (task as any).longitude == null) && (task as any).maps_url) {
-    const coords = parseCoordinatesFromMapsUrl((task as any).maps_url)
-    if (coords) {
-      ;(task as any).latitude = coords.latitude
-      ;(task as any).longitude = coords.longitude
+  // Si no tiene coordenadas explícitas, buscar en maps_url, address, address_reference o notes
+  if ((task as any).latitude == null || (task as any).longitude == null) {
+    const rawCandidates = [
+      (task as any).maps_url,
+      (task as any).address,
+      (task as any).address_reference,
+      (task as any).notes,
+      ((task as any).metadata as Record<string, any>)?.maps_url,
+      ((task as any).metadata as Record<string, any>)?.location_url,
+    ]
+
+    for (const candidate of rawCandidates) {
+      if (candidate && typeof candidate === 'string') {
+        const coords = parseCoordinatesFromMapsUrl(candidate)
+        if (coords) {
+          ;(task as any).latitude = coords.latitude
+          ;(task as any).longitude = coords.longitude
+          if (!(task as any).maps_url && (candidate.startsWith('http') || candidate.startsWith('www.'))) {
+            ;(task as any).maps_url = candidate
+          }
+          break
+        }
+      }
     }
   }
 

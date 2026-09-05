@@ -24,6 +24,8 @@ import {
   UploadCloud,
   AlertTriangle,
   AlertCircle,
+  MapPin,
+  CheckCircle2,
 } from 'lucide-react'
 import { cn } from '@/shared/utils/cn'
 import { taskBaseSchema, type TaskBaseInput } from '@/shared/validations/schemas'
@@ -38,6 +40,7 @@ import type { BusRoute } from '@/modules/buses/types/buses.types'
 import { useCouriers } from '../hooks/useCouriers'
 import { uploadTaskReferenceImage } from '../services/tasksService'
 import { checkCourierShiftStatus, type CourierDailyShiftStatus } from '@/modules/workdays/services/workdaysService'
+import { parseCoordinatesFromMapsUrl } from '@/shared/utils/geoHelper'
 import { getLocalDateString } from '@/shared/utils/date'
 
 interface TaskFormModalProps {
@@ -125,6 +128,8 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
 
   const scheduledDate = watch('scheduled_date')
   const assignedCourierId = watch('assigned_courier_id')
+  const mapsUrlValue = watch('maps_url')
+  const detectedCoords = mapsUrlValue ? parseCoordinatesFromMapsUrl(mapsUrlValue) : null
   const [courierShiftStatus, setCourierShiftStatus] = useState<CourierDailyShiftStatus | null>(null)
 
   useEffect(() => {
@@ -422,8 +427,15 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
         reference_photos: referencePhotos,
       }
 
+      const parsedCoords =
+        parseCoordinatesFromMapsUrl(data.maps_url) ||
+        parseCoordinatesFromMapsUrl(data.address) ||
+        parseCoordinatesFromMapsUrl(data.notes)
+
       const sanitizedPayload = {
         ...data,
+        latitude: parsedCoords?.latitude ?? taskToEdit?.latitude ?? null,
+        longitude: parsedCoords?.longitude ?? taskToEdit?.longitude ?? null,
         metadata: finalMetadata,
         evidence_url: referencePhotos[0] || null,
         scheduled_start_time: data.scheduled_start_time || null,
@@ -1219,14 +1231,29 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                 {/* URL de Google Maps / Waze */}
                 <div>
                   <label className="block text-xs font-medium text-foreground-muted mb-1">
-                    URL de Google Maps / Waze (Opcional)
+                    URL de Google Maps / Coordenadas (Opcional)
                   </label>
                   <input
-                    type="url"
-                    placeholder="https://maps.app.goo.gl/..."
+                    type="text"
+                    placeholder="https://maps.app.goo.gl/... o coordenadas 12.1364, -86.2514"
                     {...register('maps_url')}
                     className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
                   />
+                  {mapsUrlValue && (
+                    <div className="mt-1.5 text-[11px] leading-tight">
+                      {detectedCoords ? (
+                        <span className="inline-flex items-center gap-1 text-emerald-500 font-medium">
+                          <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                          Coordenadas detectadas ({detectedCoords.latitude.toFixed(5)}, {detectedCoords.longitude.toFixed(5)}) — Se posicionará en el mapa en vivo.
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-sky-400">
+                          <MapPin className="w-3.5 h-3.5 shrink-0" />
+                          Enlace guardado para navegación del motorizado. (Si deseas ver el pin en el mapa web, pega el enlace completo con coordenadas o valores decimales).
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {/* Notas Adicionales */}
