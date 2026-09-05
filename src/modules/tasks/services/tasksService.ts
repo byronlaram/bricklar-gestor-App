@@ -854,8 +854,51 @@ export async function rejectTask(taskId: string, rejectionReason: string): Promi
   return data as unknown as Task
 }
 
+// ─── File Upload Validation Constants & Helpers ──────────────────────────────
+const MAX_UPLOAD_SIZE_BYTES = 15 * 1024 * 1024 // 15 MB
+const ALLOWED_EVIDENCE_MIME_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/heic',
+  'image/heif',
+  'application/pdf',
+]
+const ALLOWED_REFERENCE_MIME_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/webp',
+]
+
+function validateFile(file: File, allowedTypes: string[], maxSizeBytes = MAX_UPLOAD_SIZE_BYTES) {
+  if (!file) {
+    throw new Error('No se ha proporcionado ningún archivo para subir.')
+  }
+
+  // 1. Validar tamaño máximo
+  if (file.size > maxSizeBytes) {
+    const maxMB = Math.round(maxSizeBytes / (1024 * 1024))
+    throw new Error(`El archivo seleccionado (${(file.size / (1024 * 1024)).toFixed(1)} MB) supera el límite máximo de ${maxMB} MB.`)
+  }
+
+  // 2. Validar tipo MIME
+  const fileMime = (file.type || '').toLowerCase()
+  const rawExt = (file.name.split('.').pop() || '').toLowerCase()
+  const isMimeAllowed = allowedTypes.some((type) => fileMime === type || fileMime.startsWith(type))
+  const isExtAllowed = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf', 'heic', 'heif'].includes(rawExt)
+
+  if (!isMimeAllowed && !isExtAllowed) {
+    throw new Error(`Tipo de archivo no permitido (${file.type || rawExt}). Solo se admiten fotos (JPG, PNG, WEBP) o documentos PDF.`)
+  }
+}
+
 // ─── uploadTaskEvidence ───────────────────────────────────────────────────────
 export async function uploadTaskEvidence(file: File): Promise<string> {
+  validateFile(file, ALLOWED_EVIDENCE_MIME_TYPES)
+
   const optimizedFile = await compressImage(file, 1280, 1280, 0.82)
   const rawExt = (optimizedFile.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
   const validExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf']
@@ -883,6 +926,8 @@ export async function uploadTaskEvidence(file: File): Promise<string> {
 
 // ─── uploadTaskReferenceImage ────────────────────────────────────────────────
 export async function uploadTaskReferenceImage(file: File): Promise<string> {
+  validateFile(file, ALLOWED_REFERENCE_MIME_TYPES)
+
   const optimizedFile = await compressImage(file, 1400, 1400, 0.85)
   const rawExt = (optimizedFile.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
   const validExtensions = ['jpg', 'jpeg', 'png', 'webp']
