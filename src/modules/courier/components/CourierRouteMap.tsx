@@ -41,20 +41,25 @@ const DEFAULT_CENTER: [number, number] = [12.1364, -86.2514]
 const DEFAULT_ZOOM = 14
 
 const TILE_LAYERS = {
-  voyager: {
-    name: 'Carto Voyager (Recomendado)',
-    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://carto.com/">CARTO</a> &copy; OpenStreetMap',
+  esri: {
+    name: 'Esri Callejero (Limpio & Rápido)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; OpenStreetMap contributors',
   },
   osm: {
     name: 'OpenStreetMap',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; OpenStreetMap contributors',
   },
-  dark: {
-    name: 'Modo Noche',
-    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-    attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+  hot: {
+    name: 'OSM Humanitario (Detallado)',
+    url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+    attribution: '&copy; OpenStreetMap contributors, Humanitarian OpenStreetMap',
+  },
+  satellite: {
+    name: 'Esri Satelital (Vista Aérea)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri, i-cubed, USDA, USGS, AEX, GeoEye',
   },
 }
 
@@ -76,7 +81,7 @@ export function CourierRouteMap({
   const routePolylineRef = useRef<L.Polyline | null>(null)
   const courierMarkerRef = useRef<L.Marker | null>(null)
 
-  const [activeTileKey, setActiveTileKey] = useState<keyof typeof TILE_LAYERS>('voyager')
+  const [activeTileKey, setActiveTileKey] = useState<keyof typeof TILE_LAYERS>('esri')
   const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
 

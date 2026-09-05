@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useTasksRealtime } from '@/modules/tasks/hooks/useTasksRealtime'
-import { useCourierLiveLocation } from '@/modules/courier/hooks/useCourierLiveLocation'
+import { CourierLiveLocationProvider } from '@/modules/courier/context/CourierLiveLocationContext'
 import { Avatar, ConfirmDialog, useToast } from '@/shared/components/ui'
 import { cn } from '@/shared/utils/cn'
 import {
@@ -29,7 +29,6 @@ const NAV_ITEMS = [
 
 export default function CourierLayout() {
   useTasksRealtime()
-  useCourierLiveLocation()
   const { profile, signOut } = useAuth()
   const navigate = useNavigate()
   const toast = useToast()
@@ -106,7 +105,8 @@ export default function CourierLayout() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-gradient-to-b from-[#003875] via-[#004594] to-[#071D3A] text-slate-900 selection:bg-blue-100 selection:text-[#004594]">
+    <CourierLiveLocationProvider>
+      <div className="flex min-h-screen flex-col bg-gradient-to-b from-[#003875] via-[#004594] to-[#071D3A] text-slate-900 selection:bg-blue-100 selection:text-[#004594]">
       {/* Top bar móvil sobre el fondo azul corporativo (Estilo Banpro) */}
       <header className="sticky top-0 z-40 flex h-16 items-center justify-between px-4 sm:px-6 bg-[#003875]/95 backdrop-blur-md border-b border-white/10 shadow-xs">
         <div className="flex items-center gap-3">
@@ -280,6 +280,7 @@ export default function CourierLayout() {
         variant="primary"
         isLoading={isLoggingOut}
       />
-    </div>
+      </div>
+    </CourierLiveLocationProvider>
   )
 }
