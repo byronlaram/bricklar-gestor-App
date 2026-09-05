@@ -138,6 +138,52 @@ export interface SettlementFilters {
   status?: SettlementStatus
 }
 
+export interface DailyClosureRecord {
+  id: string
+  branch_id: string
+  closure_date: string
+  status: string
+  tasks_total: number
+  tasks_completed: number
+  tasks_cancelled: number
+  tasks_not_completed: number
+  total_expected_nio: number
+  total_expected_usd: number
+  total_collections_nio: number
+  total_collections_usd: number
+  total_payments_nio: number
+  total_payments_usd: number
+  total_delivered_nio: number | null
+  total_delivered_usd: number | null
+  total_difference_nio: number | null
+  total_difference_usd: number | null
+  workdays_count: number
+  notes: string | null
+  closed_by: string | null
+  closed_at: string | null
+  created_by: string
+  created_at: string
+  updated_at: string
+  updated_by: string | null
+  branch?: {
+    id: string
+    name: string
+  } | null
+  closed_by_profile?: {
+    id: string
+    full_name: string
+    display_name?: string | null
+  } | null
+}
+
+export interface ConfirmDailyClosurePayload {
+  branchId?: string
+  date: string
+  notes?: string
+  deliveredNio?: number
+  deliveredUsd?: number
+}
+
 export interface DailyClosureSummary {
   branch_id: string
   date: string
@@ -148,4 +194,27 @@ export interface DailyClosureSummary {
   total_expenses: number
   total_already_received: number
   net_cash_in_hand: number
+  tasks_summary?: {
+    total: number
+    completed: number
+    cancelled: number
+    not_completed: number
+    expected_nio: number
+    expected_usd: number
+  }
+  saved_closure?: DailyClosureRecord | null
+  workdays_detail?: Array<{
+    workdayId: string
+    courierName: string
+    branchName: string
+    status: string
+    settlementStatus: string | null
+    initialCash: number
+    collections: number
+    expenses: number
+    alreadyReceived: number
+    pendingCash: number
+    deliveredCash: number | null
+  }>
 }
+

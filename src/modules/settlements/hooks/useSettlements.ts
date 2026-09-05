@@ -18,6 +18,7 @@ import type {
   ApproveSettlementPayload,
   RejectSettlementPayload,
   AdminForceSettlementPayload,
+  ConfirmDailyClosurePayload,
 } from '../types/settlements.types'
 import { broadcastSyncEvent } from '@/shared/lib/realtimeSync'
 
@@ -138,7 +139,7 @@ export function useSettlementMutations() {
   })
 
   const confirmDailyClosureMutation = useMutation({
-    mutationFn: (params: { branchId?: string; date: string; notes?: string }) =>
+    mutationFn: (params: ConfirmDailyClosurePayload) =>
       confirmDailyClosure(params),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settlements'] })

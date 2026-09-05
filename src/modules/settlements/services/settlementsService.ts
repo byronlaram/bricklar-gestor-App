@@ -1,6 +1,7 @@
 import { supabase } from '@/shared/lib/supabaseClient'
 import { calculateWorkdayCashSummary } from '@/modules/workdays/utils/workdayCalculations'
 import { getLocalDateString } from '@/shared/utils/date'
+import { broadcastSyncEvent } from '@/shared/lib/realtimeSync'
 import type {
   Settlement,
   CashMovement,
@@ -10,6 +11,8 @@ import type {
   AdminForceSettlementPayload,
   SettlementFilters,
   DailyClosureSummary,
+  DailyClosureRecord,
+  ConfirmDailyClosurePayload,
 } from '../types/settlements.types'
 
 const SETTLEMENT_SELECT = `
@@ -799,11 +802,28 @@ export async function createCashMovement(payload: CreateMovementPayload): Promis
 export async function getDailyClosure(
   branchId: string | undefined,
   date: string
-): Promise<DailyClosureSummary & { workdays_detail?: any[] }> {
-  // 1. Obtener todas las jornadas del día (incluso las que aún no tienen registro en settlements)
+): Promise<DailyClosureSummary> {
   const { data: session } = await supabase.auth.getSession()
   if (!session?.session?.user?.id) throw new Error('No hay sesión activa.')
 
+  // 1. Consultar si ya existe un registro congelado en daily_closures
+  let closureRecordQuery = supabase
+    .from('daily_closures')
+    .select(`
+      *,
+      branch:branches!daily_closures_branch_id_fkey (id, name),
+      closed_by_profile:profiles!daily_closures_closed_by_fkey (id, full_name, display_name)
+    `)
+    .eq('closure_date', date)
+
+  if (branchId) {
+    closureRecordQuery = closureRecordQuery.eq('branch_id', branchId)
+  }
+
+  const { data: rawClosureRecords } = await closureRecordQuery.limit(1)
+  const savedClosure = (rawClosureRecords?.[0] as unknown as DailyClosureRecord) || null
+
+  // 2. Obtener todas las jornadas del día
   let query = supabase
     .from('workdays')
     .select(`
@@ -824,23 +844,47 @@ export async function getDailyClosure(
   const { data: rawWorkdays } = await query
   const workdaysList = (rawWorkdays || []) as any[]
 
-  // 2. Carga en lote de tareas y movimientos de caja
+  // 3. Carga en lote de tareas y movimientos de caja
   const workdayIds = workdaysList.map((w) => w.id)
   const courierIds = Array.from(new Set(workdaysList.map((w) => w.courier_id)))
 
   const { data: batchTasks } = await supabase
     .from('tasks')
     .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
-    .in('assigned_courier_id', courierIds)
+    .in('assigned_courier_id', courierIds.length > 0 ? courierIds : ['00000000-0000-0000-0000-000000000000'])
     .eq('scheduled_date', date)
     .eq('status', 'completed')
+
+  // Conteo total y estados de todas las tareas del día
+  let allDayTasksQuery = supabase
+    .from('tasks')
+    .select('id, status, expected_collection_amount, expected_collection_currency, requires_collection')
+    .eq('scheduled_date', date)
+
+  if (branchId) {
+    allDayTasksQuery = allDayTasksQuery.eq('branch_id', branchId)
+  }
+
+  const { data: allDayTasks } = await allDayTasksQuery
+  const tasksSummary = {
+    total: allDayTasks?.length || 0,
+    completed: allDayTasks?.filter((t) => t.status === 'completed').length || 0,
+    cancelled: allDayTasks?.filter((t) => t.status === 'cancelled').length || 0,
+    not_completed: allDayTasks?.filter((t) => t.status === 'not_completed' || t.status === 'pending' || t.status === 'assigned' || t.status === 'en_route' || t.status === 'in_progress').length || 0,
+    expected_nio: (allDayTasks || [])
+      .filter((t) => t.requires_collection && (t.expected_collection_currency === 'NIO' || !t.expected_collection_currency))
+      .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0),
+    expected_usd: (allDayTasks || [])
+      .filter((t) => t.requires_collection && t.expected_collection_currency === 'USD')
+      .reduce((acc, t) => acc + (t.expected_collection_amount || 0), 0),
+  }
 
   const { data: batchMovements } = await supabase
     .from('cash_movements')
     .select('workday_id, amount, currency, direction, movement_type, description')
-    .in('workday_id', workdayIds)
+    .in('workday_id', workdayIds.length > 0 ? workdayIds : ['00000000-0000-0000-0000-000000000000'])
 
-  // 3. Liquidaciones registradas para este día
+  // 4. Liquidaciones registradas para este día
   let settlementsQuery = supabase
     .from('settlements')
     .select(SETTLEMENT_SELECT)
@@ -932,22 +976,50 @@ export async function getDailyClosure(
     total_collections_transfer: totalCollectionsTransfer,
     total_expenses: totalExpenses,
     total_already_received: totalAlreadyReceived,
-    net_cash_in_hand: netReceivedInCash,
+    net_cash_in_hand: savedClosure?.total_delivered_nio ?? netReceivedInCash,
+    tasks_summary: tasksSummary,
+    saved_closure: savedClosure,
     workdays_detail: workdaysDetail,
   }
 }
 
-export async function confirmDailyClosure(params: {
-  branchId?: string
-  date: string
-  notes?: string
-}): Promise<void> {
+export async function confirmDailyClosure(
+  params: ConfirmDailyClosurePayload
+): Promise<DailyClosureRecord | null> {
   const { data: session } = await supabase.auth.getSession()
   const adminId = session?.session?.user?.id
   if (!adminId) throw new Error('No hay sesión activa.')
 
-  // 1. Cerrar formalmente todas las jornadas del día
-  let query = supabase
+  // Resolver branch_id si no fue especificado
+  let targetBranchId = params.branchId
+  if (!targetBranchId) {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('primary_branch_id, branch_ids')
+      .eq('id', adminId)
+      .single()
+    targetBranchId = profile?.primary_branch_id || profile?.branch_ids?.[0]
+  }
+
+  if (!targetBranchId) {
+    const { data: firstBranch } = await supabase
+      .from('branches')
+      .select('id')
+      .eq('is_active', true)
+      .limit(1)
+      .single()
+    targetBranchId = firstBranch?.id
+  }
+
+  if (!targetBranchId) {
+    throw new Error('No se pudo determinar la sucursal para el cierre diario.')
+  }
+
+  // 1. Obtener cálculo consolidado previo del día
+  const summary = await getDailyClosure(targetBranchId, params.date)
+
+  // 2. Cerrar formalmente todas las jornadas del día
+  let workdaysUpdate = supabase
     .from('workdays')
     .update({
       status: 'closed',
@@ -957,35 +1029,119 @@ export async function confirmDailyClosure(params: {
     .eq('work_date', params.date)
     .in('status', ['open', 'pending_settlement', 'reviewed'])
 
-  if (params.branchId) {
-    query = query.eq('branch_id', params.branchId)
+  if (targetBranchId) {
+    workdaysUpdate = workdaysUpdate.eq('branch_id', targetBranchId)
   }
 
-  const { error } = await query
-  if (error) {
-    console.error('[Settlements] confirmDailyClosure error:', error)
-    throw new Error(error.message)
+  const { error: workdaysErr } = await workdaysUpdate
+  if (workdaysErr) {
+    console.error('[Settlements] confirmDailyClosure workdays error:', workdaysErr)
+    throw new Error(workdaysErr.message)
   }
 
-  // 2. Registrar en auditoría
+  // 3. Persistir en la tabla daily_closures
+  const now = new Date().toISOString()
+  const closurePayload = {
+    branch_id: targetBranchId,
+    closure_date: params.date,
+    status: 'closed',
+    closed_at: now,
+    closed_by: adminId,
+    created_by: adminId,
+    notes: params.notes || null,
+    tasks_total: summary.tasks_summary?.total || 0,
+    tasks_completed: summary.tasks_summary?.completed || 0,
+    tasks_cancelled: summary.tasks_summary?.cancelled || 0,
+    tasks_not_completed: summary.tasks_summary?.not_completed || 0,
+    total_expected_nio: summary.tasks_summary?.expected_nio || 0,
+    total_expected_usd: summary.tasks_summary?.expected_usd || 0,
+    total_collections_nio: summary.total_collections_cash + summary.total_collections_transfer,
+    total_collections_usd: 0,
+    total_payments_nio: summary.total_expenses,
+    total_payments_usd: 0,
+    total_delivered_nio: params.deliveredNio ?? summary.net_cash_in_hand,
+    total_delivered_usd: params.deliveredUsd ?? 0,
+    total_difference_nio: 0,
+    total_difference_usd: 0,
+    workdays_count: summary.total_workdays,
+    updated_at: now,
+    updated_by: adminId,
+  }
+
+  let savedRecord: DailyClosureRecord | null = null
+
+  // Verificar si ya existía para hacer update o insert
+  const { data: existingClosure } = await supabase
+    .from('daily_closures')
+    .select('id')
+    .eq('closure_date', params.date)
+    .eq('branch_id', targetBranchId)
+    .maybeSingle()
+
+  if (existingClosure?.id) {
+    const { data: updated, error: updateErr } = await supabase
+      .from('daily_closures')
+      .update(closurePayload)
+      .eq('id', existingClosure.id)
+      .select(`
+        *,
+        branch:branches!daily_closures_branch_id_fkey (id, name),
+        closed_by_profile:profiles!daily_closures_closed_by_fkey (id, full_name, display_name)
+      `)
+      .single()
+
+    if (updateErr) {
+      console.error('[Settlements] Error updating daily_closures:', updateErr)
+      throw new Error(updateErr.message)
+    }
+    savedRecord = updated as unknown as DailyClosureRecord
+  } else {
+    const { data: inserted, error: insertErr } = await supabase
+      .from('daily_closures')
+      .insert(closurePayload)
+      .select(`
+        *,
+        branch:branches!daily_closures_branch_id_fkey (id, name),
+        closed_by_profile:profiles!daily_closures_closed_by_fkey (id, full_name, display_name)
+      `)
+      .single()
+
+    if (insertErr) {
+      console.error('[Settlements] Error inserting daily_closures:', insertErr)
+      throw new Error(insertErr.message)
+    }
+    savedRecord = inserted as unknown as DailyClosureRecord
+  }
+
+  // 4. Registrar en auditoría
   try {
     await supabase.rpc('log_audit_event', {
       p_action: 'daily_closure_confirmed',
       p_entity_type: 'daily_closure',
-      p_entity_id: params.date,
+      p_entity_id: savedRecord?.id || params.date,
       p_entity_code: params.date,
-      p_branch_id: params.branchId || undefined,
+      p_branch_id: targetBranchId,
       p_changes: {
         admin_id: adminId,
         date: params.date,
-        branch_id: params.branchId || null,
+        branch_id: targetBranchId,
         notes: params.notes || null,
-        timestamp: new Date().toISOString(),
+        net_cash_in_hand: summary.net_cash_in_hand,
+        workdays_count: summary.total_workdays,
+        tasks_total: summary.tasks_summary?.total || 0,
+        timestamp: now,
       },
     })
   } catch (auditErr) {
     console.warn('[Settlements] Daily closure audit log warning:', auditErr)
   }
+
+  // 5. Broadcast en tiempo real para actualizar todos los paneles
+  broadcastSyncEvent('settlements', 'update', {
+    entityId: savedRecord?.id || params.date,
+  })
+
+  return savedRecord
 }
 
 

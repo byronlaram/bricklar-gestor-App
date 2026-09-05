@@ -10,6 +10,9 @@ import {
   Building2,
   HandCoins,
   AlertCircle,
+  FileCheck2,
+  PackageCheck,
+  ShieldCheck,
 } from 'lucide-react'
 
 import { useAuth } from '@/modules/auth/useAuth'
@@ -21,9 +24,15 @@ import {
   Button,
   Badge,
   Skeleton,
-  ConfirmDialog,
   EmptyState,
   useToast,
+  Modal,
+  ModalContent,
+  ModalHeader,
+  ModalTitle,
+  ModalDescription,
+  ModalBody,
+  ModalFooter,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
 import { formatDate } from '@/shared/utils/format'
@@ -37,25 +46,31 @@ export default function AdminDailyClosurePage() {
 
   const [date, setDate] = useState(todayStr)
   const [selectedBranchId, setSelectedBranchId] = useState<string>(defaultBranchId || '')
-  const [isConfirmOpen, setIsConfirmOpen] = useState(false)
+  const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
+  const [closureNotes, setClosureNotes] = useState('')
 
   const { data: branches = [] } = useBranches()
   const { data: closure, isLoading } = useDailyClosure(selectedBranchId || undefined, date)
   const { confirmDailyClosure, isConfirmingDailyClosure } = useSettlementMutations()
 
   const workdaysDetail = closure?.workdays_detail || []
-  const isAllClosed = workdaysDetail.length > 0 && workdaysDetail.every((w) => w.status === 'closed')
+  const savedClosure = closure?.saved_closure
+  const isSavedInDb = savedClosure?.status === 'closed'
+  const isAllWorkdaysClosed = workdaysDetail.length > 0 && workdaysDetail.every((w) => w.status === 'closed')
+  const isFullyClosed = isSavedInDb || isAllWorkdaysClosed
 
   const handleConfirmClosure = async () => {
     try {
       await confirmDailyClosure({
         branchId: selectedBranchId || undefined,
         date,
+        notes: closureNotes.trim() || undefined,
       })
-      setIsConfirmOpen(false)
+      setIsConfirmModalOpen(false)
+      setClosureNotes('')
       toast.success(
-        'Cierre Diario Confirmado',
-        `Se han cerrado formalmente todas las jornadas para la fecha ${date}.`
+        'Cierre Diario Guardado en BD',
+        `Se ha persistido exitosamente el cierre diario para la fecha ${date}.`
       )
     } catch (err) {
       toast.error('Error en Cierre Diario', (err as Error).message)
@@ -69,21 +84,37 @@ export default function AdminDailyClosurePage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Cierre Diario Consolidado</h1>
           <p className="text-xs text-slate-500">
-            Consolidación de arqueo de caja, recaudaciones de motorizados y entrega final a administración general.
+            Consolidación de arqueo de caja, recaudaciones de motorizados y persistencia formal en base de datos.
           </p>
         </div>
 
-        <Button
-          onClick={() => setIsConfirmOpen(true)}
-          disabled={isAllClosed || (closure?.total_workdays || 0) === 0}
-          isLoading={isConfirmingDailyClosure}
-          variant="primary"
-          size="md"
-          leftIcon={isAllClosed ? <CheckCircle2 className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
-          className="shrink-0 font-semibold shadow-md bg-emerald-600 hover:bg-emerald-700 text-white"
-        >
-          {isAllClosed ? 'Cierre Confirmado' : 'Confirmar Cierre Diario'}
-        </Button>
+        <div className="flex items-center gap-2">
+          {isSavedInDb && (
+            <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
+              <ShieldCheck className="h-4 w-4 text-emerald-600" />
+              <span>Guardado en BD</span>
+            </div>
+          )}
+
+          <Button
+            onClick={() => {
+              setClosureNotes(savedClosure?.notes || '')
+              setIsConfirmModalOpen(true)
+            }}
+            disabled={(closure?.total_workdays || 0) === 0 && (closure?.tasks_summary?.total || 0) === 0}
+            isLoading={isConfirmingDailyClosure}
+            variant={isSavedInDb ? 'outline' : 'primary'}
+            size="md"
+            leftIcon={isSavedInDb ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <Lock className="h-4 w-4" />}
+            className={
+              isSavedInDb
+                ? 'shrink-0 font-semibold border-emerald-300 text-emerald-800 hover:bg-emerald-50'
+                : 'shrink-0 font-semibold shadow-md bg-emerald-600 hover:bg-emerald-700 text-white'
+            }
+          >
+            {isSavedInDb ? 'Actualizar Cierre Diario' : 'Confirmar Cierre Diario'}
+          </Button>
+        </div>
       </div>
 
       {/* Selector de Fecha y Sucursal */}
@@ -117,6 +148,47 @@ export default function AdminDailyClosurePage() {
         </div>
       </Card>
 
+      {/* Banner de Cierre Persistido en Base de Datos */}
+      {savedClosure && (
+        <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs text-emerald-950 animate-fade-in">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 mt-0.5">
+              <FileCheck2 className="h-5 w-5" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wide text-emerald-900">
+                  Cierre Oficial Persistido en Base de Datos
+                </span>
+                <span className="bg-emerald-200/80 text-emerald-900 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                  Inmutable
+                </span>
+              </div>
+              <p className="text-xs text-emerald-800">
+                Cerrado por: <strong className="font-bold">{savedClosure.closed_by_profile?.full_name || 'Administrador'}</strong>
+                {savedClosure.closed_at && (
+                  <span className="ml-1 text-emerald-700">
+                    el {new Date(savedClosure.closed_at).toLocaleTimeString('es-NI', { hour: '2-digit', minute: '2-digit' })} hrs
+                  </span>
+                )}
+              </p>
+              {savedClosure.notes && (
+                <p className="text-xs text-emerald-900 bg-white/70 p-2 rounded-lg border border-emerald-100 italic">
+                  &ldquo;{savedClosure.notes}&rdquo;
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex sm:flex-col items-end justify-between sm:justify-center text-right border-t sm:border-t-0 border-emerald-200/60 pt-2 sm:pt-0">
+            <span className="text-[11px] text-emerald-700 font-medium">Tareas Consolidadas</span>
+            <span className="text-xs font-mono font-bold text-emerald-900">
+              {savedClosure.tasks_completed} de {savedClosure.tasks_total} completadas
+            </span>
+          </div>
+        </div>
+      )}
+
       {isLoading ? (
         <div className="space-y-6">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -130,27 +202,35 @@ export default function AdminDailyClosurePage() {
       ) : (
         <div className="space-y-6">
           {/* Grid de Totales Consolidados */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             <MetricCard
-              title="Motorizados en Turno"
+              title="Motorizados"
               value={closure?.total_workdays || 0}
-              subtitle="Jornadas registradas en la fecha"
+              subtitle="Jornadas del día"
               icon={<Users className="h-4 w-4 text-sky-600" />}
               accentColor="primary"
             />
 
             <MetricCard
-              title="Fondos Entregados Admin"
+              title="Tareas Completadas"
+              value={`${closure?.tasks_summary?.completed || 0} / ${closure?.tasks_summary?.total || 0}`}
+              subtitle="Entregas ejecutadas"
+              icon={<PackageCheck className="h-4 w-4 text-emerald-600" />}
+              accentColor="success"
+            />
+
+            <MetricCard
+              title="Fondos Admin"
               value={`C$ ${(closure?.total_initial_cash ?? 0).toFixed(2)}`}
-              subtitle="Fondo base y recargas"
+              subtitle="Base y recargas"
               icon={<Wallet className="h-4 w-4 text-indigo-600" />}
               accentColor="primary"
             />
 
             <MetricCard
-              title="Total Cobrado Efectivo"
+              title="Cobrado Efectivo"
               value={`+C$ ${(closure?.total_collections_cash ?? 0).toFixed(2)}`}
-              subtitle="Cobros de entregas en ruta"
+              subtitle="Cobros en ruta"
               icon={<DollarSign className="h-4 w-4 text-emerald-600" />}
               accentColor="success"
             />
@@ -158,15 +238,15 @@ export default function AdminDailyClosurePage() {
             <MetricCard
               title="Gastos Autorizados"
               value={`-C$ ${(closure?.total_expenses ?? 0).toFixed(2)}`}
-              subtitle="Combustible, compras y viáticos"
+              subtitle="Compras y viáticos"
               icon={<Receipt className="h-4 w-4 text-rose-600" />}
               accentColor="destructive"
             />
 
             <MetricCard
-              title="Entregas Previas a Caja"
+              title="Entregas Previas"
               value={`-C$ ${(closure?.total_already_received ?? 0).toFixed(2)}`}
-              subtitle="Efectivo entregado en oficina"
+              subtitle="En ventanilla"
               icon={<HandCoins className="h-4 w-4 text-purple-600" />}
               accentColor="purple"
             />
@@ -195,7 +275,7 @@ export default function AdminDailyClosurePage() {
               </p>
             </div>
 
-            {isAllClosed && (
+            {isFullyClosed && (
               <div className="p-3.5 bg-emerald-500/15 rounded-2xl text-xs font-semibold text-emerald-300 flex items-center gap-2.5 border border-emerald-400/30">
                 <CheckCircle2 className="h-4 w-4 text-emerald-400 shrink-0" />
                 <span>Cierre diario de caja formalmente verificado y guardado en auditoría.</span>
@@ -282,18 +362,73 @@ export default function AdminDailyClosurePage() {
         </div>
       )}
 
-      {/* Modal de Confirmación de Cierre */}
-      <ConfirmDialog
-        isOpen={isConfirmOpen}
-        onClose={() => setIsConfirmOpen(false)}
-        onConfirm={handleConfirmClosure}
-        title="Confirmar Cierre Diario de Caja"
-        description={`¿Estás seguro de confirmar el cierre consolidado para la fecha ${date}? Esta acción registrará el arqueo final en la auditoría general.`}
-        confirmText="Confirmar Cierre"
-        cancelText="Cancelar"
-        variant="primary"
-      />
+      {/* Modal de Confirmación y Observaciones de Cierre Diario */}
+      <Modal isOpen={isConfirmModalOpen} onClose={() => setIsConfirmModalOpen(false)}>
+        <ModalContent className="max-w-lg">
+          <ModalHeader>
+            <ModalTitle className="flex items-center gap-2 text-slate-900">
+              <Lock className="w-5 h-5 text-emerald-600" />
+              Confirmar Cierre Diario de Caja
+            </ModalTitle>
+            <ModalDescription>
+              Esta acción registrará formalmente el arqueo en la tabla inmutable <strong>daily_closures</strong> y cerrará las jornadas activas para la fecha <strong>{date}</strong>.
+            </ModalDescription>
+          </ModalHeader>
+
+          <ModalBody className="space-y-4 py-2">
+            {/* Resumen numérico rápido */}
+            <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 grid grid-cols-2 gap-3 text-xs">
+              <div>
+                <span className="text-slate-500 block">Efectivo Físico en Caja:</span>
+                <span className="text-base font-black font-mono text-slate-900">
+                  C$ {(closure?.net_cash_in_hand ?? 0).toFixed(2)}
+                </span>
+              </div>
+              <div>
+                <span className="text-slate-500 block">Motorizados / Tareas:</span>
+                <span className="text-base font-black font-mono text-slate-900">
+                  {closure?.total_workdays || 0} / {closure?.tasks_summary?.completed || 0}
+                </span>
+              </div>
+            </div>
+
+            {/* Campo de notas / observaciones */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-slate-700">
+                Observaciones del Cierre (Opcional):
+              </label>
+              <textarea
+                value={closureNotes}
+                onChange={(e) => setClosureNotes(e.target.value)}
+                placeholder="Ej. Arqueo verificado sin diferencias. Depósito programado para mañana a primera hora..."
+                rows={3}
+                className="w-full text-xs p-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/40 text-slate-900 placeholder:text-slate-400 resize-none shadow-2xs"
+              />
+            </div>
+          </ModalBody>
+
+          <ModalFooter>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsConfirmModalOpen(false)}
+            >
+              Cancelar
+            </Button>
+            <Button
+              type="button"
+              variant="primary"
+              size="sm"
+              isLoading={isConfirmingDailyClosure}
+              onClick={handleConfirmClosure}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+            >
+              Confirmar y Guardar Cierre
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   )
 }
-
