@@ -8,6 +8,7 @@ import type {
 } from '../types/workdays.types'
 
 import { getLocalDateString } from '@/shared/utils/date'
+import { syncVehicleOdometerFromWorkday } from '@/modules/fleet/services/fleetService'
 
 const WORKDAY_SELECT = `
   *,
@@ -225,6 +226,13 @@ export async function endWorkday(payload: EndWorkdayPayload): Promise<Workday> {
   if (error) {
     console.error('[Workdays] endWorkday error:', error)
     throw new Error(error.message)
+  }
+
+  // Sincronizar automáticamente el odómetro del vehículo asignado a la flota
+  if (data?.courier_id && payload.final_km) {
+    syncVehicleOdometerFromWorkday(data.courier_id, payload.final_km).catch((e) =>
+      console.warn('[Workdays] Fleet sync warning:', e)
+    )
   }
 
   return data as unknown as Workday

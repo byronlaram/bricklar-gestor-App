@@ -27,6 +27,7 @@ const AdminReportsPage = lazyWithRetry(() => import('@/pages/admin/ReportsPage')
 const AdminAuditPage = lazyWithRetry(() => import('@/pages/admin/AuditPage'))
 const AdminSettingsPage = lazyWithRetry(() => import('@/pages/admin/SettingsPage'))
 const AdminMaintenancePage = lazyWithRetry(() => import('@/pages/admin/MaintenancePage'))
+const AdminFleetPage = lazyWithRetry(() => import('@/pages/admin/FleetPage'))
 
 // Motorizado
 const CourierLayout = lazyWithRetry(() => import('@/layouts/CourierLayout'))
@@ -122,6 +123,7 @@ export function AppRouter() {
             <Route path="cierre-diario" element={<AdminDailyClosurePage />} />
             <Route path="buses" element={<AdminBusDirectoryPage />} />
             <Route path="reportes" element={<AdminReportsPage />} />
+            <Route path="flota" element={<AdminFleetPage />} />
             <Route path="auditoria" element={
               <RouteGuard allowedRoles={['general_admin']}>
                 <AdminAuditPage />

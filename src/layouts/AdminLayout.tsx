@@ -27,6 +27,7 @@ import {
   Bus,
   UserCheck,
   Radio,
+  Bike,
 } from 'lucide-react'
 
 // ─── Estructura de Navegación Organizada por Secciones ─────────────────────────
@@ -59,6 +60,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Servicios',
     items: [
+      { to: '/admin/flota', label: 'Flota & Mantenimiento', icon: <Bike size={18} />, roles: ['general_admin', 'junior_admin'] },
       { to: '/admin/buses', label: 'Directorio de Buses', icon: <Bus size={18} />, roles: ['general_admin', 'junior_admin'] },
       { to: '/admin/reportes', label: 'Reportes', icon: <BarChart3 size={18} />, roles: ['general_admin', 'junior_admin'] },
     ],
@@ -70,7 +72,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: '/admin/sucursales', label: 'Sucursales', icon: <Building2 size={18} />, roles: ['general_admin'] },
       { to: '/admin/auditoria', label: 'Auditoría', icon: <Shield size={18} />, roles: ['general_admin'] },
       { to: '/admin/configuracion', label: 'Configuración', icon: <Settings size={18} />, roles: ['general_admin', 'junior_admin'] },
-      { to: '/admin/mantenimiento', label: 'Mantenimiento', icon: <Wrench size={18} />, roles: ['general_admin'] },
+      { to: '/admin/mantenimiento', label: 'Mantenimiento de Base de Datos', icon: <Wrench size={18} />, roles: ['general_admin'] },
     ],
   },
 ]
@@ -83,6 +85,7 @@ const ROUTE_NAME_MAP: Record<string, string> = {
   jornadas: 'Jornadas y Fondos',
   liquidaciones: 'Liquidaciones',
   'cierre-diario': 'Cierre Diario',
+  flota: 'Flota & Mantenimiento Preventivo',
   buses: 'Directorio de Buses',
   reportes: 'Reportes Ejecutivos',
   usuarios: 'Gestión de Usuarios',
