@@ -9,6 +9,7 @@ import {
   CheckCircle2,
   Route,
   ListFilter,
+  AlertCircle,
 } from 'lucide-react'
 import type { CourierMonitoringSummary, BreadcrumbPoint } from '../types/monitoring.types'
 import type { TaskWithCourier } from '@/modules/tasks/types/task.types'
@@ -540,10 +541,10 @@ export function LiveMap({
 
       {/* Aviso informativo si hay tareas filtradas pero sin coordenadas registradas */}
       {statusFilter !== 'all' && tasks.length > 0 && tasksWithCoordsCount === 0 && (
-        <div className="absolute top-3 left-3 z-20 bg-slate-900/90 backdrop-blur-md text-white px-3.5 py-2 rounded-xl border border-slate-700 shadow-lg text-xs font-medium flex items-center gap-2 animate-fade-in max-w-md">
-          <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0"></span>
+        <div className="absolute top-16 left-1/2 -translate-x-1/2 z-20 bg-slate-900/95 backdrop-blur-md text-amber-200 px-4 py-2 rounded-xl border border-amber-500/30 shadow-xl text-xs font-semibold flex items-center gap-2 animate-fade-in max-w-[92%] sm:max-w-md pointer-events-auto text-center justify-center">
+          <AlertCircle className="h-4 w-4 text-amber-400 shrink-0" />
           <span>
-            {tasks.length} parada(s) {statusFilter === 'pending' ? 'pendientes' : statusFilter === 'completed' ? 'completadas' : 'filtradas'} registradas hoy (sin enlace GPS).
+            {tasks.length} parada(s) {statusFilter === 'pending' ? 'pendientes' : statusFilter === 'completed' ? 'completadas' : 'filtradas'} registradas hoy (sin enlace con coordenadas GPS).
           </span>
         </div>
       )}
