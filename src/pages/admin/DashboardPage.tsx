@@ -471,23 +471,28 @@ export default function DashboardPage() {
       return acc
     }, 0)
 
+    // Total fondos iniciales y recargas de administración
+    const totalInitialNIO = workdaySummaries.reduce((acc, s) => acc + s.initialCashNIO + s.advancesNIO, 0)
+
     // Total compras y gastos en calle desembolsados
     const totalExpensesNIO = workdaySummaries.reduce((acc, s) => acc + s.expensesNIO, 0)
 
-    // Entregas previas a caja
+    // Entregas previas a caja / ventanilla
     const totalAlreadyReceived = workdaySummaries.reduce((acc, s) => acc + s.alreadyReceivedNIO, 0)
 
-    // Físico ingresado a bóveda/caja (entregas previas + liquidaciones aprobadas)
+    // Físico esperado / liquidado en bóveda / caja general al cierre
     const netReceivedInVault = workdays.reduce((acc, w, idx) => {
       const s = settlementMap.get(w.id)
-      const priorReceived = workdaySummaries[idx]?.alreadyReceivedNIO || 0
-      const finalSettlementReceived = s && s.status === 'approved' ? s.actual_cash || 0 : 0
-      return acc + priorReceived + finalSettlementReceived
+      const finalSettlementReceived =
+        s && s.status === 'approved'
+          ? s.actual_cash || 0
+          : workdaySummaries[idx]?.cashInHandNIO || 0
+      return acc + finalSettlementReceived
     }, 0)
 
-    // Neto consolidado de operaciones (Cobros en efectivo - Gastos)
-    const netOperationsCash = totalCashNIO - totalExpensesNIO
-    const netCash = netReceivedInVault > 0 ? netReceivedInVault : Math.max(0, netOperationsCash)
+    // Neto consolidado de operaciones (Cobros en efectivo + Fondos iniciales - Gastos - Entregas previas)
+    const netOperationsCash = totalCashNIO + totalInitialNIO - totalExpensesNIO - totalAlreadyReceived
+    const netCash = workdays.length > 0 ? netReceivedInVault : Math.max(0, netOperationsCash)
 
     // ─── Ranking de Motorizados ──────────────────────────────────────────────
     const courierStatsMap = new Map<string, CourierPerformance>()
@@ -831,7 +836,7 @@ export default function DashboardPage() {
                 <MetricCard
                   title="Neto en Bóveda / Caja"
                   value={`C$ ${kpis.netCash.toFixed(2)}`}
-                  subtitle={`Gastos: -C$ ${kpis.totalExpensesNIO.toFixed(2)}`}
+                  subtitle={`Gastos: -C$ ${kpis.totalExpensesNIO.toFixed(2)}${kpis.totalAlreadyReceived > 0 ? ` | Entregas: -C$ ${kpis.totalAlreadyReceived.toFixed(2)}` : ''}`}
                   icon={<Award className="h-5 w-5 text-primary" />}
                   accentColor="primary"
                   className="hover:shadow-card-hover cursor-pointer"
