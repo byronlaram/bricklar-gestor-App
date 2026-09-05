@@ -3,6 +3,7 @@ import { Outlet, NavLink, Link, useNavigate, useLocation } from 'react-router-do
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
+import { useCompanySettings } from '@/modules/settings/hooks/useCompanySettings'
 import { useTasksRealtime } from '@/modules/tasks/hooks/useTasksRealtime'
 import { Avatar, Button, ConfirmDialog, useToast } from '@/shared/components/ui'
 import { cn } from '@/shared/utils/cn'
@@ -107,6 +108,7 @@ function Sidebar({
   onOpenLogoutConfirm: () => void
 }) {
   const { profile, role } = useAuth()
+  const { settings: company } = useCompanySettings()
 
   return (
     <>
@@ -136,15 +138,21 @@ function Sidebar({
             <Link
               to="/admin"
               onClick={onClose}
-              className="flex items-center gap-3 hover:opacity-95 transition cursor-pointer"
+              className="flex items-center gap-3 hover:opacity-95 transition cursor-pointer overflow-hidden"
             >
               <img
-                src="/branding/bricklar-icon.svg"
-                alt="Bricklar"
-                className="h-9 w-9 rounded-xl shadow-xs shrink-0"
+                src={company.logo_url || '/branding/bricklar-icon.svg'}
+                alt={company.name || 'Empresa'}
+                className="h-9 w-9 rounded-xl shadow-xs shrink-0 object-contain"
+                onError={(e) => {
+                  // Fallback si la imagen no carga
+                  ;(e.target as HTMLImageElement).src = '/branding/bricklar-icon.svg'
+                }}
               />
-              <div>
-                <p className="text-sm font-bold leading-none text-primary tracking-tight">Bricklar Gestor</p>
+              <div className="overflow-hidden">
+                <p className="text-sm font-bold leading-none text-primary tracking-tight truncate max-w-[130px]" title={company.name}>
+                  {company.name || 'Bricklar Gestor'}
+                </p>
                 <p className="text-2xs text-slate-500 font-medium mt-0.5">Panel Administrativo</p>
               </div>
             </Link>
@@ -257,6 +265,7 @@ export default function AdminLayout() {
   const navigate = useNavigate()
   const location = useLocation()
   const { profile, role, isGeneralAdmin, signOut } = useAuth()
+  const { settings: company } = useCompanySettings()
   const toast = useToast()
 
   const roleLabel = role === 'general_admin'
@@ -374,8 +383,8 @@ export default function AdminLayout() {
             <div>
               <div className="flex items-center gap-1.5 text-[11px] font-semibold text-blue-200/90 tracking-tight">
                 <Link to="/admin" className="hover:text-white transition-colors font-extrabold flex items-center gap-1">
-                  <span className="hidden sm:inline">Bricklar GestorApp</span>
-                  <span className="sm:hidden">GestorApp</span>
+                  <span className="hidden sm:inline">{company.name || 'Bricklar Gestor'}</span>
+                  <span className="sm:hidden">{company.name ? company.name.split(' ')[0] : 'GestorApp'}</span>
                 </Link>
                 <ChevronRight size={12} className="text-blue-300/60" />
                 <span className="text-white font-medium truncate max-w-[140px] sm:max-w-none">{pageTitle}</span>

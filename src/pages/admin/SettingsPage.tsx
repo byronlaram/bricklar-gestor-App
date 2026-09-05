@@ -2,11 +2,12 @@ import { useSearchParams } from 'react-router-dom'
 import { SettingsNavigation, type SettingsTabId } from './settings/SettingsNavigation'
 import { CompanySettingsTab } from './settings/CompanySettingsTab'
 import { OperationSettingsTab } from './settings/OperationSettingsTab'
+import { TaskTypesSettingsTab } from './settings/TaskTypesSettingsTab'
 import { ExchangeRateSettingsTab } from './settings/ExchangeRateSettingsTab'
 import { ProfileSettingsTab } from './settings/ProfileSettingsTab'
 import { SecuritySettingsTab } from './settings/SecuritySettingsTab'
 
-const VALID_TABS: SettingsTabId[] = ['empresa', 'operacion', 'tipo-cambio', 'perfil', 'seguridad']
+const VALID_TABS: SettingsTabId[] = ['empresa', 'operacion', 'gestiones', 'tipo-cambio', 'perfil', 'seguridad']
 
 export default function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -19,12 +20,12 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in max-w-4xl">
+    <div className="space-y-6 animate-fade-in max-w-5xl">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight text-foreground">Configuración</h1>
         <p className="text-xs sm:text-sm text-foreground-muted mt-0.5">
-          Administra las preferencias de la empresa, tipos de cambio, operación y tu cuenta.
+          Administra las preferencias de la empresa, tipos de gestión, operación y tu cuenta.
         </p>
       </div>
 
@@ -35,6 +36,7 @@ export default function SettingsPage() {
       <div className="pt-2 animate-fade-in">
         {activeTab === 'empresa' && <CompanySettingsTab />}
         {activeTab === 'operacion' && <OperationSettingsTab />}
+        {activeTab === 'gestiones' && <TaskTypesSettingsTab />}
         {activeTab === 'tipo-cambio' && <ExchangeRateSettingsTab />}
         {activeTab === 'perfil' && <ProfileSettingsTab />}
         {activeTab === 'seguridad' && <SecuritySettingsTab />}

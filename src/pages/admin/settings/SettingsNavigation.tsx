@@ -1,6 +1,6 @@
-import { Building2, Gauge, User, ShieldCheck, TrendingUp } from 'lucide-react'
+import { Building2, Gauge, User, ShieldCheck, TrendingUp, Sliders } from 'lucide-react'
 
-export type SettingsTabId = 'empresa' | 'operacion' | 'tipo-cambio' | 'perfil' | 'seguridad'
+export type SettingsTabId = 'empresa' | 'operacion' | 'gestiones' | 'tipo-cambio' | 'perfil' | 'seguridad'
 
 interface SettingsTab {
   id: SettingsTabId
@@ -11,6 +11,7 @@ interface SettingsTab {
 const TABS: SettingsTab[] = [
   { id: 'empresa', label: 'Empresa', icon: <Building2 className="h-4 w-4" /> },
   { id: 'operacion', label: 'Operación', icon: <Gauge className="h-4 w-4" /> },
+  { id: 'gestiones', label: 'Tipos de Gestión', icon: <Sliders className="h-4 w-4" /> },
   { id: 'tipo-cambio', label: 'Tipo de Cambio', icon: <TrendingUp className="h-4 w-4" /> },
   { id: 'perfil', label: 'Mi Perfil', icon: <User className="h-4 w-4" /> },
   { id: 'seguridad', label: 'Seguridad', icon: <ShieldCheck className="h-4 w-4" /> },

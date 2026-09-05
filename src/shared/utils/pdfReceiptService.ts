@@ -5,6 +5,33 @@
 
 import { formatDate } from './format'
 
+function getStoredCompanyProfile() {
+  try {
+    const raw = localStorage.getItem('company_profile_settings')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      return {
+        name: parsed.name || 'BRICKLAR LOGISTICS',
+        legalName: parsed.legal_name || 'Distribuidora Bricklar S.A.',
+        taxId: parsed.tax_id || 'J0310000194829',
+        slogan: parsed.slogan || 'Gestión Integral de Envíos & Liquidaciones',
+        phone: parsed.phone || '',
+        email: parsed.email || '',
+        logoUrl: parsed.logo_url || '',
+      }
+    }
+  } catch (e) {}
+  return {
+    name: 'BRICKLAR LOGISTICS',
+    legalName: 'Distribuidora Bricklar S.A.',
+    taxId: 'J0310000194829',
+    slogan: 'Gestión Integral de Envíos & Liquidaciones',
+    phone: '',
+    email: '',
+    logoUrl: '',
+  }
+}
+
 export interface SettlementReceiptData {
   settlementId: string
   settlementDate: string
@@ -312,6 +339,7 @@ export function printSettlementReceipt(data: SettlementReceiptData): void {
     return
   }
 
+  const company = getStoredCompanyProfile()
   const shortId = data.settlementId ? data.settlementId.slice(0, 8).toUpperCase() : 'N/A'
   const isDiffExact = Math.abs(data.differenceNIO) < 0.01
   const isDiffShort = data.differenceNIO < -0.01
@@ -366,8 +394,8 @@ export function printSettlementReceipt(data: SettlementReceiptData): void {
           <!-- Header -->
           <div class="header">
             <div>
-              <div class="brand-title">BRICKLAR LOGISTICS</div>
-              <div class="brand-subtitle">Gestión Integral de Envíos & Liquidaciones</div>
+              <div class="brand-title">${company.name.toUpperCase()}</div>
+              <div class="brand-subtitle">${company.slogan}</div>
             </div>
             <div class="receipt-meta">
               <div class="receipt-badge">LIQ-${shortId}</div>
@@ -555,6 +583,8 @@ export function printDailyClosureReceipt(data: DailyClosureReceiptData): void {
     return
   }
 
+  const company = getStoredCompanyProfile()
+
   const workdaysRows = data.workdays
     .map(
       (w) => `
@@ -587,8 +617,8 @@ export function printDailyClosureReceipt(data: DailyClosureReceiptData): void {
           <!-- Header -->
           <div class="header">
             <div>
-              <div class="brand-title">BRICKLAR LOGISTICS</div>
-              <div class="brand-subtitle">Reporte Oficial de Cierre Diario de Sucursal</div>
+              <div class="brand-title">${company.name.toUpperCase()}</div>
+              <div class="brand-subtitle">${company.slogan}</div>
             </div>
             <div class="receipt-meta">
               <div class="receipt-badge">CIERRE DIARIO</div>

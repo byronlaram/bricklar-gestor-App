@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useTaskMutations } from '@/modules/tasks/hooks/useTaskMutations'
+import { useTaskTypesConfig } from '@/modules/tasks/hooks/useTaskTypesConfig'
 import { uploadTaskEvidence } from '@/modules/tasks/services/tasksService'
 import type { TaskType, Currency, PaymentMethod } from '@/shared/types'
 import { TASK_TYPE_LABELS } from '@/shared/types'
@@ -49,6 +50,7 @@ export function NewCourierGestionModal({
 }: NewCourierGestionModalProps) {
   const { profile } = useAuth()
   const { createTask, isCreating } = useTaskMutations()
+  const { configs: taskConfigs } = useTaskTypesConfig()
 
   const [taskType, setTaskType] = useState<TaskType>('delivery')
   const [title, setTitle] = useState<string>('Entrega en Dirección')
@@ -58,8 +60,8 @@ export function NewCourierGestionModal({
   const [mapsUrl, setMapsUrl] = useState<string>('')
   
   // Financiero
-  const [hasFinancialMovement, setHasFinancialMovement] = useState<boolean>(false)
-  const [movementKind, setMovementKind] = useState<'collection' | 'payment'>('payment')
+  const [hasFinancialMovement, setHasFinancialMovement] = useState<boolean>(true)
+  const [movementKind, setMovementKind] = useState<'collection' | 'payment'>('collection')
   const [amount, setAmount] = useState<number | ''>('')
   const [currency, setCurrency] = useState<Currency>('NIO')
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash')
@@ -70,12 +72,27 @@ export function NewCourierGestionModal({
   const [isUploading, setIsUploading] = useState<boolean>(false)
   const [formError, setFormError] = useState<string | null>(null)
 
-  // Al cambiar tipo de gestión, sugerir título si no ha sido editado manualmente
+  // Al cambiar tipo de gestión, sugerir título y naturaleza financiera recomendada
   const handleTypeChange = (newType: TaskType) => {
     setTaskType(newType)
+    const customCfg = taskConfigs[newType]
     const match = GESTION_TYPES.find((g) => g.type === newType)
-    if (match) {
+    
+    if (customCfg?.suggestedTitle) {
+      setTitle(customCfg.suggestedTitle)
+    } else if (match) {
       setTitle(match.defaultTitle)
+    }
+
+    const nature = customCfg?.nature || (newType === 'delivery' ? 'income' : newType === 'logistics_shipment' || newType === 'other_errand' ? 'neutral' : 'expense')
+    if (nature === 'income') {
+      setHasFinancialMovement(true)
+      setMovementKind('collection')
+    } else if (nature === 'expense') {
+      setHasFinancialMovement(true)
+      setMovementKind('payment')
+    } else {
+      setHasFinancialMovement(false)
     }
   }
 
