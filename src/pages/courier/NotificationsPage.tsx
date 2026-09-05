@@ -1,3 +1,5 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   Bell,
   CheckCheck,
@@ -6,10 +8,17 @@ import {
   AlertCircle,
   Info,
   Megaphone,
+  ChevronRight,
+  Filter,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
+import {
+  getNotifications,
+  markNotificationAsRead,
+  markAllNotificationsAsRead,
+} from '@/modules/notifications/services/notificationsService'
+import type { AppNotification } from '@/modules/notifications/types/notifications.types'
 import {
   Card,
   CardTitle,
@@ -18,58 +27,10 @@ import {
   Skeleton,
   EmptyState,
 } from '@/shared/components/ui'
-
-interface Notification {
-  id: string
-  user_id: string
-  title: string
-  body: string
-  type: 'info' | 'warning' | 'success' | 'task' | 'settlement' | 'announcement'
-  is_read: boolean
-  created_at: string
-}
-
-async function fetchNotifications(userId: string): Promise<Notification[]> {
-  const { data, error } = await supabase
-    .from('notifications')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(50)
-
-  if (error) {
-    console.warn('[Notifications] table may not exist yet:', error.message)
-    return []
-  }
-
-  return (data ?? []).map((n) => ({
-    id: n.id,
-    user_id: n.user_id,
-    title: n.title,
-    body: n.body,
-    type: (n.type as Notification['type']) || 'info',
-    is_read: !!n.read_at,
-    created_at: n.created_at,
-  }))
-}
-
-async function markAllRead(userId: string): Promise<void> {
-  await supabase
-    .from('notifications')
-    .update({ read_at: new Date().toISOString() })
-    .eq('user_id', userId)
-    .is('read_at', null)
-}
-
-async function markOneRead(id: string): Promise<void> {
-  await supabase
-    .from('notifications')
-    .update({ read_at: new Date().toISOString() })
-    .eq('id', id)
-}
+import { cn } from '@/shared/utils/cn'
 
 const TYPE_CONFIG: Record<
-  Notification['type'],
+  AppNotification['type'],
   { icon: React.ReactNode; colorClass: string }
 > = {
   info: {
@@ -100,28 +61,38 @@ const TYPE_CONFIG: Record<
 
 export default function CourierNotificationsPage() {
   const { profile } = useAuth()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const userId = profile?.id ?? ''
 
+  const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'task' | 'settlement'>('all')
+
   const { data: notifications = [], isLoading } = useQuery({
     queryKey: ['notifications', userId],
-    queryFn: () => fetchNotifications(userId),
+    queryFn: () => getNotifications(userId),
     enabled: !!userId,
-    refetchInterval: 1000 * 60,
-    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 30,
+    staleTime: 1000 * 15,
   })
 
   const markAllMutation = useMutation({
-    mutationFn: () => markAllRead(userId),
+    mutationFn: () => markAllNotificationsAsRead(userId),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications', userId] }),
   })
 
   const markOneMutation = useMutation({
-    mutationFn: (id: string) => markOneRead(id),
+    mutationFn: (id: string) => markNotificationAsRead(id),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['notifications', userId] }),
   })
 
   const unreadCount = notifications.filter((n) => !n.is_read).length
+
+  const filteredNotifications = notifications.filter((n) => {
+    if (activeTab === 'unread') return !n.is_read
+    if (activeTab === 'task') return n.type === 'task' || n.type === 'success' || n.type === 'warning'
+    if (activeTab === 'settlement') return n.type === 'settlement'
+    return true
+  })
 
   const formatTime = (iso: string) =>
     new Date(iso).toLocaleString('es-NI', {
@@ -129,21 +100,35 @@ export default function CourierNotificationsPage() {
       timeStyle: 'short',
     })
 
+  const handleNotificationClick = (notif: AppNotification) => {
+    if (!notif.is_read) {
+      markOneMutation.mutate(notif.id)
+    }
+
+    if (notif.task_id) {
+      navigate('/motorizado/tareas')
+    } else if (notif.workday_id || notif.type === 'settlement') {
+      navigate('/motorizado/liquidacion')
+    }
+  }
+
   return (
     <div className="space-y-5 animate-fade-in pb-20 max-w-2xl mx-auto">
-      {/* Header Durazno Pastel */}
-      <div className="bg-orange-50/70 border border-orange-100/90 rounded-2xl p-5 shadow-xs flex items-center justify-between">
+      {/* Header Banpro SaaS */}
+      <div className="bg-[#003875]/90 border border-blue-800 rounded-2xl p-5 shadow-xs text-white flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-            <Bell className="h-5 w-5 text-orange-600" />
+          <h1 className="text-xl sm:text-2xl font-black tracking-tight text-white flex items-center gap-2">
+            <Bell className="h-5 w-5 text-blue-300" />
             Centro de Alertas
             {unreadCount > 0 && (
-              <Badge variant="assigned" size="sm" className="bg-orange-600 text-white font-bold">
-                {unreadCount}
-              </Badge>
+              <span className="bg-rose-500 text-white text-xs font-extrabold px-2 py-0.5 rounded-full shadow-xs">
+                {unreadCount} nuevas
+              </span>
             )}
           </h1>
-          <p className="text-xs text-orange-950 font-medium mt-0.5">Alertas y avisos operativos de administración.</p>
+          <p className="text-xs text-blue-100 font-medium mt-0.5">
+            Avisos de tareas asignadas, revisiones de caja y confirmaciones operativas.
+          </p>
         </div>
 
         {unreadCount > 0 && (
@@ -153,11 +138,63 @@ export default function CourierNotificationsPage() {
             onClick={() => markAllMutation.mutate()}
             isLoading={markAllMutation.isPending}
             leftIcon={<CheckCheck className="h-3.5 w-3.5" />}
-            className="text-2xs font-bold shrink-0"
+            className="text-2xs font-bold shrink-0 bg-white/10 hover:bg-white/20 text-white border-white/20"
           >
             Marcar todas leídas
           </Button>
         )}
+      </div>
+
+      {/* Tabs / Filtros Rápidos */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs">
+        <button
+          type="button"
+          onClick={() => setActiveTab('all')}
+          className={cn(
+            'px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer',
+            activeTab === 'all'
+              ? 'bg-[#003875] text-white shadow-xs'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          )}
+        >
+          Todas ({notifications.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('unread')}
+          className={cn(
+            'px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer',
+            activeTab === 'unread'
+              ? 'bg-rose-600 text-white shadow-xs'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          )}
+        >
+          No leídas ({unreadCount})
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('task')}
+          className={cn(
+            'px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer',
+            activeTab === 'task'
+              ? 'bg-indigo-600 text-white shadow-xs'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          )}
+        >
+          Tareas
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('settlement')}
+          className={cn(
+            'px-3 py-1.5 rounded-xl font-bold transition-colors cursor-pointer',
+            activeTab === 'settlement'
+              ? 'bg-teal-600 text-white shadow-xs'
+              : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'
+          )}
+        >
+          Liquidaciones
+        </button>
       </div>
 
       {/* Contenido */}
@@ -165,48 +202,55 @@ export default function CourierNotificationsPage() {
         <div className="space-y-2.5">
           <Skeleton className="h-20 rounded-2xl" />
           <Skeleton className="h-20 rounded-2xl" />
+          <Skeleton className="h-20 rounded-2xl" />
         </div>
-      ) : notifications.length === 0 ? (
+      ) : filteredNotifications.length === 0 ? (
         <EmptyState
-          title="Sin notificaciones"
-          description="Aquí aparecerán las alertas, asignaciones de tareas y avisos de administración."
+          title={activeTab === 'unread' ? 'No tienes alertas pendientes' : 'Sin notificaciones'}
+          description="Aquí aparecerán las alertas automáticas de asignación de entregas, aprobaciones y avisos de administración."
           icon={<Bell className="h-8 w-8 text-slate-400" />}
         />
       ) : (
         <div className="space-y-2.5">
-          {notifications.map((notif) => {
+          {filteredNotifications.map((notif) => {
             const config = TYPE_CONFIG[notif.type] ?? TYPE_CONFIG.info
             return (
               <Card
                 key={notif.id}
                 isHoverable
-                onClick={() => {
-                  if (!notif.is_read) markOneMutation.mutate(notif.id)
-                }}
+                onClick={() => handleNotificationClick(notif)}
                 className={`p-4 bg-white border border-slate-200/80 rounded-2xl shadow-xs flex items-start gap-3.5 cursor-pointer transition-all ${
-                  notif.is_read ? 'opacity-70' : 'hover:border-indigo-200'
+                  notif.is_read ? 'opacity-75' : 'hover:border-blue-300 ring-1 ring-blue-50'
                 }`}
               >
-                {/* Icono + punto no leído */}
-                <div className="relative shrink-0">
+                {/* Icono + indicador no leído */}
+                <div className="relative shrink-0 mt-0.5">
                   <div className={`p-2.5 rounded-xl border ${config.colorClass}`}>
                     {config.icon}
                   </div>
                   {!notif.is_read && (
                     <span
-                      className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-orange-600 border-2 border-white"
+                      className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-rose-500 border-2 border-white animate-pulse"
                     />
                   )}
                 </div>
 
                 {/* Contenido */}
                 <div className="flex-1 min-w-0 space-y-1">
-                  <CardTitle className={`text-xs ${notif.is_read ? 'text-slate-600' : 'text-slate-900 font-bold'}`}>
-                    {notif.title}
-                  </CardTitle>
-                  <p className="text-xs text-slate-600 line-clamp-2 font-medium">{notif.body}</p>
-                  <p className="text-2xs text-slate-400 font-mono font-semibold">{formatTime(notif.created_at)}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <CardTitle className={`text-xs ${notif.is_read ? 'text-slate-700 font-semibold' : 'text-slate-900 font-extrabold'}`}>
+                      {notif.title}
+                    </CardTitle>
+                    <span className="text-[10px] text-slate-400 font-mono font-medium shrink-0">
+                      {formatTime(notif.created_at)}
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-600 line-clamp-2 font-medium leading-relaxed">
+                    {notif.body}
+                  </p>
                 </div>
+
+                <ChevronRight className="h-4 w-4 text-slate-300 shrink-0 self-center" />
               </Card>
             )
           })}

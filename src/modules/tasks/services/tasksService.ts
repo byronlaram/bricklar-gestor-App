@@ -20,6 +20,7 @@ import type {
 import type { TaskStatus } from '@/shared/types'
 import { ALLOWED_TRANSITIONS, COURIER_ALLOWED_TRANSITIONS } from '@/shared/types'
 import { compressImage } from '@/shared/utils/imageCompressor'
+import { createNotification } from '@/modules/notifications/services/notificationsService'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -285,6 +286,19 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
     if (assignErr) {
       console.warn('[Tasks] createTask task_assignments insert warning:', assignErr)
     }
+
+    // Notificar al motorizado si la tarea fue asignada por administración
+    if (payload.creation_origin !== 'courier_created') {
+      await createNotification({
+        userId: courierId,
+        title: 'Nueva Tarea Asignada',
+        body: `Se ha añadido a tu ruta la tarea [${data.code}]: ${data.title}`,
+        type: 'task',
+        taskId: data.id,
+        branchId: data.branch_id,
+        createdBy: userId,
+      })
+    }
   }
 
   return data as unknown as Task
@@ -476,6 +490,19 @@ export async function assignTask(payload: AssignCourierPayload): Promise<Task> {
       to_status: newStatus,
       changed_by: userId,
       notes: courier_id ? 'Asignación de motorizado' : 'Motorizado desasignado',
+    })
+  }
+
+  // 6. Notificar al motorizado asignado
+  if (courier_id && data?.id && courier_id !== userId) {
+    await createNotification({
+      userId: courier_id,
+      title: 'Nueva Tarea Asignada',
+      body: `Se te ha asignado la tarea [${data.code}]: ${data.title}`,
+      type: 'task',
+      taskId: data.id,
+      branchId: data.branch_id,
+      createdBy: userId,
     })
   }
 
@@ -737,6 +764,20 @@ export async function approveTask(taskId: string, notes?: string): Promise<Task>
     throw new Error(error.message || 'Error al aprobar la gestión.')
   }
 
+  // Notificar al creador / motorizado asignado
+  const targetCourierId = (data as any)?.assigned_courier_id || (data as any)?.created_by
+  if (targetCourierId && targetCourierId !== adminId) {
+    await createNotification({
+      userId: targetCourierId,
+      title: 'Gestión Aprobada',
+      body: `Tu gestión [${(data as any)?.code}] ha sido aprobada por administración.`,
+      type: 'success',
+      taskId: (data as any)?.id,
+      branchId: (data as any)?.branch_id,
+      createdBy: adminId,
+    })
+  }
+
   return data as unknown as Task
 }
 
@@ -753,7 +794,7 @@ export async function rejectTask(taskId: string, rejectionReason: string): Promi
   // Obtener estado actual antes de cancelar
   const { data: currentTask } = await supabase
     .from('tasks')
-    .select('status')
+    .select('status, assigned_courier_id, created_by, branch_id, code')
     .eq('id', taskId)
     .single()
 
@@ -794,6 +835,20 @@ export async function rejectTask(taskId: string, rejectionReason: string): Promi
     })
   } catch (histErr) {
     console.warn('[Tasks] Could not record status history for rejection:', histErr)
+  }
+
+  // Notificar al motorizado sobre el motivo de rechazo
+  const targetCourierId = currentTask?.assigned_courier_id || currentTask?.created_by
+  if (targetCourierId && targetCourierId !== adminId) {
+    await createNotification({
+      userId: targetCourierId,
+      title: 'Gestión Rechazada',
+      body: `Tu gestión [${currentTask?.code || (data as any)?.code}] fue rechazada: ${cleanReason}`,
+      type: 'warning',
+      taskId: (data as any)?.id || taskId,
+      branchId: currentTask?.branch_id || (data as any)?.branch_id,
+      createdBy: adminId,
+    })
   }
 
   return data as unknown as Task

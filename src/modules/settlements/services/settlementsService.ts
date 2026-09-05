@@ -2,6 +2,7 @@ import { supabase } from '@/shared/lib/supabaseClient'
 import { calculateWorkdayCashSummary } from '@/modules/workdays/utils/workdayCalculations'
 import { getLocalDateString } from '@/shared/utils/date'
 import { broadcastSyncEvent } from '@/shared/lib/realtimeSync'
+import { createNotification } from '@/modules/notifications/services/notificationsService'
 import type {
   Settlement,
   CashMovement,
@@ -449,6 +450,19 @@ export async function approveSettlement(payload: ApproveSettlementPayload): Prom
     }
   }
 
+  // Notificar al motorizado sobre la aprobación de su liquidación
+  if ((data as any)?.courier_id && (data as any).courier_id !== adminId) {
+    await createNotification({
+      userId: (data as any).courier_id,
+      title: 'Liquidación Aprobada',
+      body: `Tu liquidación del día ${(data as any).settlement_date} ha sido aprobada formalmente por caja.`,
+      type: 'settlement',
+      workdayId: (data as any).workday_id,
+      branchId: (data as any).branch_id,
+      createdBy: adminId,
+    })
+  }
+
   return data as unknown as Settlement
 }
 
@@ -459,7 +473,7 @@ export async function rejectSettlement(payload: RejectSettlementPayload): Promis
 
   const { data: current, error: getErr } = await supabase
     .from('settlements')
-    .select('workday_id, courier_id, notes')
+    .select('workday_id, courier_id, notes, settlement_date, branch_id')
     .eq('id', payload.settlement_id)
     .single()
 
@@ -500,6 +514,20 @@ export async function rejectSettlement(payload: RejectSettlementPayload): Promis
     if (wdErr) {
       console.warn('[Settlements] Warning: could not update workday status to open on reject:', wdErr.message)
     }
+  }
+
+  // Notificar al motorizado sobre la observación/rechazo de liquidación
+  const targetCourierId = current?.courier_id || (data as any)?.courier_id
+  if (targetCourierId && targetCourierId !== adminId) {
+    await createNotification({
+      userId: targetCourierId,
+      title: 'Liquidación Observada',
+      body: `Tu liquidación del día ${current?.settlement_date || (data as any)?.settlement_date} requiere revisión: ${reasonText}`,
+      type: 'warning',
+      workdayId: workdayId,
+      branchId: current?.branch_id || (data as any)?.branch_id,
+      createdBy: adminId,
+    })
   }
 
   return data as unknown as Settlement
