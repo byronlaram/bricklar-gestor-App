@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   Calendar,
   Clock,
@@ -64,14 +64,26 @@ export default function AdminWorkdaysPage() {
     date: todayStr,
   })
 
+  const { data: branches = [] } = useBranches()
+
+  // Sincronizar automáticamente la sucursal activa cuando cargue el perfil o las sucursales
+  useEffect(() => {
+    if (profile?.primary_branch_id || profile?.branch_ids?.[0]) {
+      const userBranch = profile.primary_branch_id || profile.branch_ids[0]
+      if (!filters.branch_id || profile.role === 'junior_admin') {
+        setFilters((prev) => (prev.branch_id === userBranch ? prev : { ...prev, branch_id: userBranch }))
+      }
+    } else if (!filters.branch_id && branches.length > 0) {
+      setFilters((prev) => ({ ...prev, branch_id: branches[0].id }))
+    }
+  }, [branches, filters.branch_id, profile])
+
   const [selectedCardDetail, setSelectedCardDetail] = useState<FinancialCardType | null>(null)
   const [receiveCashWorkday, setReceiveCashWorkday] = useState<Workday | null>(null)
   const [forceSettlementWorkday, setForceSettlementWorkday] = useState<Workday | null>(null)
   const [viewMovementsWorkday, setViewMovementsWorkday] = useState<Workday | null>(null)
   const [voidTargetMovement, setVoidTargetMovement] = useState<DetailedCashMovement | null>(null)
   const [isGlobalDeliverCashOpen, setIsGlobalDeliverCashOpen] = useState(false)
-
-  const { data: branches = [] } = useBranches()
   const { data: workdays = [], isLoading, isError, error } = useWorkdays(filters)
   const {
     data: ledgerMovements = [],

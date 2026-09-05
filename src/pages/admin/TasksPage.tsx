@@ -83,11 +83,15 @@ export default function TasksPage() {
     page_size: 15,
   })
 
-  // Sincronizar automáticamente la sucursal activa cuando carguen las sucursales
+  // Sincronizar automáticamente la sucursal activa cuando carguen el perfil o las sucursales
   useEffect(() => {
-    if (!filters.branch_id && branches.length > 0) {
-      const fallbackId = profile?.primary_branch_id || profile?.branch_ids[0] || branches[0].id
-      setFilters((prev) => ({ ...prev, branch_id: fallbackId }))
+    if (profile?.primary_branch_id || profile?.branch_ids?.[0]) {
+      const userBranch = profile.primary_branch_id || profile.branch_ids[0]
+      if (!filters.branch_id || profile.role === 'junior_admin') {
+        setFilters((prev) => (prev.branch_id === userBranch ? prev : { ...prev, branch_id: userBranch }))
+      }
+    } else if (!filters.branch_id && branches.length > 0) {
+      setFilters((prev) => ({ ...prev, branch_id: branches[0].id }))
     }
   }, [branches, filters.branch_id, profile])
 

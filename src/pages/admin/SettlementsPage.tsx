@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Calendar,
   Calculator,
@@ -11,6 +11,7 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
+import { useBranches } from '@/modules/branches/hooks/useBranches'
 import { useSettlements } from '@/modules/settlements/hooks/useSettlements'
 import { useAllCouriersPendingBalances } from '@/modules/settlements/hooks/usePendingBalances'
 import { getWorkdayById } from '@/modules/workdays/services/workdaysService'
@@ -39,6 +40,20 @@ export default function AdminSettlementsPage() {
     branch_id: defaultBranchId,
     date: todayStr,
   })
+
+  const { data: branches = [] } = useBranches()
+
+  // Sincronizar automáticamente la sucursal activa cuando cargue el perfil o las sucursales
+  useEffect(() => {
+    if (profile?.primary_branch_id || profile?.branch_ids?.[0]) {
+      const userBranch = profile.primary_branch_id || profile.branch_ids[0]
+      if (!filters.branch_id || profile.role === 'junior_admin') {
+        setFilters((prev) => (prev.branch_id === userBranch ? prev : { ...prev, branch_id: userBranch }))
+      }
+    } else if (!filters.branch_id && branches.length > 0) {
+      setFilters((prev) => ({ ...prev, branch_id: branches[0].id }))
+    }
+  }, [branches, filters.branch_id, profile])
 
   const [targetSettlement, setTargetSettlement] = useState<Settlement | null>(null)
   const [forceSettlementWorkday, setForceSettlementWorkday] = useState<Workday | null>(null)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import {
   Bike,
   Navigation,
@@ -28,6 +28,18 @@ export default function MonitoringPage() {
     courier_id: '',
     status_filter: 'all',
   })
+
+  // Sincronizar automáticamente la sucursal activa cuando cargue el perfil o las sucursales
+  useEffect(() => {
+    if (profile?.primary_branch_id || profile?.branch_ids?.[0]) {
+      const userBranch = profile.primary_branch_id || profile.branch_ids[0]
+      if (!filters.branch_id || profile.role === 'junior_admin') {
+        setFilters((prev) => (prev.branch_id === userBranch ? prev : { ...prev, branch_id: userBranch }))
+      }
+    } else if (!filters.branch_id && branches.length > 0) {
+      setFilters((prev) => ({ ...prev, branch_id: branches[0].id }))
+    }
+  }, [branches, filters.branch_id, profile])
 
   const [selectedCourierId, setSelectedCourierId] = useState<string | null>(null)
   const [mobileTab, setMobileTab] = useState<'map' | 'list'>('map')

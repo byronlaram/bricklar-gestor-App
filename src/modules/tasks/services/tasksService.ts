@@ -647,15 +647,57 @@ export async function getCouriersForBranch(branch_id?: string) {
     const branchNameMap = new Map<string, string>()
     allBranches?.forEach((b) => branchNameMap.set(b.id, b.name))
 
-    // 2. Obtener todos los perfiles de motorizados activos
-    const { data: allCouriers, error: couriersError } = await supabase
+    // 2. Obtener perfiles de motorizados con múltiples filtros inclusivos
+    let { data: allCouriers, error: couriersError } = await supabase
       .from('profiles')
       .select('id, full_name, display_name, phone, avatar_url, role, is_active, primary_branch_id')
-      .eq('role', 'courier')
-      .eq('is_active', true)
+      .or('role.eq.courier,role.eq.motorizado,role.eq.delivery')
+      .or('is_active.eq.true,is_active.is.null')
 
     if (couriersError) {
       console.warn('[Tasks] Error fetching couriers profiles:', couriersError)
+    }
+
+    // Fallback 1: Si no devolvió perfiles por role tag, buscar por user_roles
+    if (!allCouriers || allCouriers.length === 0) {
+      const { data: roleData } = await supabase
+        .from('roles')
+        .select('id')
+        .in('name', ['courier', 'motorizado'])
+
+      const roleIds = (roleData ?? []).map((r) => r.id)
+      if (roleIds.length > 0) {
+        const { data: userRoles } = await supabase
+          .from('user_roles')
+          .select('user_id')
+          .in('role_id', roleIds)
+
+        const userIds = (userRoles ?? []).map((ur) => ur.user_id)
+        if (userIds.length > 0) {
+          const { data: byRoleProfiles } = await supabase
+            .from('profiles')
+            .select('id, full_name, display_name, phone, avatar_url, role, is_active, primary_branch_id')
+            .in('id', userIds)
+            .or('is_active.eq.true,is_active.is.null')
+
+          if (byRoleProfiles && byRoleProfiles.length > 0) {
+            allCouriers = byRoleProfiles
+          }
+        }
+      }
+    }
+
+    // Fallback 2: Si aún no hay perfiles, traer todos los usuarios activos no-administradores
+    if (!allCouriers || allCouriers.length === 0) {
+      const { data: fallbackProfiles } = await supabase
+        .from('profiles')
+        .select('id, full_name, display_name, phone, avatar_url, role, is_active, primary_branch_id')
+        .not('role', 'in', '("general_admin","junior_admin")')
+        .or('is_active.eq.true,is_active.is.null')
+
+      if (fallbackProfiles && fallbackProfiles.length > 0) {
+        allCouriers = fallbackProfiles
+      }
     }
 
     // 3. Obtener relaciones de user_branches
@@ -680,7 +722,7 @@ export async function getCouriersForBranch(branch_id?: string) {
         ? branchNameMap.get(Array.from(userBranchesSet)[0])
         : undefined
 
-      const branchIds = userBranchesSet
+      const branchIds = userBranchesSet && userBranchesSet.size > 0
         ? Array.from(userBranchesSet)
         : primaryBranch
         ? [primaryBranch]
