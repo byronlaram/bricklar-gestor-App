@@ -1203,3 +1203,90 @@ export async function rescheduleTask(
   }
 }
 
+export interface PublicTaskTrackingData {
+  id: string
+  code: string
+  title: string
+  status: TaskStatus
+  priority: string
+  task_type: string
+  scheduled_date: string
+  address?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  contact_name?: string | null
+  phone?: string | null
+  whatsapp?: string | null
+  requires_collection?: boolean
+  expected_collection_amount?: number | null
+  expected_collection_currency?: string | null
+  created_at: string
+  completed_at?: string | null
+  proof_signature_url?: string | null
+  proof_photo_url?: string | null
+  courier?: {
+    id: string
+    full_name: string
+    display_name?: string | null
+    phone?: string | null
+    avatar_url?: string | null
+  } | null
+}
+
+export async function getPublicTaskTracking(
+  taskCodeOrId: string
+): Promise<PublicTaskTrackingData | null> {
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskCodeOrId)
+
+    let query = supabase
+      .from('tasks')
+      .select(`
+        id,
+        code,
+        title,
+        status,
+        priority,
+        task_type,
+        scheduled_date,
+        address,
+        latitude,
+        longitude,
+        contact_name,
+        phone,
+        whatsapp,
+        requires_collection,
+        expected_collection_amount,
+        expected_collection_currency,
+        created_at,
+        completed_at,
+        proof_signature_url,
+        proof_photo_url,
+        courier:profiles!tasks_assigned_courier_id_fkey (
+          id,
+          full_name,
+          display_name,
+          phone,
+          avatar_url
+        )
+      `)
+
+    if (isUuid) {
+      query = query.eq('id', taskCodeOrId)
+    } else {
+      query = query.ilike('code', taskCodeOrId.trim())
+    }
+
+    const { data, error } = await query.maybeSingle()
+    if (error || !data) {
+      return null
+    }
+
+    return data as unknown as PublicTaskTrackingData
+  } catch (err) {
+    console.error('[PublicTracking] Error fetching public task:', err)
+    return null
+  }
+}
+
+

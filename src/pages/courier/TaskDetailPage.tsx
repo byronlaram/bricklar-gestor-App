@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -15,6 +15,9 @@ import {
   Eye,
   Undo2,
   RotateCcw,
+  Share2,
+  Copy,
+  Check,
 } from 'lucide-react'
 import { useTask } from '@/modules/tasks/hooks/useTask'
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
@@ -26,6 +29,7 @@ import { TaskPriorityBadge } from '@/modules/tasks/components/TaskPriorityBadge'
 import { TaskTypeBadge } from '@/modules/tasks/components/TaskTypeBadge'
 import { CompleteTaskModal } from '@/modules/courier/components/CompleteTaskModal'
 import { StartWorkdayModal } from '@/modules/courier/components/StartWorkdayModal'
+import { NotifyCustomerModal } from '@/modules/tasks/components/NotifyCustomerModal'
 import {
   Card,
   CardTitle,
@@ -36,12 +40,13 @@ import {
   useToast,
 } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
+import { getWazeUrl, getGoogleMapsUrl } from '@/shared/utils/navigationHelper'
 
 export default function CourierTaskDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { profile } = useAuth()
-  const branchId = profile?.primary_branch_id || profile?.branch_ids[0] || ''
+  const branchId = profile?.primary_branch_id || profile?.branch_ids?.[0] || ''
   const toast = useToast()
   const todayStr = getLocalDateString()
 
@@ -56,20 +61,151 @@ export default function CourierTaskDetailPage() {
 
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false)
   const [isStartWorkdayOpen, setIsStartWorkdayOpen] = useState(false)
+  const [isNotifyCustomerOpen, setIsNotifyCustomerOpen] = useState(false)
   const [isViewerOpen, setIsViewerOpen] = useState(false)
   const [viewerIndex, setViewerIndex] = useState(0)
   const [viewerImages, setViewerImages] = useState<string[]>([])
   const [viewerTitle, setViewerTitle] = useState('')
+  const [isTrackingCopied, setIsTrackingCopied] = useState(false)
 
   const todayTasks = todayTasksData?.data || []
 
-  const metadata = task?.metadata as {
-    reference_photos?: string[]
-    delivery_proof_url?: string
-  } | null
+  const requireActiveWorkday = (actionDescription: string) => {
+    if (!activeWorkday || activeWorkday.status !== 'open') {
+      toast.error(
+        'Jornada requerida',
+        `Debes abrir tu jornada de hoy con el kilometraje inicial antes de ${actionDescription}.`
+      )
+      setIsStartWorkdayOpen(true)
+      return false
+    }
+    return true
+  }
 
+  const handleStartRouteDirect = async () => {
+    try {
+      await changeStatus({ task_id: task!.id, new_status: 'en_route', notes: 'Inició ruta' })
+      toast.success('Ruta iniciada', `Parada ${task!.code} en camino.`)
+    } catch (err: unknown) {
+      toast.error('Error al iniciar ruta', (err as Error)?.message || 'No se pudo iniciar la ruta.')
+    }
+  }
+
+  const handleStartRoute = async () => {
+    if (!requireActiveWorkday('poner esta tarea en ruta')) return
+
+    const currentActiveTask = todayTasks.find(
+      (t) => t.id !== task?.id && ['en_route', 'in_progress'].includes(t.status)
+    )
+
+    if (currentActiveTask) {
+      const statusLabel = currentActiveTask.status === 'en_route' ? 'en ruta' : 'en gestión'
+      toast.warning(
+        'Ya tienes una tarea en curso',
+        `La parada ${currentActiveTask.code} (${currentActiveTask.title}) ya está ${statusLabel}. Debes completarla antes de iniciar una nueva ruta.`
+      )
+      return
+    }
+
+    if (task?.whatsapp || task?.phone) {
+      setIsNotifyCustomerOpen(true)
+    } else {
+      await handleStartRouteDirect()
+    }
+  }
+
+  const handleCancelRoute = async () => {
+    try {
+      await changeStatus({
+        task_id: task!.id,
+        new_status: 'assigned',
+        notes: 'Inicio de ruta cancelado / revertido por el motorizado',
+      })
+      toast.info('Ruta cancelada', `Parada ${task!.code} regresó a la lista de asignadas.`)
+    } catch (err: unknown) {
+      toast.error('Error al cancelar ruta', (err as Error)?.message || 'No se pudo cancelar la ruta.')
+    }
+  }
+
+  const handleStartManagement = async () => {
+    if (!requireActiveWorkday('gestionar esta entrega')) return
+    try {
+      await changeStatus({ task_id: task!.id, new_status: 'in_progress', notes: 'Llegó a gestión' })
+      toast.success('Llegaste al lugar', `Tarea ${task!.code} ahora en gestión.`)
+    } catch (err: unknown) {
+      toast.error('Error al actualizar estado', (err as Error)?.message || 'No se pudo actualizar el estado.')
+    }
+  }
+
+  const handleOpenCompleteModal = () => {
+    if (!requireActiveWorkday('finalizar o cobrar esta tarea')) return
+    setIsCompleteModalOpen(true)
+  }
+
+  const wazeUrl = useMemo(() => {
+    if (!task) return ''
+    return getWazeUrl({
+      latitude: task.latitude,
+      longitude: task.longitude,
+      address: task.address,
+      mapsUrl: task.maps_url,
+    })
+  }, [task])
+
+  const googleMapsUrl = useMemo(() => {
+    if (!task) return ''
+    return getGoogleMapsUrl({
+      latitude: task.latitude,
+      longitude: task.longitude,
+      address: task.address,
+      mapsUrl: task.maps_url,
+    })
+  }, [task])
+
+  const publicTrackingUrl = useMemo(() => {
+    if (!task) return ''
+    return `${window.location.origin}/rastreo/${task.code || task.id}`
+  }, [task])
+
+  const handleCopyTrackingLink = async () => {
+    try {
+      await navigator.clipboard.writeText(publicTrackingUrl)
+      setIsTrackingCopied(true)
+      toast.success('Enlace copiado', 'Enlace de rastreo público copiado al portapapeles.')
+      setTimeout(() => setIsTrackingCopied(false), 2500)
+    } catch {
+      toast.error('Error', 'No se pudo copiar el enlace.')
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4 max-w-2xl mx-auto pb-20">
+        <Skeleton className="h-10 w-32 rounded-xl" />
+        <Skeleton className="h-40 rounded-2xl" />
+        <Skeleton className="h-64 rounded-2xl" />
+      </div>
+    )
+  }
+
+  if (isError || !task) {
+    return (
+      <div className="max-w-2xl mx-auto p-4 space-y-4">
+        <Card className="p-8 text-center space-y-3">
+          <AlertCircle className="h-10 w-10 text-rose-500 mx-auto" />
+          <h2 className="text-lg font-bold text-slate-900">Tarea no encontrada</h2>
+          <Button variant="outline" size="sm" onClick={() => navigate('/motorizado/tareas')}>
+            Volver al listado
+          </Button>
+        </Card>
+      </div>
+    )
+  }
+
+  const retryCount = (task.metadata as { retry_count?: number } | null)?.retry_count || 0
+  const metadata = task.metadata as { reference_photos?: string[]; delivery_proof_url?: string } | null
   const referencePhotos = Array.isArray(metadata?.reference_photos) ? metadata.reference_photos : []
-  const deliveryProofPhoto = task?.evidence_url || metadata?.delivery_proof_url || null
+  const deliveryProofPhoto = task.evidence_url || metadata?.delivery_proof_url || null
 
   const openReferenceViewer = (idx: number) => {
     setViewerImages(referencePhotos)
@@ -85,102 +221,8 @@ export default function CourierTaskDetailPage() {
     setIsViewerOpen(true)
   }
 
-  if (isLoading) {
-    return (
-      <div className="space-y-4 max-w-2xl mx-auto">
-        <Skeleton className="h-24 rounded-2xl" />
-        <Skeleton className="h-32 rounded-2xl" />
-        <Skeleton className="h-48 rounded-2xl" />
-      </div>
-    )
-  }
-
-  if (isError || !task) {
-    return (
-      <div className="max-w-2xl mx-auto p-8 text-center space-y-4 bg-white rounded-2xl border border-slate-200/80 shadow-xs">
-        <AlertCircle className="h-10 w-10 text-rose-600 mx-auto" />
-        <h2 className="text-base font-bold text-slate-900">No se encontró la tarea</h2>
-        <Button
-          variant="outline"
-          onClick={() => navigate('/motorizado/tareas')}
-          leftIcon={<ArrowLeft className="h-4 w-4" />}
-        >
-          Volver a Mis Tareas
-        </Button>
-      </div>
-    )
-  }
-
-  const requireActiveWorkday = (actionLabel: string = 'realizar esta acción'): boolean => {
-    if (!activeWorkday || activeWorkday.status !== 'open') {
-      toast.warning(
-        'Jornada requerida',
-        `Debes abrir tu jornada de hoy con el kilometraje inicial antes de ${actionLabel}.`
-      )
-      setIsStartWorkdayOpen(true)
-      return false
-    }
-    return true
-  }
-
-  const handleStartRoute = async () => {
-    if (!requireActiveWorkday('poner esta tarea en ruta')) return
-
-    // Validar que no haya otra tarea activa
-    const currentActiveTask = todayTasks.find(
-      (t) => t.id !== task.id && ['en_route', 'in_progress'].includes(t.status)
-    )
-
-    if (currentActiveTask) {
-      const statusLabel = currentActiveTask.status === 'en_route' ? 'en ruta' : 'en gestión'
-      toast.warning(
-        'Ya tienes una tarea en curso',
-        `La parada ${currentActiveTask.code} (${currentActiveTask.title}) ya está ${statusLabel}. Debes completarla antes de iniciar una nueva ruta.`
-      )
-      return
-    }
-
-    try {
-      await changeStatus({ task_id: task.id, new_status: 'en_route', notes: 'Inició ruta' })
-      toast.success('Ruta iniciada', `Parada ${task.code} en camino.`)
-    } catch (err: unknown) {
-      toast.error('Error al iniciar ruta', (err as Error)?.message || 'No se pudo iniciar la ruta.')
-    }
-  }
-
-  const handleCancelRoute = async () => {
-    try {
-      await changeStatus({
-        task_id: task.id,
-        new_status: 'assigned',
-        notes: 'Inicio de ruta cancelado / revertido por el motorizado',
-      })
-      toast.info('Ruta cancelada', `Parada ${task.code} regresó a la lista de asignadas.`)
-    } catch (err: unknown) {
-      toast.error('Error al cancelar ruta', (err as Error)?.message || 'No se pudo cancelar la ruta.')
-    }
-  }
-
-  const handleStartManagement = async () => {
-    if (!requireActiveWorkday('gestionar esta entrega')) return
-    try {
-      await changeStatus({ task_id: task.id, new_status: 'in_progress', notes: 'Llegó a gestión' })
-      toast.success('Llegaste al lugar', `Tarea ${task.code} ahora en gestión.`)
-    } catch (err: unknown) {
-      toast.error('Error al actualizar estado', (err as Error)?.message || 'No se pudo actualizar el estado.')
-    }
-  }
-
-  const handleOpenCompleteModal = () => {
-    if (!requireActiveWorkday('finalizar o cobrar esta tarea')) return
-    setIsCompleteModalOpen(true)
-  }
-
-  const retryCount = (task.metadata as { retry_count?: number } | null)?.retry_count || 0
-
   return (
     <div className="space-y-5 animate-fade-in pb-28 max-w-2xl mx-auto">
-      {/* Botón Volver */}
       <Button
         variant="ghost"
         size="sm"
@@ -191,7 +233,6 @@ export default function CourierTaskDetailPage() {
         Volver a mis tareas
       </Button>
 
-      {/* Header Móvil */}
       <Card className="p-5 bg-white border border-slate-200/80 rounded-2xl shadow-xs space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-mono text-xs font-bold text-indigo-700 px-2.5 py-0.5 rounded bg-indigo-50 border border-indigo-100">
@@ -207,63 +248,87 @@ export default function CourierTaskDetailPage() {
           <TaskPriorityBadge priority={task.priority} />
           <TaskTypeBadge type={task.task_type} />
         </div>
-
         <CardTitle className="text-lg sm:text-xl font-bold text-slate-900">{task.title}</CardTitle>
       </Card>
 
-      {/* Botones de Acción Directa Móvil (Llamar, WhatsApp, Mapa) */}
-      <div className="grid grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {task.phone ? (
           <a
             href={`tel:${task.phone}`}
-            className="flex flex-col items-center justify-center p-3.5 bg-indigo-50/80 text-indigo-800 border border-indigo-200/80 rounded-2xl text-center transition cursor-pointer active:scale-95 shadow-2xs font-bold"
+            className="flex flex-col items-center justify-center p-3 bg-indigo-50/80 text-indigo-800 border border-indigo-200/80 rounded-2xl text-center transition cursor-pointer active:scale-95 shadow-2xs font-bold"
           >
             <Phone className="h-5 w-5 mb-1 text-indigo-700" />
             <span className="text-2xs">Llamar</span>
           </a>
         ) : (
-          <div className="flex flex-col items-center justify-center p-3.5 bg-slate-100 text-slate-400 rounded-2xl text-center opacity-50">
+          <div className="flex flex-col items-center justify-center p-3 bg-slate-100 text-slate-400 rounded-2xl text-center opacity-50">
             <Phone className="h-5 w-5 mb-1" />
             <span className="text-2xs">Sin Teléfono</span>
           </div>
         )}
 
-        {task.whatsapp ? (
-          <a
-            href={`https://wa.me/${task.whatsapp.replace(/\D/g, '')}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-col items-center justify-center p-3.5 bg-emerald-50 text-emerald-800 border border-emerald-200/80 rounded-2xl text-center transition cursor-pointer active:scale-95 shadow-2xs font-bold"
+        {task.whatsapp || task.phone ? (
+          <button
+            type="button"
+            onClick={() => setIsNotifyCustomerOpen(true)}
+            className="flex flex-col items-center justify-center p-3 bg-emerald-50 text-emerald-800 border border-emerald-200/80 rounded-2xl text-center transition cursor-pointer active:scale-95 shadow-2xs font-bold"
           >
             <MessageCircle className="h-5 w-5 mb-1 text-emerald-600" />
             <span className="text-2xs">WhatsApp</span>
-          </a>
+          </button>
         ) : (
-          <div className="flex flex-col items-center justify-center p-3.5 bg-slate-100 text-slate-400 rounded-2xl text-center opacity-50">
+          <div className="flex flex-col items-center justify-center p-3 bg-slate-100 text-slate-400 rounded-2xl text-center opacity-50">
             <MessageCircle className="h-5 w-5 mb-1" />
             <span className="text-2xs">Sin WhatsApp</span>
           </div>
         )}
 
-        {task.maps_url ? (
-          <a
-            href={task.maps_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex flex-col items-center justify-center p-3.5 bg-purple-50 text-purple-800 border border-purple-200/80 rounded-2xl text-center transition cursor-pointer active:scale-95 shadow-2xs font-bold"
-          >
-            <Navigation className="h-5 w-5 mb-1 text-purple-600" />
-            <span className="text-2xs">Waze / Maps</span>
-          </a>
-        ) : (
-          <div className="flex flex-col items-center justify-center p-3.5 bg-slate-100 text-slate-400 rounded-2xl text-center opacity-50">
-            <Navigation className="h-5 w-5 mb-1" />
-            <span className="text-2xs">Sin Mapa</span>
-          </div>
-        )}
+        <a
+          href={wazeUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex flex-col items-center justify-center p-3 bg-sky-50 text-sky-800 border border-sky-200/80 rounded-2xl text-center transition cursor-pointer active:scale-95 shadow-2xs font-bold"
+        >
+          <Navigation className="h-5 w-5 mb-1 text-sky-600" />
+          <span className="text-2xs">Abrir Waze</span>
+        </a>
+
+        <a
+          href={googleMapsUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex flex-col items-center justify-center p-3 bg-purple-50 text-purple-800 border border-purple-200/80 rounded-2xl text-center transition cursor-pointer active:scale-95 shadow-2xs font-bold"
+        >
+          <MapPin className="h-5 w-5 mb-1 text-purple-600" />
+          <span className="text-2xs">Google Maps</span>
+        </a>
       </div>
 
-      {/* 📸 Fotos de Referencia del Producto / Paquete a Retirar */}
+      <div className="bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-2xl p-4 shadow-xs flex items-center justify-between gap-3 border border-indigo-800/40">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 rounded-xl bg-white/10 text-teal-300 shrink-0">
+            <Share2 className="h-5 w-5" />
+          </div>
+          <div>
+            <span className="text-2xs font-extrabold uppercase tracking-wider text-teal-300 block">
+              Rastreo en Vivo para el Cliente
+            </span>
+            <span className="text-xs text-slate-200 font-mono font-medium block truncate max-w-[200px]">
+              {publicTrackingUrl}
+            </span>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={handleCopyTrackingLink}
+          className="p-2.5 rounded-xl bg-white/15 hover:bg-white/25 text-white transition cursor-pointer shrink-0"
+          title="Copiar enlace público de rastreo"
+        >
+          {isTrackingCopied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
+        </button>
+      </div>
+
       {referencePhotos.length > 0 && (
         <Card className="p-4 bg-gradient-to-r from-sky-50 to-indigo-50/50 border border-sky-200/80 rounded-2xl shadow-xs space-y-3">
           <div className="flex items-center justify-between">
@@ -480,6 +545,15 @@ export default function CourierTaskDetailPage() {
         task={task}
         isOpen={isCompleteModalOpen}
         onClose={() => setIsCompleteModalOpen(false)}
+      />
+
+      {/* Modal Notificación al Cliente por WhatsApp */}
+      <NotifyCustomerModal
+        task={task}
+        isOpen={isNotifyCustomerOpen}
+        onClose={() => setIsNotifyCustomerOpen(false)}
+        courierName={profile?.display_name || profile?.full_name}
+        onConfirmStatusOnly={handleStartRouteDirect}
       />
 
       {/* Modal de Inicio de Jornada */}

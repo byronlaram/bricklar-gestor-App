@@ -38,6 +38,9 @@ const CourierSettlementPage = lazyWithRetry(() => import('@/pages/courier/Settle
 const CourierBusesPage = lazyWithRetry(() => import('@/pages/courier/BusesPage'))
 const CourierNotificationsPage = lazyWithRetry(() => import('@/pages/courier/NotificationsPage'))
 
+// Public Tracking (Clientes)
+const PublicTrackingPage = lazyWithRetry(() => import('@/pages/public/PublicTrackingPage'))
+
 // Dev / Catálogo (Solo Desarrollo)
 import { ToastProvider } from '@/shared/components/ui'
 const UiKitCatalogPage = import.meta.env.DEV
@@ -65,6 +68,11 @@ export function AppRouter() {
         <Routes>
           {/* Raíz — redirige según sesión (manejado por guards) */}
           <Route path="/" element={<Navigate to="/login" replace />} />
+
+          {/* ── Rutas públicas Universales (Rastreo de clientes en vivo) ─ */}
+          <Route path="/rastreo" element={<PublicTrackingPage />} />
+          <Route path="/rastreo/:taskCodeOrId" element={<PublicTrackingPage />} />
+          <Route path="/seguimiento/:taskCodeOrId" element={<PublicTrackingPage />} />
 
           {/* ── Rutas públicas (solo sin sesión) ────────────────────────── */}
           <Route
