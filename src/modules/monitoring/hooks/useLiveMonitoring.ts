@@ -8,6 +8,7 @@ import type {
   CourierLivePosition,
   CourierMonitoringSummary,
   MonitoringFilters,
+  BreadcrumbPoint,
 } from '../types/monitoring.types'
 import type { Workday } from '@/modules/workdays/types/workdays.types'
 
@@ -17,6 +18,7 @@ const ONLINE_TIMEOUT_MS = 90_000 // 90 segundos sin ping se considera inactivo
 export function useLiveMonitoring(filters: MonitoringFilters) {
   const todayStr = getLocalDateString()
   const [livePositions, setLivePositions] = useState<Record<string, CourierLivePosition>>({})
+  const [locationTrails, setLocationTrails] = useState<Record<string, BreadcrumbPoint[]>>({})
 
   // 1. Obtener lista de motorizados de la sucursal
   const { data: couriers = [], isLoading: isLoadingCouriers } = useCouriers(filters.branch_id)
@@ -36,6 +38,43 @@ export function useLiveMonitoring(filters: MonitoringFilters) {
 
   const tasks = useMemo(() => tasksData?.data || [], [tasksData])
 
+  // Inicializar puntos de trayectoria con las tareas completadas geoverificadas de hoy
+  useEffect(() => {
+    if (!tasks || tasks.length === 0) return
+
+    setLocationTrails((prev) => {
+      const updated = { ...prev }
+
+      tasks.forEach((task) => {
+        if (!task.assigned_courier_id) return
+        const meta = task.metadata as {
+          delivery_verification?: { courier_lat?: number; courier_lng?: number; captured_at?: string }
+        } | null
+        const verif = meta?.delivery_verification
+        if (verif && typeof verif.courier_lat === 'number' && typeof verif.courier_lng === 'number') {
+          const list = updated[task.assigned_courier_id] || []
+          const exists = list.some(
+            (p) =>
+              Math.abs(p.latitude - verif.courier_lat!) < 0.0001 &&
+              Math.abs(p.longitude - verif.courier_lng!) < 0.0001
+          )
+          if (!exists) {
+            updated[task.assigned_courier_id] = [
+              ...list,
+              {
+                latitude: verif.courier_lat,
+                longitude: verif.courier_lng,
+                timestamp: verif.captured_at || task.completed_at || new Date().toISOString(),
+              },
+            ]
+          }
+        }
+      })
+
+      return updated
+    })
+  }, [tasks])
+
   // Escucha en tiempo real de pings de GPS via Supabase Broadcast
   useEffect(() => {
     const channel = supabase.channel(CHANNEL_NAME, {
@@ -50,6 +89,33 @@ export function useLiveMonitoring(filters: MonitoringFilters) {
             ...prev,
             [position.courier_id]: position,
           }))
+
+          // Registrar en el rastro continuo de la ruta
+          setLocationTrails((prev) => {
+            const currentList = prev[position.courier_id] || []
+            const lastPoint = currentList[currentList.length - 1]
+
+            // Evitar puntos redundantes si la posición apenas varió
+            if (
+              lastPoint &&
+              Math.abs(lastPoint.latitude - position.latitude) < 0.00006 &&
+              Math.abs(lastPoint.longitude - position.longitude) < 0.00006
+            ) {
+              return prev
+            }
+
+            const newPoint: BreadcrumbPoint = {
+              latitude: position.latitude,
+              longitude: position.longitude,
+              timestamp: position.timestamp || new Date().toISOString(),
+              speed: position.speed,
+            }
+
+            return {
+              ...prev,
+              [position.courier_id]: [...currentList.slice(-150), newPoint],
+            }
+          })
         }
       })
       .subscribe()
@@ -159,6 +225,7 @@ export function useLiveMonitoring(filters: MonitoringFilters) {
     couriersSummary,
     mapTasks,
     stats,
+    locationTrails,
     isLoading: isLoadingCouriers || isLoadingTasks,
     refetchTasks,
   }

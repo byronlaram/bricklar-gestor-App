@@ -1224,6 +1224,7 @@ export interface PublicTaskTrackingData {
   completed_at?: string | null
   proof_signature_url?: string | null
   proof_photo_url?: string | null
+  metadata?: Record<string, any> | null
   courier?: {
     id: string
     full_name: string
@@ -1262,6 +1263,7 @@ export async function getPublicTaskTracking(
         completed_at,
         proof_signature_url,
         proof_photo_url,
+        metadata,
         courier:profiles!tasks_assigned_courier_id_fkey (
           id,
           full_name,

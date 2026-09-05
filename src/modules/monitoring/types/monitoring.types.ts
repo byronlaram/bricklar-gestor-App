@@ -20,6 +20,13 @@ export interface CourierLivePosition {
   active_task_status?: string | null
 }
 
+export interface BreadcrumbPoint {
+  latitude: number
+  longitude: number
+  timestamp: string
+  speed?: number | null
+}
+
 export interface LiveTrackingPayload {
   type: 'location_update' | 'task_status_changed' | 'workday_changed'
   courier: CourierLivePosition

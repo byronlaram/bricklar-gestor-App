@@ -60,6 +60,8 @@ export function formatGeoDistance(meters: number | null | undefined): string {
   return `${(meters / 1000).toFixed(1)} km`
 }
 
+export const formatDistance = formatGeoDistance
+
 /**
  * Obtiene la posición GPS actual del dispositivo de forma asíncrona mediante Promise
  */

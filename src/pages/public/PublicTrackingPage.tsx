@@ -13,6 +13,11 @@ import {
   ArrowRight,
   DollarSign,
   Share2,
+  Zap,
+  Navigation,
+  BellRing,
+  ShieldCheck,
+  Radio,
 } from 'lucide-react'
 import { supabase } from '@/shared/lib/supabaseClient'
 import { getPublicTaskTracking } from '@/modules/tasks/services/tasksService'
@@ -24,6 +29,7 @@ import {
   Skeleton,
 } from '@/shared/components/ui'
 import { formatDate } from '@/shared/utils/format'
+import { getDistanceInMeters, formatDistance } from '@/shared/utils/geoHelper'
 
 const CHANNEL_NAME = 'courier-tracking'
 const DEFAULT_CENTER: [number, number] = [12.1364, -86.2514] // Managua, Nicaragua
@@ -85,6 +91,33 @@ export default function PublicTrackingPage() {
       supabase.removeChannel(channel)
     }
   }, [task?.courier?.id])
+
+  // Cálculo de distancia en tiempo real entre el repartidor y el punto de entrega
+  const distanceToDestination = useMemo(() => {
+    if (!task || typeof task.latitude !== 'number' || typeof task.longitude !== 'number') return null
+    if (!liveCourierPos || typeof liveCourierPos.latitude !== 'number' || typeof liveCourierPos.longitude !== 'number') return null
+    return getDistanceInMeters(liveCourierPos.latitude, liveCourierPos.longitude, task.latitude, task.longitude)
+  }, [task, liveCourierPos])
+
+  // Alerta sensorial / vibración al entrar a zona de proximidad inmediata (<250m)
+  const hasAlertedArrivalRef = useRef(false)
+  useEffect(() => {
+    if (
+      distanceToDestination !== null &&
+      distanceToDestination <= 250 &&
+      ['en_route', 'in_progress'].includes(task?.status || '') &&
+      !hasAlertedArrivalRef.current
+    ) {
+      hasAlertedArrivalRef.current = true
+      if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+        try {
+          navigator.vibrate([200, 100, 200, 100, 400])
+        } catch {
+          // Ignore
+        }
+      }
+    }
+  }, [distanceToDestination, task?.status])
 
   // 3. Inicializar y actualizar Mapa Leaflet
   const initMap = useCallback(() => {
@@ -492,20 +525,111 @@ export default function PublicTrackingPage() {
               </div>
             </div>
 
+            {/* ─── ALERTA DE PROXIMIDAD EN TIEMPO REAL (Llegando / A < 250m / En Ruta) ─── */}
+            {['en_route', 'in_progress'].includes(task.status) && distanceToDestination !== null && (
+              <div
+                className={`p-4 sm:p-5 rounded-3xl border shadow-md transition-all duration-500 ${
+                  distanceToDestination <= 250
+                    ? 'bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white border-emerald-400 shadow-emerald-600/30 animate-pulse'
+                    : distanceToDestination <= 1000
+                    ? 'bg-gradient-to-r from-indigo-700 via-indigo-600 to-sky-600 text-white border-indigo-400/80 shadow-indigo-600/20'
+                    : 'bg-white border-slate-200 text-slate-800'
+                }`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <div
+                      className={`h-12 w-12 rounded-2xl flex items-center justify-center shrink-0 ${
+                        distanceToDestination <= 250
+                          ? 'bg-white/20 text-white ring-4 ring-white/30'
+                          : distanceToDestination <= 1000
+                          ? 'bg-white/20 text-white'
+                          : 'bg-indigo-50 text-indigo-600'
+                      }`}
+                    >
+                      {distanceToDestination <= 250 ? (
+                        <BellRing className="h-6 w-6 animate-bounce" />
+                      ) : distanceToDestination <= 1000 ? (
+                        <Zap className="h-6 w-6" />
+                      ) : (
+                        <Navigation className="h-6 w-6" />
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`text-xs font-black tracking-wider uppercase ${
+                            distanceToDestination <= 1000 ? 'text-teal-200' : 'text-indigo-600'
+                          }`}
+                        >
+                          {distanceToDestination <= 250
+                            ? '¡Motorizado Llegando!'
+                            : distanceToDestination <= 1000
+                            ? 'Motorizado Muy Cerca'
+                            : 'Repartidor en Camino'}
+                        </span>
+                        {distanceToDestination <= 250 && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-3xs font-black bg-white text-emerald-900 shadow-xs">
+                            A menos de 250m
+                          </span>
+                        )}
+                      </div>
+                      <p
+                        className={`text-xs sm:text-sm font-bold truncate ${
+                          distanceToDestination <= 1000 ? 'text-white' : 'text-slate-900'
+                        }`}
+                      >
+                        {distanceToDestination <= 250
+                          ? 'Por favor mantente atento en tu dirección para recibir el pedido.'
+                          : distanceToDestination <= 1000
+                          ? `Aproximadamente a ${formatDistance(distanceToDestination)} de tu ubicación (~2 a 4 minutos).`
+                          : `Distancia en tiempo real a tu destino: ${formatDistance(distanceToDestination)}`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="text-right shrink-0">
+                    <div
+                      className={`text-3xs sm:text-2xs uppercase font-extrabold tracking-wider ${
+                        distanceToDestination <= 1000 ? 'text-white/80' : 'text-slate-400'
+                      }`}
+                    >
+                      Distancia
+                    </div>
+                    <div
+                      className={`text-base sm:text-xl font-black font-mono leading-none ${
+                        distanceToDestination <= 1000 ? 'text-white' : 'text-indigo-600'
+                      }`}
+                    >
+                      {formatDistance(distanceToDestination)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* MAPA INTERACTIVO EN VIVO */}
             <Card className="overflow-hidden border border-slate-200 rounded-3xl shadow-sm bg-white">
-              <div className="p-4 bg-slate-50/90 border-b border-slate-200 flex items-center justify-between gap-2">
+              <div className="p-4 bg-slate-50/90 border-b border-slate-200 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <div className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
                   <span className="text-xs font-bold text-slate-800 uppercase tracking-wider">
                     Mapa en Vivo & Ubicación de Entrega
                   </span>
                 </div>
-                {['en_route', 'in_progress'].includes(task.status) && (
-                  <span className="text-2xs font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
-                    GPS Activo
-                  </span>
-                )}
+                <div className="flex items-center gap-2">
+                  {distanceToDestination !== null && ['en_route', 'in_progress'].includes(task.status) && (
+                    <span className="text-2xs font-extrabold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded-full flex items-center gap-1 font-mono">
+                      <Radio className="h-3 w-3 text-indigo-600 animate-pulse" />
+                      A {formatDistance(distanceToDestination)}
+                    </span>
+                  )}
+                  {['en_route', 'in_progress'].includes(task.status) && (
+                    <span className="text-2xs font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+                      GPS Activo
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div
@@ -624,16 +748,35 @@ export default function PublicTrackingPage() {
                     </div>
                   )}
 
-                  {task.status === 'completed' && task.proof_signature_url && (
-                    <div className="border-t border-slate-100 pt-2">
-                      <span className="text-2xs font-bold text-slate-500 uppercase block mb-1">
-                        Firma de Recepción (POD):
-                      </span>
-                      <img
-                        src={task.proof_signature_url}
-                        alt="Firma de Entrega"
-                        className="h-16 rounded-xl border border-slate-200 bg-slate-50 p-1 object-contain"
-                      />
+                  {/* Verificación Antifraude GPS en Entrega */}
+                  {task.status === 'completed' && (task.metadata?.delivery_verification || task.proof_signature_url) && (
+                    <div className="border-t border-slate-100 pt-3 space-y-2.5">
+                      {task.metadata?.delivery_verification && (
+                        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200 text-emerald-900">
+                          <ShieldCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                          <div className="min-w-0 flex-1 text-2xs">
+                            <span className="font-black block text-emerald-950">Entrega Verificada por GPS</span>
+                            <span className="text-emerald-700">
+                              {task.metadata.delivery_verification.is_valid
+                                ? `Check-in confirmado a ${Math.round(task.metadata.delivery_verification.distance_meters)}m del punto registrado.`
+                                : `Confirmada con geolocalización satelital.`}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {task.proof_signature_url && (
+                        <div>
+                          <span className="text-2xs font-bold text-slate-500 uppercase block mb-1">
+                            Firma de Recepción (POD):
+                          </span>
+                          <img
+                            src={task.proof_signature_url}
+                            alt="Firma de Entrega"
+                            className="h-16 rounded-xl border border-slate-200 bg-slate-50 p-1 object-contain"
+                          />
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

@@ -7,8 +7,9 @@ import {
   Minimize2,
   Crosshair,
   CheckCircle2,
+  Route,
 } from 'lucide-react'
-import type { CourierMonitoringSummary } from '../types/monitoring.types'
+import type { CourierMonitoringSummary, BreadcrumbPoint } from '../types/monitoring.types'
 import type { TaskWithCourier } from '@/modules/tasks/types/task.types'
 import { TASK_STATUS_LABELS } from '@/shared/types'
 
@@ -18,6 +19,7 @@ interface LiveMapProps {
   selectedCourierId: string | null
   onSelectCourier: (courierId: string | null) => void
   onOpenTaskDetail?: (taskId: string) => void
+  trails?: Record<string, BreadcrumbPoint[]>
   className?: string
 }
 
@@ -54,6 +56,7 @@ export function LiveMap({
   tasks,
   selectedCourierId,
   onSelectCourier,
+  trails = {},
   className = '',
 }: LiveMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -65,6 +68,7 @@ export function LiveMap({
   const [activeTileKey, setActiveTileKey] = useState<keyof typeof TILE_LAYERS>('esri')
   const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+  const [showTrails, setShowTrails] = useState(true)
 
   const toggleFullscreen = useCallback(() => {
     setIsFullscreen((prev) => !prev)
@@ -178,7 +182,7 @@ export function LiveMap({
     }
   }, [selectedCourierId, couriers])
 
-  // 5. Renderizar Marcadores de Motorizados, Paradas y Rutas
+  // 5. Renderizar Marcadores de Motorizados, Paradas, Rutas e Historial Continuo
   useEffect(() => {
     if (!markersLayerRef.current || !routesLayerRef.current) return
 
@@ -283,15 +287,83 @@ export function LiveMap({
       markersLayerRef.current?.addLayer(marker)
     })
 
-    // ─── B. Dibujar Marcadores de Motorizados ───
+    // ─── B. Dibujar Marcadores de Motorizados & Rastro de Trayectoria Continua ───
     couriers.forEach((courier) => {
-      if (!courier.position?.latitude || !courier.position?.longitude) return
-
       const isSelected = selectedCourierId === courier.courier_id
       const isOnline = courier.is_online
       const hasActiveRoute = courier.active_task?.status === 'en_route'
-
       const statusColor = isOnline ? (hasActiveRoute ? '#9333ea' : '#059669') : '#64748b'
+
+      // 1. Rastro continuo de trayectoria (Trail)
+      if (showTrails) {
+        const courierTrail = [...(trails[courier.courier_id] || [])]
+
+        // Añadir posición en vivo actual al final del rastro
+        if (courier.position?.latitude && courier.position?.longitude) {
+          const lastPoint = courierTrail[courierTrail.length - 1]
+          if (
+            !lastPoint ||
+            Math.abs(lastPoint.latitude - courier.position.latitude) > 0.00003 ||
+            Math.abs(lastPoint.longitude - courier.position.longitude) > 0.00003
+          ) {
+            courierTrail.push({
+              latitude: courier.position.latitude,
+              longitude: courier.position.longitude,
+              timestamp: new Date().toISOString(),
+              speed: courier.position.speed,
+            })
+          }
+        }
+
+        if (courierTrail.length >= 2) {
+          const latLngs: [number, number][] = courierTrail.map((p) => [p.latitude, p.longitude])
+
+          // Glow exterior
+          const glowPolyline = L.polyline(latLngs, {
+            color: isSelected ? '#6366f1' : '#818cf8',
+            weight: isSelected ? 8 : 5,
+            opacity: isSelected ? 0.35 : 0.2,
+            lineCap: 'round',
+            lineJoin: 'round',
+          })
+          routesLayerRef.current?.addLayer(glowPolyline)
+
+          // Trazo central nítido
+          const corePolyline = L.polyline(latLngs, {
+            color: isSelected ? '#4338ca' : '#6366f1',
+            weight: isSelected ? 3.5 : 2.5,
+            opacity: isSelected ? 0.95 : 0.75,
+            dashArray: isSelected ? undefined : '5, 6',
+            lineCap: 'round',
+            lineJoin: 'round',
+          })
+          routesLayerRef.current?.addLayer(corePolyline)
+
+          // Puntos intermedios de paso (Breadcrumbs)
+          if (isSelected || courierTrail.length <= 15) {
+            courierTrail.forEach((point, pIdx) => {
+              if (pIdx === 0 || pIdx % 4 === 0 || pIdx === courierTrail.length - 1) {
+                const circle = L.circleMarker([point.latitude, point.longitude], {
+                  radius: isSelected ? 3.5 : 2.5,
+                  fillColor: isSelected ? '#4338ca' : '#6366f1',
+                  color: '#ffffff',
+                  weight: 1.5,
+                  opacity: 1,
+                  fillOpacity: 0.9,
+                })
+                const timeStr = point.timestamp ? new Date(point.timestamp).toLocaleTimeString() : ''
+                circle.bindTooltip(`📍 ${courier.courier_name} (${timeStr}${point.speed ? ` · ${point.speed} km/h` : ''})`, {
+                  direction: 'top',
+                  offset: [0, -4],
+                })
+                routesLayerRef.current?.addLayer(circle)
+              }
+            })
+          }
+        }
+      }
+
+      if (!courier.position?.latitude || !courier.position?.longitude) return
 
       const courierHtml = `
         <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -50%); cursor: pointer;">
@@ -405,7 +477,7 @@ export function LiveMap({
             [courier.active_task.latitude, courier.active_task.longitude],
           ],
           {
-            color: isSelected ? '#6366f1' : '#a855f7',
+            color: isSelected ? '#9333ea' : '#c084fc',
             weight: isSelected ? 4 : 2.5,
             opacity: 0.85,
             dashArray: '6, 8',
@@ -414,7 +486,7 @@ export function LiveMap({
         routesLayerRef.current?.addLayer(polyline)
       }
     })
-  }, [couriers, tasks, selectedCourierId, onSelectCourier])
+  }, [couriers, tasks, selectedCourierId, onSelectCourier, trails, showTrails])
 
   const activeCouriersCount = couriers.filter((c) => c.is_online || c.position != null).length
 
@@ -477,6 +549,21 @@ export function LiveMap({
           )}
         </div>
 
+        {/* Botón Toggle Rastro de Ruta / Trayectoria */}
+        <button
+          type="button"
+          onClick={() => setShowTrails(!showTrails)}
+          className={`p-2.5 rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold border ${
+            showTrails
+              ? 'bg-indigo-50 border-indigo-300 text-indigo-700'
+              : 'bg-white/95 backdrop-blur-md hover:bg-white text-slate-500 border-slate-200/80'
+          }`}
+          title={showTrails ? 'Ocultar rastro GPS continuo' : 'Mostrar rastro GPS continuo'}
+        >
+          <Route className="h-4 w-4 text-indigo-600" />
+          <span className="hidden sm:inline">{showTrails ? 'Rastro GPS ✓' : 'Rastro GPS'}</span>
+        </button>
+
         {/* Botón Centrar Todos */}
         <button
           type="button"
@@ -535,6 +622,12 @@ export function LiveMap({
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
           <span>Motorizado en Vivo</span>
         </div>
+        {showTrails && (
+          <div className="flex items-center gap-1.5 pl-1 border-l border-slate-200">
+            <span className="w-4 h-1 rounded-full bg-indigo-500"></span>
+            <span>Rastro Recorrido</span>
+          </div>
+        )}
       </div>
     </div>
   )

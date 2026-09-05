@@ -44,7 +44,7 @@ export default function MonitoringPage() {
   const [selectedCourierId, setSelectedCourierId] = useState<string | null>(null)
   const [mobileTab, setMobileTab] = useState<'map' | 'list'>('map')
 
-  const { couriersSummary, mapTasks, stats, refetchTasks } = useLiveMonitoring(filters)
+  const { couriersSummary, mapTasks, stats, locationTrails, refetchTasks } = useLiveMonitoring(filters)
 
   return (
     <div className="flex flex-col h-[calc(100vh-4.5rem)] space-y-4 animate-fade-in">
@@ -187,6 +187,7 @@ export default function MonitoringPage() {
           <LiveMap
             couriers={couriersSummary}
             tasks={mapTasks}
+            trails={locationTrails}
             selectedCourierId={selectedCourierId}
             onSelectCourier={setSelectedCourierId}
             className="h-full"
