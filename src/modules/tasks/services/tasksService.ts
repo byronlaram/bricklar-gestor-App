@@ -22,6 +22,7 @@ import { ALLOWED_TRANSITIONS, COURIER_ALLOWED_TRANSITIONS } from '@/shared/types
 import { compressImage } from '@/shared/utils/imageCompressor'
 import { createNotification } from '@/modules/notifications/services/notificationsService'
 import { logAuditEvent } from '@/shared/services/auditService'
+import { enqueueOfflineAction } from '@/shared/lib/offlineQueue'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -610,6 +611,30 @@ export async function changeTaskStatus(payload: ChangeStatusPayload): Promise<Ta
   if (new_status === 'cancelled') {
     updatePayload.cancelled_at = new Date().toISOString()
     updatePayload.cancellation_reason = cancellation_reason ?? null
+  }
+
+  // Interceptor para modo sin conexión (Offline)
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    await enqueueOfflineAction({
+      actionType: 'CHANGE_TASK_STATUS',
+      payload: {
+        taskId: task_id,
+        newStatus: new_status,
+        metadata: mergedMetadata,
+        cancellationReason: cancellation_reason,
+        evidenceUrl: evidence_url,
+        notes,
+      },
+    })
+    return {
+      id: task_id,
+      status: new_status,
+      metadata: mergedMetadata,
+      evidence_url: evidence_url,
+      cancellation_reason: cancellation_reason,
+      notes,
+      updated_at: new Date().toISOString(),
+    } as unknown as Task
   }
 
   const { data, error } = await supabase

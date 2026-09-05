@@ -6,6 +6,7 @@ import { useAuth } from '@/modules/auth/useAuth'
 import { useTasksRealtime } from '@/modules/tasks/hooks/useTasksRealtime'
 import { CourierLiveLocationProvider } from '@/modules/courier/context/CourierLiveLocationContext'
 import { Avatar, ConfirmDialog, useToast } from '@/shared/components/ui'
+import { OfflineSyncBanner } from '@/shared/components/OfflineSyncBanner'
 import { cn } from '@/shared/utils/cn'
 import {
   Home,
@@ -226,6 +227,9 @@ export default function CourierLayout() {
           <Outlet />
         </div>
       </main>
+
+      {/* Banner de Sincronización Offline en Segundo Plano */}
+      <OfflineSyncBanner />
 
       {/* Menú Inferior Móvil Blanco Limpio con Sombras */}
       <nav
