@@ -50,27 +50,23 @@ export function normalizeTaskFromDB<T extends Record<string, any>>(task: T): T {
     }
   }
 
-  // Si no tiene coordenadas explícitas, buscar en maps_url, address, address_reference o notes
+  // Si no tiene coordenadas explícitas, buscar primero en maps_url (la fuente principal)
   if ((task as any).latitude == null || (task as any).longitude == null) {
-    const rawCandidates = [
-      (task as any).maps_url,
-      (task as any).address,
-      (task as any).address_reference,
-      (task as any).notes,
-      ((task as any).metadata as Record<string, any>)?.maps_url,
-      ((task as any).metadata as Record<string, any>)?.location_url,
-    ]
-
-    for (const candidate of rawCandidates) {
-      if (candidate && typeof candidate === 'string') {
-        const coords = parseCoordinatesFromMapsUrl(candidate)
+    if ((task as any).maps_url) {
+      const coords = parseCoordinatesFromMapsUrl((task as any).maps_url)
+      if (coords) {
+        ;(task as any).latitude = coords.latitude
+        ;(task as any).longitude = coords.longitude
+      }
+    }
+    // Si aún no tiene y existe candidate en metadata o address
+    if ((task as any).latitude == null) {
+      const metaUrl = ((task as any).metadata as Record<string, any>)?.maps_url || ((task as any).metadata as Record<string, any>)?.location_url
+      if (metaUrl) {
+        const coords = parseCoordinatesFromMapsUrl(metaUrl)
         if (coords) {
           ;(task as any).latitude = coords.latitude
           ;(task as any).longitude = coords.longitude
-          if (!(task as any).maps_url && (candidate.startsWith('http') || candidate.startsWith('www.'))) {
-            ;(task as any).maps_url = candidate
-          }
-          break
         }
       }
     }
@@ -117,9 +113,12 @@ export async function getTasks(filters: TaskFilters = {}): Promise<PaginatedTask
   const from = (page - 1) * page_size
   const to = from + page_size - 1
 
+  // Para motorizados o cargas grandes, omitir count: exact para evitar query SQL de conteo costosa
+  const countMode = courier_id || page_size >= 100 ? undefined : 'exact'
+
   let query = supabase
     .from('tasks')
-    .select(TASK_WITH_COURIER_SELECT, { count: 'exact' })
+    .select(TASK_WITH_COURIER_SELECT, countMode ? { count: countMode } : undefined)
     .is('deleted_at', null)
     .order('scheduled_date', { ascending: false })
     .order('route_order', { ascending: true, nullsFirst: false })

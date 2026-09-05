@@ -473,12 +473,15 @@ export default function CourierTasksPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'completed'>('all')
 
-  const { data: tasksData, isLoading } = useTasks({
-    courier_id: profile?.id,
-    date: todayStr,
-    search: searchTerm || undefined,
-    page_size: 100,
-  })
+  const { data: tasksData, isLoading } = useTasks(
+    {
+      courier_id: profile?.id,
+      date: todayStr,
+      search: searchTerm || undefined,
+      page_size: 100,
+    },
+    { enabled: !!profile?.id }
+  )
 
   const { changeStatus, isChangingStatus, reorderTasks } = useTaskMutations()
   const allTasks = tasksData?.data || []

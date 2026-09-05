@@ -57,11 +57,14 @@ export default function CourierTaskDetailPage() {
 
   const { data: activeWorkday } = useActiveWorkday(profile?.id)
   const { task, isLoading, isError } = useTask(id)
-  const { data: todayTasksData } = useTasks({
-    courier_id: profile?.id,
-    date: todayStr,
-    page_size: 100,
-  })
+  const { data: todayTasksData } = useTasks(
+    {
+      courier_id: profile?.id,
+      date: todayStr,
+      page_size: 100,
+    },
+    { enabled: !!profile?.id }
+  )
   const { changeStatus, isChangingStatus } = useTaskMutations()
 
   const [isCompleteModalOpen, setIsCompleteModalOpen] = useState(false)

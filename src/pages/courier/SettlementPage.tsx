@@ -86,12 +86,15 @@ export default function CourierSettlementPage() {
     targetWorkDate
   )
 
-  const { data: tasksData, isLoading: isLoadingTasks } = useTasks({
-    branch_id: branchId,
-    courier_id: profile?.id,
-    date: targetWorkDate,
-    page_size: 100,
-  })
+  const { data: tasksData, isLoading: isLoadingTasks } = useTasks(
+    {
+      branch_id: branchId,
+      courier_id: profile?.id,
+      date: targetWorkDate,
+      page_size: 100,
+    },
+    { enabled: !!profile?.id }
+  )
 
   const { submitSettlement, isSubmitting } = useSettlementMutations()
 
