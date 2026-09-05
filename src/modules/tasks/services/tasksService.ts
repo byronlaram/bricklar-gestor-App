@@ -718,6 +718,21 @@ export async function getCouriersForBranch(branch_id?: string) {
 export async function updateTaskRouteOrders(items: { id: string; route_order: number }[]): Promise<void> {
   if (!items || items.length === 0) return
 
+  // 1. Intentar ejecución atómica mediante RPC
+  try {
+    const { error: rpcError } = await supabase.rpc('update_task_route_orders' as any, {
+      p_items: items,
+    })
+
+    if (!rpcError) {
+      return
+    }
+    console.warn('[Tasks] RPC update_task_route_orders not available, falling back to batch update:', rpcError.message)
+  } catch (rpcEx) {
+    console.warn('[Tasks] RPC invocation exception, using fallback:', rpcEx)
+  }
+
+  // 2. Fallback por si la función SQL aún no está desplegada en el entorno
   const now = new Date().toISOString()
   const updates = items.map(({ id, route_order }) =>
     supabase
