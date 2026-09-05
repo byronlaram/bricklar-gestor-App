@@ -13,6 +13,7 @@ import {
 import type { CourierMonitoringSummary, BreadcrumbPoint } from '../types/monitoring.types'
 import type { TaskWithCourier } from '@/modules/tasks/types/task.types'
 import { TASK_STATUS_LABELS } from '@/shared/types'
+import { parseCoordinatesFromMapsUrl } from '@/shared/utils/geoHelper'
 
 interface LiveMapProps {
   couriers: CourierMonitoringSummary[]
@@ -152,27 +153,39 @@ export function LiveMap({
 
     const points: [number, number][] = []
 
-    // Posición de motorizados
-    couriers.forEach((c) => {
-      if (c.position?.latitude && c.position?.longitude) {
-        points.push([c.position.latitude, c.position.longitude])
+    // Coordenadas de tareas filtradas
+    tasks.forEach((t) => {
+      const lat = t.latitude ?? parseCoordinatesFromMapsUrl(t.maps_url)?.latitude
+      const lng = t.longitude ?? parseCoordinatesFromMapsUrl(t.maps_url)?.longitude
+      if (lat && lng) {
+        points.push([lat, lng])
       }
     })
 
-    // Coordenadas de tareas
-    tasks.forEach((t) => {
-      if (t.latitude && t.longitude) {
-        points.push([t.latitude, t.longitude])
-      }
-    })
+    // Posición de motorizados (incluida en vista general o cuando no hay tareas filtradas)
+    if (statusFilter === 'all' || statusFilter === 'en_route' || points.length === 0) {
+      couriers.forEach((c) => {
+        if (c.position?.latitude && c.position?.longitude) {
+          points.push([c.position.latitude, c.position.longitude])
+        }
+      })
+    }
 
     if (points.length > 0) {
       const bounds = L.latLngBounds(points)
-      mapInstanceRef.current.fitBounds(bounds, { padding: [50, 50], maxZoom: 16 })
+      mapInstanceRef.current.fitBounds(bounds, { padding: [60, 60], maxZoom: 16 })
     } else {
       mapInstanceRef.current.setView(DEFAULT_CENTER, DEFAULT_ZOOM)
     }
-  }, [couriers, tasks])
+  }, [couriers, tasks, statusFilter])
+
+  // Reajustar vista automáticamente cuando cambia el filtro de estado o las tareas
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      handleFitAllBounds()
+    }, 100)
+    return () => clearTimeout(timer)
+  }, [statusFilter, tasks.length, handleFitAllBounds])
 
   // 4. Centrar en el motorizado seleccionado
   useEffect(() => {
@@ -195,9 +208,14 @@ export function LiveMap({
     markersLayerRef.current.clearLayers()
     routesLayerRef.current.clearLayers()
 
+    // Si estamos en un filtro específico (como 'pending' o 'completed'), ocultar el rastro continuo del motorizado
+    const isShowingTrails = showTrails && (statusFilter === 'all' || statusFilter === 'en_route')
+
     // ─── A. Dibujar Marcadores de Tareas / Paradas ───
     tasks.forEach((task, idx) => {
-      if (!task.latitude || !task.longitude) return
+      const effectiveLat = task.latitude ?? parseCoordinatesFromMapsUrl(task.maps_url)?.latitude
+      const effectiveLng = task.longitude ?? parseCoordinatesFromMapsUrl(task.maps_url)?.longitude
+      if (!effectiveLat || !effectiveLng) return
 
       const isEnRoute = task.status === 'en_route'
       const isInProgress = task.status === 'in_progress'
@@ -250,7 +268,7 @@ export function LiveMap({
         iconAnchor: [0, 0],
       })
 
-      const marker = L.marker([task.latitude, task.longitude], { icon: taskIcon })
+      const marker = L.marker([effectiveLat, effectiveLng], { icon: taskIcon })
 
       const popupContent = `
         <div style="font-family: inherit; font-size: 12px; min-width: 210px; padding: 2px;">
@@ -301,7 +319,7 @@ export function LiveMap({
       const statusColor = isOnline ? (hasActiveRoute ? '#9333ea' : '#059669') : '#64748b'
 
       // 1. Rastro continuo de trayectoria (Trail)
-      if (showTrails) {
+      if (isShowingTrails) {
         const courierTrail = [...(trails[courier.courier_id] || [])]
 
         // Añadir posición en vivo actual al final del rastro
@@ -394,11 +412,9 @@ export function LiveMap({
             position: relative;
             ${isSelected ? 'outline: 3px solid #6366f1; outline-offset: 2px;' : ''}
           ">
-            ${
-              courier.avatar_url
-                ? `<img src="${courier.avatar_url}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;" />`
-                : '🛵'
-            }
+            <svg style="width: 18px; height: 18px; fill: currentColor;" viewBox="0 0 24 24">
+              <path d="M15.5 5.5c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zM5 12c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5zm14-8.5c-2.8 0-5 2.2-5 5s2.2 5 5 5 5-2.2 5-5-2.2-5-5-5zm0 8.5c-1.9 0-3.5-1.6-3.5-3.5s1.6-3.5 3.5-3.5 3.5 1.6 3.5 3.5-1.6 3.5-3.5 3.5zm-8.2-7.5l2.2-3.7c.3-.5.8-.8 1.4-.8h3.6v2h-3.1l-1.5 2.5 1.9 1.9c.4.4.6.9.6 1.4v4.2h-2v-3.7l-2.4-2.4-2.1 3.5-1.7-1 2.6-4.4z"/>
+            </svg>
           </div>
           <div style="
             background: rgba(15, 23, 42, 0.85);
@@ -427,56 +443,57 @@ export function LiveMap({
 
       const marker = L.marker([courier.position.latitude, courier.position.longitude], {
         icon: courierIcon,
-        zIndexOffset: 1000,
+        zIndexOffset: isSelected ? 1000 : 500,
       })
 
-      marker.on('click', () => {
-        onSelectCourier(courier.courier_id)
-      })
+      const timeStr = courier.last_ping
+        ? new Date(courier.last_ping).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+        : 'Sin registro reciente'
 
-      const popupHtml = `
-        <div style="font-family: inherit; font-size: 12px; min-width: 220px; padding: 2px;">
-          <div style="display: flex; items-center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 6px;">
+      const courierPopup = `
+        <div style="font-family: inherit; font-size: 12px; min-width: 200px; padding: 2px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 6px;">
             <strong style="color: #0f172a; font-size: 13px;">${courier.courier_name}</strong>
-            <span style="display: inline-flex; align-items: center; gap: 4px; color: ${isOnline ? '#059669' : '#94a3b8'}; font-weight: bold; font-size: 10px;">
-              ● ${isOnline ? 'En línea' : 'Desconectado'}
+            <span style="background: ${isOnline ? '#dcfce7' : '#f1f5f9'}; color: ${isOnline ? '#166534' : '#64748b'}; padding: 2px 6px; border-radius: 9999px; font-size: 10px; font-weight: bold;">
+              ${isOnline ? 'En línea' : 'Sin señal'}
             </span>
           </div>
-          
+          <div style="color: #64748b; font-size: 11px; margin-bottom: 4px;">
+            <strong>Última señal GPS:</strong> ${timeStr}
+          </div>
           ${
-            courier.courier_phone
-              ? `<div style="margin-bottom: 4px; font-size: 11px; color: #64748b;">
-                  <strong>Teléfono:</strong> <a href="tel:${courier.courier_phone}" style="color: #2563eb; text-decoration: underline;">${courier.courier_phone}</a>
+            courier.position?.speed != null
+              ? `<div style="color: #64748b; font-size: 11px; margin-bottom: 4px;">
+                  <strong>Velocidad:</strong> ${Math.round(courier.position.speed)} km/h
                 </div>`
               : ''
           }
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: #f8fafc; padding: 6px; border-radius: 8px; margin-bottom: 6px; font-size: 10px;">
-            <div>Velocidad: <strong>${courier.position.speed != null ? `${courier.position.speed} km/h` : '0 km/h'}</strong></div>
-            <div>Precisión: <strong>±${courier.position.accuracy ?? 10}m</strong></div>
+          <div style="color: #64748b; font-size: 11px; margin-bottom: 6px;">
+            <strong>Entregas:</strong> ${courier.completed_tasks_count} / ${courier.assigned_tasks_count} (${courier.progress_percentage}%)
           </div>
-
           ${
             courier.active_task
-              ? `<div style="background: #faf5ff; border: 1px solid #e9d5ff; padding: 6px; border-radius: 8px; font-size: 11px; color: #581c87; margin-bottom: 6px;">
-                  <span style="font-size: 9px; font-weight: 800; text-transform: uppercase; color: #7e22ce;">Parada Actual:</span>
-                  <div style="font-weight: bold;">${courier.active_task.code}: ${courier.active_task.title}</div>
+              ? `<div style="background: #faf5ff; border: 1px solid #e9d5ff; padding: 4px 8px; border-radius: 8px; color: #6b21a8; font-size: 11px; font-weight: bold; margin-bottom: 6px;">
+                  Gestión: ${courier.active_task.code} - ${courier.active_task.title}
                 </div>`
-              : '<div style="font-size: 11px; color: #64748b; margin-bottom: 6px;">Sin paradas activas en este momento.</div>'
+              : ''
           }
-
-          <div style="display: flex; justify-content: space-between; font-size: 11px; font-weight: bold; color: #334155; padding-top: 4px;">
-            <span>Progreso hoy:</span>
-            <span>${courier.completed_tasks_count} / ${courier.assigned_tasks_count} (${courier.progress_percentage}%)</span>
-          </div>
+          ${
+            courier.courier_phone
+              ? `<a href="tel:${courier.courier_phone}" style="display: block; text-align: center; background: #e0e7ff; color: #3730a3; padding: 4px 6px; border-radius: 6px; font-weight: bold; text-decoration: none; font-size: 10px; margin-top: 4px;">
+                  Llamar al motorizado
+                </a>`
+              : ''
+          }
         </div>
       `
 
-      marker.bindPopup(popupHtml)
+      marker.bindPopup(courierPopup)
+      marker.on('click', () => onSelectCourier(isSelected ? null : courier.courier_id))
       markersLayerRef.current?.addLayer(marker)
 
       // ─── C. Trazar Línea de Ruta hacia la tarea activa ───
-      if (courier.active_task?.latitude && courier.active_task?.longitude) {
+      if (isShowingTrails && courier.active_task?.latitude && courier.active_task?.longitude) {
         const polyline = L.polyline(
           [
             [courier.position.latitude, courier.position.longitude],
@@ -492,9 +509,10 @@ export function LiveMap({
         routesLayerRef.current?.addLayer(polyline)
       }
     })
-  }, [couriers, tasks, selectedCourierId, onSelectCourier, trails, showTrails])
+  }, [couriers, tasks, selectedCourierId, onSelectCourier, trails, showTrails, statusFilter])
 
   const activeCouriersCount = couriers.filter((c) => c.is_online || c.position != null).length
+  const tasksWithCoordsCount = tasks.filter((t) => t.latitude || parseCoordinatesFromMapsUrl(t.maps_url)).length
 
   return (
     <div
@@ -516,6 +534,16 @@ export function LiveMap({
           </span>
           <span className="text-[10px] font-semibold bg-indigo-600/80 px-2 py-0.5 rounded-md">
             {activeCouriersCount} motorizados activos
+          </span>
+        </div>
+      )}
+
+      {/* Aviso informativo si hay tareas filtradas pero sin coordenadas registradas */}
+      {statusFilter !== 'all' && tasks.length > 0 && tasksWithCoordsCount === 0 && (
+        <div className="absolute top-3 left-3 z-20 bg-slate-900/90 backdrop-blur-md text-white px-3.5 py-2 rounded-xl border border-slate-700 shadow-lg text-xs font-medium flex items-center gap-2 animate-fade-in max-w-md">
+          <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0"></span>
+          <span>
+            {tasks.length} parada(s) {statusFilter === 'pending' ? 'pendientes' : statusFilter === 'completed' ? 'completadas' : 'filtradas'} registradas hoy (sin enlace GPS).
           </span>
         </div>
       )}

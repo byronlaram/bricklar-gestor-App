@@ -23,6 +23,7 @@ import { compressImage } from '@/shared/utils/imageCompressor'
 import { createNotification } from '@/modules/notifications/services/notificationsService'
 import { logAuditEvent } from '@/shared/services/auditService'
 import { enqueueOfflineAction } from '@/shared/lib/offlineQueue'
+import { parseCoordinatesFromMapsUrl } from '@/shared/utils/geoHelper'
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
@@ -48,6 +49,16 @@ export function normalizeTaskFromDB<T extends Record<string, any>>(task: T): T {
       ;(task as any).task_type = customType
     }
   }
+
+  // Si no tiene coordenadas explícitas pero tiene maps_url, extraerlas automáticamente
+  if (((task as any).latitude == null || (task as any).longitude == null) && (task as any).maps_url) {
+    const coords = parseCoordinatesFromMapsUrl((task as any).maps_url)
+    if (coords) {
+      ;(task as any).latitude = coords.latitude
+      ;(task as any).longitude = coords.longitude
+    }
+  }
+
   return task
 }
 
@@ -263,8 +274,20 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
     ...(isCustomType ? { custom_task_type: payload.task_type } : {}),
   }
 
+  let lat = payload.latitude ?? null
+  let lng = payload.longitude ?? null
+  if ((lat == null || lng == null) && payload.maps_url) {
+    const coords = parseCoordinatesFromMapsUrl(payload.maps_url)
+    if (coords) {
+      lat = coords.latitude
+      lng = coords.longitude
+    }
+  }
+
   const insert = {
     ...payload,
+    latitude: lat,
+    longitude: lng,
     task_type: dbTaskType,
     metadata: mergedMetadata,
     assigned_courier_id: courierId,
@@ -395,6 +418,14 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
   }
   if (mergedMetadata !== undefined) {
     updateFields.metadata = mergedMetadata
+  }
+
+  if (payload.maps_url && (payload.latitude == null || payload.longitude == null)) {
+    const coords = parseCoordinatesFromMapsUrl(payload.maps_url)
+    if (coords) {
+      updateFields.latitude = coords.latitude
+      updateFields.longitude = coords.longitude
+    }
   }
 
   let { data, error } = await supabase

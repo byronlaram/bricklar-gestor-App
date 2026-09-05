@@ -161,3 +161,46 @@ export function buildDeliveryVerification(
     captured_at: now,
   }
 }
+
+/**
+ * Parsea automáticamente latitud y longitud desde enlaces de Google Maps, Waze o coordenadas directas
+ */
+export function parseCoordinatesFromMapsUrl(
+  input: string | null | undefined
+): { latitude: number; longitude: number } | null {
+  if (!input || typeof input !== 'string') return null
+  const trimmed = input.trim()
+
+  // 1. Directo "lat, lng" ej: "12.1364, -86.2514"
+  const directMatch = trimmed.match(/^(-?\d+(\.\d+)?)\s*,\s*(-?\d+(\.\d+)?)$/)
+  if (directMatch) {
+    const lat = parseFloat(directMatch[1])
+    const lng = parseFloat(directMatch[3])
+    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { latitude: lat, longitude: lng }
+    }
+  }
+
+  // 2. URL con /@lat,lng o ?q=lat,lng o &q=lat,lng o /place/lat,lng o ll=lat,lng o destination=lat,lng
+  const urlCoordMatch = trimmed.match(/(?:@|q=|ll=|loc:|place\/|destination=)(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/i)
+  if (urlCoordMatch) {
+    const lat = parseFloat(urlCoordMatch[1])
+    const lng = parseFloat(urlCoordMatch[2])
+    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { latitude: lat, longitude: lng }
+    }
+  }
+
+  // 3. Patrón decimal en cualquier parte del texto
+  const anyCoordMatch = trimmed.match(/(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/)
+  if (anyCoordMatch) {
+    const lat = parseFloat(anyCoordMatch[1])
+    const lng = parseFloat(anyCoordMatch[2])
+    if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+      return { latitude: lat, longitude: lng }
+    }
+  }
+
+  return null
+}
+
