@@ -9,7 +9,9 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
-  Maximize2,
+  Maximize,
+  Minimize2,
+  Route,
   LocateFixed,
   Layers,
   ExternalLink,
@@ -84,6 +86,30 @@ export function CourierRouteMap({
   const [activeTileKey, setActiveTileKey] = useState<keyof typeof TILE_LAYERS>('esri')
   const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
+  const [isFullscreen, setIsFullscreen] = useState(false)
+
+  const toggleFullscreen = useCallback(() => {
+    setIsFullscreen((prev) => !prev)
+  }, [])
+
+  // Reajustar dimensiones de Leaflet cuando cambia a pantalla completa
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      mapInstanceRef.current?.invalidateSize()
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [isFullscreen])
+
+  // Salir de pantalla completa con tecla Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isFullscreen])
 
   // Ordenar tareas por orden de ruta
   const orderedTasks = useMemo(() => {
@@ -452,7 +478,15 @@ export function CourierRouteMap({
   ).length
 
   return (
-    <div className={cn('relative w-full h-[calc(100vh-140px)] min-h-[520px] rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 shadow-sm flex flex-col', className)}>
+    <div
+      className={cn(
+        'relative w-full overflow-hidden flex flex-col',
+        isFullscreen
+          ? 'fixed inset-0 z-[99999] w-screen h-screen rounded-none border-0 shadow-none bg-slate-900 animate-fade-in'
+          : 'h-[calc(100vh-140px)] min-h-[520px] rounded-2xl border border-slate-200 bg-slate-100 shadow-sm',
+        className
+      )}
+    >
       {/* ── Barra Superior Flotante con Resumen & Controles ── */}
       <div className="absolute top-3 left-3 right-3 z-[400] flex flex-wrap items-center justify-between gap-2 pointer-events-none">
         {/* Resumen de paradas */}
@@ -496,7 +530,7 @@ export function CourierRouteMap({
             className="bg-white/95 backdrop-blur-md shadow-md hover:bg-white text-slate-700 font-semibold text-xs h-9 px-3 rounded-xl border-slate-200"
             title="Ver toda la ruta completa"
           >
-            <Maximize2 className="w-3.5 h-3.5 text-blue-600 mr-1.5" />
+            <Route className="w-3.5 h-3.5 text-blue-600 mr-1.5" />
             <span className="hidden sm:inline">Ver Ruta</span>
           </Button>
 
@@ -537,6 +571,33 @@ export function CourierRouteMap({
               </div>
             )}
           </div>
+
+          {/* Botón Pantalla Completa */}
+          <Button
+            type="button"
+            variant={isFullscreen ? 'primary' : 'outline'}
+            size="sm"
+            onClick={toggleFullscreen}
+            className={cn(
+              'shadow-md font-semibold text-xs h-9 px-3 rounded-xl',
+              isFullscreen
+                ? 'bg-primary-700 hover:bg-primary-800 text-white border-primary-600'
+                : 'bg-white/95 backdrop-blur-md hover:bg-white text-slate-700 border-slate-200'
+            )}
+            title={isFullscreen ? 'Salir de pantalla completa (Esc)' : 'Ampliar mapa a pantalla completa'}
+          >
+            {isFullscreen ? (
+              <>
+                <Minimize2 className="w-3.5 h-3.5 mr-1 text-white" />
+                <span>Salir</span>
+              </>
+            ) : (
+              <>
+                <Maximize className="w-3.5 h-3.5 text-primary-600 mr-1" />
+                <span className="hidden sm:inline">Pantalla Completa</span>
+              </>
+            )}
+          </Button>
         </div>
       </div>
 
