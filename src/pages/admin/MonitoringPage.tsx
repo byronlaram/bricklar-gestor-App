@@ -15,7 +15,7 @@ import { useLiveMonitoring } from '@/modules/monitoring/hooks/useLiveMonitoring'
 import { LiveMap } from '@/modules/monitoring/components/LiveMap'
 import { CourierMonitorSidebar } from '@/modules/monitoring/components/CourierMonitorSidebar'
 import type { MonitoringFilters } from '@/modules/monitoring/types/monitoring.types'
-import { Card, Button } from '@/shared/components/ui'
+import { Button } from '@/shared/components/ui'
 
 export default function MonitoringPage() {
   const { profile } = useAuth()
@@ -97,11 +97,19 @@ export default function MonitoringPage() {
         </div>
       </div>
 
-      {/* ─── Métricas Operacionales Rápidas ─── */}
+      {/* ─── Métricas Operacionales Rápidas con Filtrado Interactivo ─── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 shrink-0">
-        <Card className="p-3.5 bg-white border-slate-200/80 shadow-2xs space-y-1">
+        <button
+          type="button"
+          onClick={() => setFilters((prev) => ({ ...prev, status_filter: 'all' }))}
+          className={`text-left p-3.5 rounded-2xl border transition-all cursor-pointer space-y-1 shadow-2xs ${
+            filters.status_filter === 'all' || !filters.status_filter
+              ? 'bg-white border-indigo-400 ring-2 ring-indigo-500/30 shadow-md'
+              : 'bg-white/80 hover:bg-white border-slate-200/80'
+          }`}
+        >
           <div className="flex items-center justify-between text-2xs font-bold text-slate-500 uppercase tracking-wider">
-            <span>Flota Activa</span>
+            <span>Flota / Todas</span>
             <Bike className="h-4 w-4 text-indigo-600" />
           </div>
           <div className="flex items-baseline gap-1.5">
@@ -110,9 +118,17 @@ export default function MonitoringPage() {
             </span>
             <span className="text-2xs text-slate-500">/ {stats.totalCouriers} asignados</span>
           </div>
-        </Card>
+        </button>
 
-        <Card className="p-3.5 bg-purple-50/80 border-purple-200 shadow-2xs space-y-1">
+        <button
+          type="button"
+          onClick={() => setFilters((prev) => ({ ...prev, status_filter: prev.status_filter === 'en_route' ? 'all' : 'en_route' }))}
+          className={`text-left p-3.5 rounded-2xl border transition-all cursor-pointer space-y-1 shadow-2xs ${
+            filters.status_filter === 'en_route'
+              ? 'bg-purple-100/90 border-purple-400 ring-2 ring-purple-500/40 shadow-md'
+              : 'bg-purple-50/80 hover:bg-purple-100/60 border-purple-200'
+          }`}
+        >
           <div className="flex items-center justify-between text-2xs font-bold text-purple-900 uppercase tracking-wider">
             <span>En Ruta Ahora</span>
             <Navigation className="h-4 w-4 text-purple-600" />
@@ -123,9 +139,17 @@ export default function MonitoringPage() {
             </span>
             <span className="text-2xs text-purple-800">repartidores</span>
           </div>
-        </Card>
+        </button>
 
-        <Card className="p-3.5 bg-blue-50/80 border-blue-200 shadow-2xs space-y-1">
+        <button
+          type="button"
+          onClick={() => setFilters((prev) => ({ ...prev, status_filter: prev.status_filter === 'pending' ? 'all' : 'pending' }))}
+          className={`text-left p-3.5 rounded-2xl border transition-all cursor-pointer space-y-1 shadow-2xs ${
+            filters.status_filter === 'pending'
+              ? 'bg-blue-100/90 border-blue-400 ring-2 ring-blue-500/40 shadow-md'
+              : 'bg-blue-50/80 hover:bg-blue-100/60 border-blue-200'
+          }`}
+        >
           <div className="flex items-center justify-between text-2xs font-bold text-blue-900 uppercase tracking-wider">
             <span>Paradas Pendientes</span>
             <Clock className="h-4 w-4 text-blue-600" />
@@ -136,9 +160,17 @@ export default function MonitoringPage() {
             </span>
             <span className="text-2xs text-blue-800">por completar</span>
           </div>
-        </Card>
+        </button>
 
-        <Card className="p-3.5 bg-emerald-50/80 border-emerald-200 shadow-2xs space-y-1">
+        <button
+          type="button"
+          onClick={() => setFilters((prev) => ({ ...prev, status_filter: prev.status_filter === 'completed' ? 'all' : 'completed' }))}
+          className={`text-left p-3.5 rounded-2xl border transition-all cursor-pointer space-y-1 shadow-2xs ${
+            filters.status_filter === 'completed'
+              ? 'bg-emerald-100/90 border-emerald-400 ring-2 ring-emerald-500/40 shadow-md'
+              : 'bg-emerald-50/80 hover:bg-emerald-100/60 border-emerald-200'
+          }`}
+        >
           <div className="flex items-center justify-between text-2xs font-bold text-emerald-900 uppercase tracking-wider">
             <span>Entregadas Hoy</span>
             <CheckCircle2 className="h-4 w-4 text-emerald-600" />
@@ -149,7 +181,7 @@ export default function MonitoringPage() {
             </span>
             <span className="text-2xs text-emerald-800">/ {stats.totalTasksToday} paradas</span>
           </div>
-        </Card>
+        </button>
       </div>
 
       {/* ─── Selector de Vista Móvil (Mapa vs Lista) ─── */}
@@ -190,6 +222,8 @@ export default function MonitoringPage() {
             trails={locationTrails}
             selectedCourierId={selectedCourierId}
             onSelectCourier={setSelectedCourierId}
+            statusFilter={filters.status_filter}
+            onStatusFilterChange={(s) => setFilters((prev) => ({ ...prev, status_filter: s }))}
             className="h-full"
           />
         </div>

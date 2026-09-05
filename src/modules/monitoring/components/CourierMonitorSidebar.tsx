@@ -177,12 +177,14 @@ export function CourierMonitorSidebar({
                         : 'bg-slate-50 border-slate-200 text-slate-800'
                     }`}
                   >
-                    <div className="flex items-center justify-between font-extrabold">
-                      <span className="flex items-center gap-1">
+                    <div className="flex items-center justify-between font-extrabold gap-2">
+                      <span className="flex items-center gap-1 shrink-0 text-slate-800">
                         <Navigation className="h-3 w-3 text-purple-600 shrink-0" />
-                        {isEnRoute ? 'En ruta hacia:' : isInProgress ? 'En gestión en:' : 'Próxima parada:'}
+                        <span>{isEnRoute ? 'En ruta hacia:' : isInProgress ? 'En gestión en:' : 'Próxima parada:'}</span>
                       </span>
-                      <span className="font-mono text-purple-800">{courier.active_task.code}</span>
+                      <span className="font-mono text-purple-800 text-[10px] truncate max-w-[130px] text-right font-bold bg-white/70 px-1.5 py-0.5 rounded border border-purple-200/60">
+                        {courier.active_task.code}
+                      </span>
                     </div>
                     <p className="font-bold truncate text-slate-900">{courier.active_task.title}</p>
                     {courier.active_task.address && (

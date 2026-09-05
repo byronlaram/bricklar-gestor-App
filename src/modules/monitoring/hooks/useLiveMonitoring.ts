@@ -190,6 +190,9 @@ export function useLiveMonitoring(filters: MonitoringFilters) {
         return false
       }
       if (filters.status_filter && filters.status_filter !== 'all') {
+        if (filters.status_filter === 'pending') {
+          return t.status === 'pending' || t.status === 'assigned'
+        }
         return t.status === filters.status_filter
       }
       return true

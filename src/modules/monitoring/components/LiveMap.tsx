@@ -8,6 +8,7 @@ import {
   Crosshair,
   CheckCircle2,
   Route,
+  ListFilter,
 } from 'lucide-react'
 import type { CourierMonitoringSummary, BreadcrumbPoint } from '../types/monitoring.types'
 import type { TaskWithCourier } from '@/modules/tasks/types/task.types'
@@ -20,6 +21,8 @@ interface LiveMapProps {
   onSelectCourier: (courierId: string | null) => void
   onOpenTaskDetail?: (taskId: string) => void
   trails?: Record<string, BreadcrumbPoint[]>
+  statusFilter?: 'all' | 'en_route' | 'in_progress' | 'pending' | 'completed'
+  onStatusFilterChange?: (status: 'all' | 'en_route' | 'in_progress' | 'pending' | 'completed') => void
   className?: string
 }
 
@@ -57,6 +60,8 @@ export function LiveMap({
   selectedCourierId,
   onSelectCourier,
   trails = {},
+  statusFilter = 'all',
+  onStatusFilterChange,
   className = '',
 }: LiveMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null)
@@ -67,6 +72,7 @@ export function LiveMap({
 
   const [activeTileKey, setActiveTileKey] = useState<keyof typeof TILE_LAYERS>('esri')
   const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false)
+  const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showTrails, setShowTrails] = useState(true)
 
@@ -516,11 +522,80 @@ export function LiveMap({
 
       {/* Botones de Control Flotantes Superiores */}
       <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+        {/* Selector de Filtro de Estado de Tareas */}
+        {onStatusFilterChange && (
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setIsStatusMenuOpen(!isStatusMenuOpen)
+                setIsLayerMenuOpen(false)
+              }}
+              className={`p-2.5 rounded-xl shadow-md transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold border ${
+                statusFilter && statusFilter !== 'all'
+                  ? 'bg-indigo-600 text-white border-indigo-500 shadow-indigo-200'
+                  : 'bg-white/95 backdrop-blur-md hover:bg-white text-slate-700 hover:text-slate-900 border-slate-200/80'
+              }`}
+              title="Filtrar tareas por estado en el mapa"
+            >
+              <ListFilter className="h-4 w-4" />
+              <span className="hidden sm:inline">
+                {statusFilter === 'en_route'
+                  ? 'En Ruta'
+                  : statusFilter === 'in_progress'
+                  ? 'En Gestión'
+                  : statusFilter === 'pending'
+                  ? 'Pendientes'
+                  : statusFilter === 'completed'
+                  ? 'Completadas'
+                  : 'Filtrar Estado'}
+              </span>
+            </button>
+
+            {isStatusMenuOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-200 p-1.5 space-y-1 z-30 animate-fade-in">
+                {[
+                  { key: 'all', label: 'Todas las tareas', color: 'bg-slate-500' },
+                  { key: 'en_route', label: 'En Ruta', color: 'bg-purple-600' },
+                  { key: 'in_progress', label: 'En Gestión', color: 'bg-amber-500' },
+                  { key: 'pending', label: 'Pendientes', color: 'bg-blue-600' },
+                  { key: 'completed', label: 'Completadas', color: 'bg-emerald-600' },
+                ].map((item) => (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => {
+                      onStatusFilterChange(item.key as any)
+                      setIsStatusMenuOpen(false)
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs rounded-xl font-semibold transition cursor-pointer flex items-center justify-between ${
+                      (statusFilter || 'all') === item.key
+                        ? 'bg-indigo-50 text-indigo-900 font-bold'
+                        : 'text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className={`h-2.5 w-2.5 rounded-full ${item.color}`} />
+                      <span>{item.label}</span>
+                    </span>
+                    {(statusFilter || 'all') === item.key && (
+                      <CheckCircle2 className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Selector de Capas */}
         <div className="relative">
           <button
             type="button"
-            onClick={() => setIsLayerMenuOpen(!isLayerMenuOpen)}
+            onClick={() => {
+              setIsLayerMenuOpen(!isLayerMenuOpen)
+              setIsStatusMenuOpen(false)
+            }}
             className="p-2.5 bg-white/95 backdrop-blur-md hover:bg-white text-slate-700 hover:text-slate-900 rounded-xl shadow-md border border-slate-200/80 transition-all cursor-pointer flex items-center gap-1.5 text-xs font-bold"
             title="Cambiar capa de mapa"
           >
@@ -600,30 +675,59 @@ export function LiveMap({
         </button>
       </div>
 
-      {/* Leyenda Flotante Inferior Izquierda */}
-      <div className="absolute bottom-3 left-3 z-20 bg-white/90 backdrop-blur-md p-2.5 rounded-xl shadow-md border border-slate-200/80 text-2xs font-semibold text-slate-700 flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-1.5">
+      {/* Leyenda Flotante Inferior Izquierda con chips interactivos */}
+      <div className="absolute bottom-3 left-3 z-20 bg-white/90 backdrop-blur-md p-2 rounded-xl shadow-md border border-slate-200/80 text-2xs font-semibold text-slate-700 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onStatusFilterChange && onStatusFilterChange(statusFilter === 'en_route' ? 'all' : 'en_route')}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all cursor-pointer ${
+            statusFilter === 'en_route' ? 'bg-purple-100 text-purple-900 font-bold ring-1 ring-purple-400' : 'hover:bg-slate-100'
+          }`}
+        >
           <span className="h-2.5 w-2.5 rounded-full bg-purple-600"></span>
           <span>En Ruta</span>
-        </div>
-        <div className="flex items-center gap-1.5">
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onStatusFilterChange && onStatusFilterChange(statusFilter === 'in_progress' ? 'all' : 'in_progress')}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all cursor-pointer ${
+            statusFilter === 'in_progress' ? 'bg-amber-100 text-amber-900 font-bold ring-1 ring-amber-400' : 'hover:bg-slate-100'
+          }`}
+        >
           <span className="h-2.5 w-2.5 rounded-full bg-amber-500"></span>
           <span>En Gestión</span>
-        </div>
-        <div className="flex items-center gap-1.5">
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onStatusFilterChange && onStatusFilterChange(statusFilter === 'pending' ? 'all' : 'pending')}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all cursor-pointer ${
+            statusFilter === 'pending' ? 'bg-blue-100 text-blue-900 font-bold ring-1 ring-blue-400' : 'hover:bg-slate-100'
+          }`}
+        >
           <span className="h-2.5 w-2.5 rounded-full bg-blue-600"></span>
           <span>Pendiente</span>
-        </div>
-        <div className="flex items-center gap-1.5">
+        </button>
+
+        <button
+          type="button"
+          onClick={() => onStatusFilterChange && onStatusFilterChange(statusFilter === 'completed' ? 'all' : 'completed')}
+          className={`flex items-center gap-1.5 px-2 py-1 rounded-lg transition-all cursor-pointer ${
+            statusFilter === 'completed' ? 'bg-emerald-100 text-emerald-900 font-bold ring-1 ring-emerald-400' : 'hover:bg-slate-100'
+          }`}
+        >
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-600"></span>
           <span>Completada</span>
-        </div>
-        <div className="flex items-center gap-1.5 pl-1 border-l border-slate-200">
+        </button>
+
+        <div className="flex items-center gap-1.5 pl-1.5 border-l border-slate-200">
           <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse"></span>
           <span>Motorizado en Vivo</span>
         </div>
+
         {showTrails && (
-          <div className="flex items-center gap-1.5 pl-1 border-l border-slate-200">
+          <div className="flex items-center gap-1.5 pl-1.5 border-l border-slate-200">
             <span className="w-4 h-1 rounded-full bg-indigo-500"></span>
             <span>Rastro Recorrido</span>
           </div>
