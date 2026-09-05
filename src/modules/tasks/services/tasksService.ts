@@ -28,6 +28,29 @@ import { enqueueOfflineAction } from '@/shared/lib/offlineQueue'
 
 const PAGE_SIZE_DEFAULT = 25
 
+export const STANDARD_TASK_TYPES = new Set<string>([
+  'delivery',
+  'bus_shipment',
+  'logistics_shipment',
+  'purchase',
+  'bank_deposit',
+  'credit_payment',
+  'service_payment',
+  'fuel',
+  'other_errand',
+])
+
+export function normalizeTaskFromDB<T extends Record<string, any>>(task: T): T {
+  if (!task) return task
+  if (task.metadata && typeof task.metadata === 'object') {
+    const customType = (task.metadata as Record<string, any>).custom_task_type
+    if (customType) {
+      ;(task as any).task_type = customType
+    }
+  }
+  return task
+}
+
 // ─── Selector de columnas para joinear courier ────────────────────────────────
 
 const TASK_WITH_COURIER_SELECT = `
@@ -88,7 +111,13 @@ export async function getTasks(filters: TaskFilters = {}): Promise<PaginatedTask
   if (status) query = query.eq('status', status)
   if (approval_status) query = query.eq('approval_status', approval_status)
   if (creation_origin) query = query.eq('creation_origin', creation_origin)
-  if (task_type) query = query.eq('task_type', task_type)
+  if (task_type) {
+    if (STANDARD_TASK_TYPES.has(task_type)) {
+      query = query.eq('task_type', task_type)
+    } else {
+      query = query.eq('metadata->>custom_task_type', task_type)
+    }
+  }
   if (priority) query = query.eq('priority', priority)
   if (courier_id) query = query.eq('assigned_courier_id', courier_id)
 
@@ -106,6 +135,7 @@ export async function getTasks(filters: TaskFilters = {}): Promise<PaginatedTask
   }
 
   const rawTasks = (data ?? []) as any[]
+  rawTasks.forEach((t) => normalizeTaskFromDB(t))
 
   // Post-procesamiento de máxima resiliencia: si assigned_courier_id existe pero courier no vino en el join
   const missingCourierIds = rawTasks
@@ -173,7 +203,7 @@ export async function getTaskById(id: string): Promise<TaskWithCourier> {
     throw new Error(error.message)
   }
 
-  const task = data as any
+  const task = normalizeTaskFromDB(data as any)
   if (task && task.assigned_courier_id && !task.courier) {
     const { data: p } = await supabase
       .from('profiles')
@@ -203,10 +233,13 @@ export async function getTaskById(id: string): Promise<TaskWithCourier> {
 // que ejecuta generate_task_code() en PostgreSQL de forma atómica.
 
 export async function createTask(payload: CreateTaskPayload): Promise<Task> {
+  const isCustomType = Boolean(payload.task_type && !STANDARD_TASK_TYPES.has(payload.task_type))
+  const dbTaskType = isCustomType ? 'other_errand' : payload.task_type
+
   // 1. Llamar a la función RPC atómica de PostgreSQL con la firma de 2 parámetros (p_branch_id, p_task_type)
   const { data: codeData, error: codeError } = await supabase.rpc('generate_task_code', {
     p_branch_id: payload.branch_id,
-    p_task_type: payload.task_type,
+    p_task_type: dbTaskType,
   })
 
   if (codeError || !codeData) {
@@ -225,8 +258,15 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
   const courierId = payload.assigned_courier_id || null
   const initialStatus: TaskStatus = courierId ? 'assigned' : 'pending'
 
+  const mergedMetadata = {
+    ...(payload.metadata || {}),
+    ...(isCustomType ? { custom_task_type: payload.task_type } : {}),
+  }
+
   const insert = {
     ...payload,
+    task_type: dbTaskType,
+    metadata: mergedMetadata,
     assigned_courier_id: courierId,
     code: codeData as string,
     created_by: userId,
@@ -277,6 +317,10 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
     throw new Error(error.message || 'Error al insertar la tarea en la base de datos.')
   }
 
+  if (data) {
+    normalizeTaskFromDB(data)
+  }
+
   // 3. Registrar en task_assignments si la tarea se creó asignada
   if (courierId && data?.id) {
     const { error: assignErr } = await supabase.from('task_assignments').insert({
@@ -312,7 +356,7 @@ export async function createTask(payload: CreateTaskPayload): Promise<Task> {
     actorUserId: userId,
     changes: {
       title: data?.title,
-      task_type: data?.task_type,
+      task_type: payload.task_type,
       assigned_courier_id: courierId,
       scheduled_date: data?.scheduled_date,
     },
@@ -327,9 +371,35 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
   const { data: session } = await supabase.auth.getSession()
   const userId = session?.session?.user?.id
 
+  let dbTaskType = payload.task_type
+  let mergedMetadata = payload.metadata
+
+  if (payload.task_type !== undefined) {
+    const isCustomType = Boolean(payload.task_type && !STANDARD_TASK_TYPES.has(payload.task_type))
+    if (isCustomType) {
+      dbTaskType = 'other_errand' as any
+      mergedMetadata = {
+        ...(payload.metadata || {}),
+        custom_task_type: payload.task_type,
+      }
+    }
+  }
+
+  const updateFields: Record<string, any> = {
+    ...payload,
+    updated_by: userId,
+    updated_at: new Date().toISOString(),
+  }
+  if (dbTaskType !== undefined) {
+    updateFields.task_type = dbTaskType
+  }
+  if (mergedMetadata !== undefined) {
+    updateFields.metadata = mergedMetadata
+  }
+
   let { data, error } = await supabase
     .from('tasks')
-    .update({ ...payload, updated_by: userId, updated_at: new Date().toISOString() } as any)
+    .update(updateFields as any)
     .eq('id', id)
     .is('deleted_at', null)
     .select()
@@ -342,7 +412,7 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
     error.message.includes('evidence_url') ||
     error.message.includes('workday_id')
   )) {
-    const cleanPayload = { ...payload }
+    const cleanPayload = { ...updateFields }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     delete (cleanPayload as any).approval_status
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -354,7 +424,7 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
 
     const retry = await supabase
       .from('tasks')
-      .update({ ...cleanPayload, updated_by: userId, updated_at: new Date().toISOString() } as any)
+      .update(cleanPayload as any)
       .eq('id', id)
       .is('deleted_at', null)
       .select()
@@ -367,6 +437,10 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
   if (error) {
     console.error('[Tasks] updateTask error:', error)
     throw new Error(error.message)
+  }
+
+  if (data) {
+    normalizeTaskFromDB(data)
   }
 
   return data as unknown as Task
@@ -539,6 +613,7 @@ export async function assignTask(payload: AssignCourierPayload): Promise<Task> {
     },
   })
 
+  if (data) normalizeTaskFromDB(data)
   return data as unknown as Task
 }
 
@@ -655,6 +730,7 @@ export async function changeTaskStatus(payload: ChangeStatusPayload): Promise<Ta
     notes: notes ?? null,
   })
 
+  if (data) normalizeTaskFromDB(data)
   return data as unknown as Task
 }
 
@@ -906,6 +982,7 @@ export async function approveTask(taskId: string, notes?: string): Promise<Task>
     },
   })
 
+  if (data) normalizeTaskFromDB(data)
   return data as unknown as Task
 }
 
@@ -993,6 +1070,7 @@ export async function rejectTask(taskId: string, rejectionReason: string): Promi
     },
   })
 
+  if (data) normalizeTaskFromDB(data)
   return data as unknown as Task
 }
 
@@ -1284,6 +1362,7 @@ export async function getPublicTaskTracking(
       return null
     }
 
+    if (data) normalizeTaskFromDB(data)
     return data as unknown as PublicTaskTrackingData
   } catch (err) {
     console.error('[PublicTracking] Error fetching public task:', err)

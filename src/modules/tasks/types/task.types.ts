@@ -192,7 +192,7 @@ export interface CreateTaskPayload {
 
 // ─── Payload para actualizar tarea ───────────────────────────────────────────
 
-export type UpdateTaskPayload = Partial<Omit<CreateTaskPayload, 'branch_id' | 'task_type'>>
+export type UpdateTaskPayload = Partial<Omit<CreateTaskPayload, 'branch_id'>>
 
 // ─── Payload para asignar motorizado ─────────────────────────────────────────
 
