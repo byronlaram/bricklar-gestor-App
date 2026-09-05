@@ -104,6 +104,7 @@ export default function AdminDailyClosurePage() {
       totalTransfersUSD: 0,
       totalExpensesNIO: closure.total_expenses || 0,
       totalFundsGivenNIO: closure.total_initial_cash || 0,
+      totalAlreadyReceivedNIO: closure.total_already_received || 0,
       totalCashInVaultNIO: savedClosure?.total_delivered_nio ?? closure.net_cash_in_hand,
       exchangeRate: latestRate?.nio_per_usd || null,
       workdays: (closure.workdays_detail || []).map((w) => ({
@@ -341,7 +342,7 @@ export default function AdminDailyClosurePage() {
                 C$ {(closure?.net_cash_in_hand ?? 0).toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </p>
               <p className="text-xs sm:text-sm text-indigo-200/90 font-medium leading-relaxed max-w-xl">
-                Total físico efectivamente recibido por administración (Entregas parciales en ventanilla + Liquidaciones aprobadas del turno).
+                Total neto físico recibido en caja general / bóveda (Cobros en ruta + Fondos - Gastos autorizados - Entregas previas).
               </p>
             </div>
 

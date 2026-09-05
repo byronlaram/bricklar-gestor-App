@@ -999,12 +999,12 @@ export async function getDailyClosure(
     0
   )
 
-  // Total físico en caja: Entregas parciales en ventanilla + Liquidaciones aprobadas
+  // Total físico esperado / liquidado en caja al cierre (descontando entregas previas ya recibidas en ventanilla):
   const netReceivedInCash = enrichedWorkdays.reduce((acc, w) => {
     const s = settlementMap.get(w.id)
-    const priorReceived = w.cash_summary?.alreadyReceivedNIO ?? 0
-    const finalSettlementReceived = s && s.status === 'approved' ? s.actual_cash : 0
-    return acc + priorReceived + finalSettlementReceived
+    const workdayDeliveredOrPending =
+      s && s.status === 'approved' ? s.actual_cash : (w.cash_summary?.cashInHandNIO ?? 0)
+    return acc + workdayDeliveredOrPending
   }, 0)
 
   const workdaysDetail = enrichedWorkdays.map((w) => {

@@ -55,6 +55,7 @@ export interface DailyClosureReceiptData {
   totalTransfersUSD: number
   totalExpensesNIO: number
   totalFundsGivenNIO: number
+  totalAlreadyReceivedNIO?: number
   totalCashInVaultNIO: number
   exchangeRate?: number | null
   workdays: Array<{
@@ -640,6 +641,15 @@ export function printDailyClosureReceipt(data: DailyClosureReceiptData): void {
               <span>(-) Gastos y Combustible Justificados en Sucursal:</span>
               <span class="font-mono font-bold" style="color: #dc2626;">- C$ ${(data.totalExpensesNIO || 0).toFixed(2)}</span>
             </div>
+            ${
+              (data.totalAlreadyReceivedNIO || 0) > 0
+                ? `
+            <div class="balance-row">
+              <span>(-) Entregas Previas / Parciales en Ventanilla:</span>
+              <span class="font-mono font-bold" style="color: #9333ea;">- C$ ${(data.totalAlreadyReceivedNIO || 0).toFixed(2)}</span>
+            </div>`
+                : ''
+            }
             <div class="balance-row">
               <span>(💳) Transferencias Bancarias Verificadas en Cuenta:</span>
               <span class="font-mono font-bold" style="color: #0284c7;">C$ ${(data.totalTransfersNIO || 0).toFixed(2)} ${data.totalTransfersUSD > 0 ? ` + $ ${data.totalTransfersUSD.toFixed(2)}` : ''}</span>
