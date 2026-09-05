@@ -9,7 +9,6 @@ import {
   Info,
   Megaphone,
   ChevronRight,
-  Filter,
 } from 'lucide-react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuth } from '@/modules/auth/useAuth'
@@ -23,7 +22,6 @@ import {
   Card,
   CardTitle,
   Button,
-  Badge,
   Skeleton,
   EmptyState,
 } from '@/shared/components/ui'

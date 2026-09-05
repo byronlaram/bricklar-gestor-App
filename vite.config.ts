@@ -103,9 +103,13 @@ export default defineConfig({
           if (id.includes('node_modules')) {
             if (id.includes('react/') || id.includes('react-dom/')) return 'vendor';
             if (id.includes('react-router')) return 'router';
-            if (id.includes('@tanstack/react-query')) return 'query';
+            if (id.includes('@tanstack/react-query') || id.includes('@tanstack/react-table')) return 'tanstack';
             if (id.includes('@supabase/supabase-js')) return 'supabase';
             if (id.includes('@dnd-kit')) return 'dnd';
+            if (id.includes('leaflet')) return 'leaflet-maps';
+            if (id.includes('@react-pdf')) return 'pdf-generator';
+            if (id.includes('lucide-react')) return 'icons';
+            if (id.includes('date-fns')) return 'dates';
           }
         },
       },

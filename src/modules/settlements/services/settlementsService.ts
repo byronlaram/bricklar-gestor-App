@@ -1023,10 +1023,10 @@ export async function confirmDailyClosure(
   if (!targetBranchId) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('primary_branch_id, branch_ids')
+      .select('primary_branch_id')
       .eq('id', adminId)
       .single()
-    targetBranchId = profile?.primary_branch_id || profile?.branch_ids?.[0]
+    targetBranchId = profile?.primary_branch_id || undefined
   }
 
   if (!targetBranchId) {
