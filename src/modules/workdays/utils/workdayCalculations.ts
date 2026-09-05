@@ -116,35 +116,53 @@ export function calculateWorkdayCashSummary(
       return
     }
 
+    // A. Entregas parciales / recepciones de efectivo entregadas a administración / caja
+    const isPartialDelivery =
+      ['cash_return', 'deposit', 'adjustment', 'reception', 'partial_delivery'].includes(
+        m.movement_type
+      ) ||
+      desc.includes('recepción de efectivo') ||
+      desc.includes('entrega parcial') ||
+      desc.includes('entrega previa') ||
+      desc.includes('devolución de efectivo')
+
+    if (isPartialDelivery) {
+      if (curr === 'USD') alreadyReceivedUSD += amt
+      else alreadyReceivedNIO += amt
+      return
+    }
+
+    // B. Fondo inicial
+    const isInitialCashEntry =
+      m.movement_type === 'initial_cash' || desc.includes('fondo inicial')
+
+    if (isInitialCashEntry) {
+      // Es el registro de auditoría de la entrega del fondo inicial.
+      // Si la jornada tenía initialCash = 0, se lo asignamos aquí.
+      // Si ya tenía initialCash > 0, NO se suma como adelanto extra para evitar duplicar el fondo inicial.
+      if (curr === 'USD') {
+        if (initialCashUSD === 0) initialCashUSD = amt
+      } else {
+        if (initialCashNIO === 0) initialCashNIO = amt
+      }
+      return
+    }
+
+    // C. Adelantos adicionales de administración durante el turno
+    if (
+      ['cash_advance', 'advance', 'additional_fund'].includes(m.movement_type) ||
+      desc.includes('adelanto') ||
+      desc.includes('fondo adicional')
+    ) {
+      if (curr === 'USD') advancesUSD += amt
+      else advancesNIO += amt
+      return
+    }
+
+    // D. Gastos y compras operativas en calle
     if (m.direction === 'expense') {
       if (curr === 'USD') expensesUSD += amt
       else expensesNIO += amt
-    } else if (m.direction === 'income') {
-      const isInitialCashEntry =
-        m.movement_type === 'initial_cash' || desc.includes('fondo inicial')
-
-      if (isInitialCashEntry) {
-        // Es el registro de auditoría de la entrega del fondo inicial.
-        // Si la jornada tenía initialCash = 0, se lo asignamos aquí.
-        // Si ya tenía initialCash > 0, NO se suma como adelanto extra para evitar duplicar el fondo inicial.
-        if (curr === 'USD') {
-          if (initialCashUSD === 0) initialCashUSD = amt
-        } else {
-          if (initialCashNIO === 0) initialCashNIO = amt
-        }
-      } else if (['cash_advance', 'advance', 'additional_fund'].includes(m.movement_type)) {
-        // Es un adelanto/entrega ADICIONAL durante el turno
-        if (curr === 'USD') advancesUSD += amt
-        else advancesNIO += amt
-      } else if (
-        ['cash_return', 'deposit', 'adjustment', 'reception', 'partial_delivery'].includes(
-          m.movement_type
-        )
-      ) {
-        // Entregas parciales / devoluciones en ventanilla durante la jornada (previas al cierre)
-        if (curr === 'USD') alreadyReceivedUSD += amt
-        else alreadyReceivedNIO += amt
-      }
     }
   })
 

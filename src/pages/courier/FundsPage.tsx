@@ -13,6 +13,8 @@ import {
   ChevronUp,
   Clock,
   Package,
+  HandCoins,
+  Building2,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
@@ -79,7 +81,7 @@ export default function CourierFundsPage() {
   const totalFundsReceived = initialCash + totalAdvances
   const alreadyReceivedByAdmin = cashSummary.alreadyReceivedNIO
 
-  // Saldo exclusivo del turno actual en mano
+  // Saldo exclusivo del turno actual en mano (restando entregas parciales y gastos)
   const todayNetCash = Math.max(0, cashSummary.cashInHandNIO)
 
   // Saldo pendiente acumulado de jornadas anteriores (excluyendo la jornada en curso)
@@ -109,7 +111,6 @@ export default function CourierFundsPage() {
       completedTasks.filter((t) => t.requires_payment && (t.expected_payment_amount || 0) > 0),
     [completedTasks]
   )
-
 
   if (isLoadingWorkday || isLoadingMovements || isLoadingTasks || isLoadingPendingBalances) {
     return (
@@ -244,8 +245,8 @@ export default function CourierFundsPage() {
           )}
         </div>
 
-        {/* Desglose rápido tarjetas integradas del turno */}
-        <div className={`grid ${alreadyReceivedByAdmin > 0 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'} gap-2.5 pt-2 text-center text-xs`}>
+        {/* Desglose rápido 4 tarjetas integradas del turno */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 text-center text-xs">
           <div className="bg-white/10 p-3 rounded-2xl backdrop-blur-xs border border-white/10">
             <span className="text-2xs block text-indigo-200 uppercase tracking-wider font-semibold">Fondos Recibidos</span>
             <span className="font-bold text-white text-sm font-tabular mt-0.5 block">
@@ -267,19 +268,17 @@ export default function CourierFundsPage() {
             </span>
           </div>
 
-          {alreadyReceivedByAdmin > 0 && (
-            <div className="bg-sky-500/20 p-3 rounded-2xl backdrop-blur-xs border border-sky-400/30">
-              <span className="text-2xs block text-sky-200 uppercase tracking-wider font-semibold">Entregado a Caja</span>
-              <span className="font-bold text-sky-200 text-sm font-tabular mt-0.5 block">
-                -C$ {alreadyReceivedByAdmin.toFixed(2)}
-              </span>
-            </div>
-          )}
+          <div className="bg-sky-500/20 p-3 rounded-2xl backdrop-blur-xs border border-sky-400/30">
+            <span className="text-2xs block text-sky-200 uppercase tracking-wider font-semibold">Entregado a Admin</span>
+            <span className="font-bold text-sky-300 text-sm font-tabular mt-0.5 block">
+              -C$ {alreadyReceivedByAdmin.toFixed(2)}
+            </span>
+          </div>
         </div>
       </div>
 
-      {/* Tarjetas de Categorías Menta / Esmeralda Pastel Suaves */}
-      <div className="grid grid-cols-3 gap-3">
+      {/* 4 Tarjetas de Categorías Menta / Azul / Ámbar / Celeste */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-[#F3F9F6] border border-emerald-100/70 rounded-3xl p-4 shadow-2xs">
           <div className="flex items-center justify-between text-emerald-700">
             <span className="text-2xs font-bold uppercase tracking-wider">Fondos Turno</span>
@@ -296,7 +295,7 @@ export default function CourierFundsPage() {
             <ArrowDownLeft size={16} />
           </div>
           <span className="text-base sm:text-lg font-bold text-blue-950 font-tabular mt-2 block">
-            C$ {cashCollections.toFixed(2)}
+            +C$ {cashCollections.toFixed(2)}
           </span>
         </div>
 
@@ -306,7 +305,17 @@ export default function CourierFundsPage() {
             <ArrowUpRight size={16} />
           </div>
           <span className="text-base sm:text-lg font-bold text-amber-950 font-tabular mt-2 block">
-            C$ {totalExpenses.toFixed(2)}
+            -C$ {totalExpenses.toFixed(2)}
+          </span>
+        </div>
+
+        <div className="bg-[#F0F9FF] border border-sky-200/80 rounded-3xl p-4 shadow-2xs">
+          <div className="flex items-center justify-between text-sky-700">
+            <span className="text-2xs font-bold uppercase tracking-wider">Entregas a Caja</span>
+            <HandCoins size={16} />
+          </div>
+          <span className="text-base sm:text-lg font-bold text-sky-950 font-tabular mt-2 block">
+            -C$ {alreadyReceivedByAdmin.toFixed(2)}
           </span>
         </div>
       </div>
@@ -325,7 +334,7 @@ export default function CourierFundsPage() {
         ) : movements.length === 0 && completedPaymentTasks.length === 0 ? (
           <EmptyState
             title="Sin gastos ni pagos registrados"
-            description="Si realizas compras, combustible o pagos a proveedores, se reflejarán automáticamente aquí."
+            description="Si realizas compras, combustible o entregas parciales a caja, se reflejarán automáticamente aquí."
             icon={<Receipt className="h-8 w-8 text-slate-400" />}
           />
         ) : (
@@ -360,21 +369,90 @@ export default function CourierFundsPage() {
             ))}
 
             {/* Movimientos de Caja Registrados */}
-            {movements.map((m, idx) => {
-              const itemPastels = [
-                'bg-[#FCFAF4] border-amber-100/70',
-                'bg-[#F5F8FE] border-blue-100/70',
-                'bg-[#F3F9F6] border-emerald-100/70',
-              ]
-              const itemStyle = itemPastels[idx % itemPastels.length]
+            {movements.map((m) => {
+              const descLower = (m.description || '').toLowerCase()
+              const isPartialDelivery =
+                ['cash_return', 'deposit', 'adjustment', 'reception', 'partial_delivery'].includes(
+                  m.movement_type
+                ) ||
+                descLower.includes('recepción de efectivo') ||
+                descLower.includes('entrega parcial') ||
+                descLower.includes('entrega previa')
+
+              const isInitialOrAdvance =
+                ['initial_cash', 'cash_advance', 'advance', 'additional_fund'].includes(
+                  m.movement_type
+                ) ||
+                descLower.includes('fondo inicial') ||
+                descLower.includes('adelanto')
+
+              if (isPartialDelivery) {
+                return (
+                  <div
+                    key={m.id}
+                    className="p-4 bg-[#F0F9FF] border border-sky-200/80 rounded-3xl shadow-2xs flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 rounded-2xl bg-white/90 text-sky-700 border border-sky-200/60 shadow-2xs">
+                        <Building2 className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-[#0A2540]">{m.description}</h3>
+                        <p className="text-2xs text-sky-700 font-semibold font-mono mt-0.5">
+                          {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Entrega en Administración
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-sky-700 font-tabular block">
+                        -C$ {m.amount.toFixed(2)}
+                      </span>
+                      <span className="text-2xs text-sky-600 font-mono uppercase font-semibold">
+                        Entregado
+                      </span>
+                    </div>
+                  </div>
+                )
+              }
+
+              if (isInitialOrAdvance) {
+                return (
+                  <div
+                    key={m.id}
+                    className="p-4 bg-[#F3F9F6] border border-emerald-100/80 rounded-3xl shadow-2xs flex items-center justify-between gap-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="p-3 rounded-2xl bg-white/90 text-emerald-700 border border-emerald-200/60 shadow-2xs">
+                        <Banknote className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-[#0A2540]">{m.description}</h3>
+                        <p className="text-2xs text-emerald-700 font-semibold font-mono mt-0.5">
+                          {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} • Fondo Asignado
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-sm font-bold text-emerald-700 font-tabular block">
+                        +C$ {m.amount.toFixed(2)}
+                      </span>
+                      <span className="text-2xs text-emerald-600 font-mono uppercase font-semibold">
+                        Fondo
+                      </span>
+                    </div>
+                  </div>
+                )
+              }
 
               return (
                 <div
                   key={m.id}
-                  className={`p-4 ${itemStyle} border rounded-3xl shadow-2xs flex items-center justify-between gap-3`}
+                  className="p-4 bg-[#FCFAF4] border border-amber-100/80 rounded-3xl shadow-2xs flex items-center justify-between gap-3"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="p-3 rounded-2xl bg-white/90 text-amber-700 border border-slate-200/60 shadow-2xs">
+                    <div className="p-3 rounded-2xl bg-white/90 text-amber-700 border border-amber-200/60 shadow-2xs">
                       {m.movement_type === 'fuel' ? (
                         <Fuel className="h-4 w-4" />
                       ) : m.movement_type === 'purchase' ? (
@@ -417,3 +495,4 @@ export default function CourierFundsPage() {
     </div>
   )
 }
+
