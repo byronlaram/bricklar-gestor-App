@@ -19,6 +19,8 @@ import {
   FileCheck,
   Printer,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
 import {
@@ -53,12 +55,32 @@ export default function CourierSettlementPage() {
   const [showCarryoverDetails, setShowCarryoverDetails] = useState(false)
   const [showPendingTasksError, setShowPendingTasksError] = useState(false)
 
-  const { data: activeWorkday, isLoading: isLoadingWorkday } = useActiveWorkday(profile?.id)
-  const targetWorkDate = activeWorkday?.work_date || todayStr
-  const isPastWorkday = !!activeWorkday && activeWorkday.work_date < todayStr
+  const { data: activeWorkday, isLoading: isLoadingActiveWorkday } = useActiveWorkday(profile?.id)
 
-  const { data: settlement, isLoading: isLoadingSettlement } = useWorkdaySettlement(activeWorkday?.id)
-  const { data: movements = [], isLoading: isLoadingMovements } = useCashMovements(activeWorkday?.id)
+  // Consultar también la jornada de hoy (incluso si ya fue cerrada o liquidada)
+  const { data: todayWorkday, isLoading: isLoadingTodayWorkday } = useQuery({
+    queryKey: ['today-courier-workday-settlement', profile?.id, todayStr],
+    queryFn: async () => {
+      if (!profile?.id) return null
+      const { data } = await supabase
+        .from('workdays')
+        .select('*')
+        .eq('courier_id', profile.id)
+        .eq('work_date', todayStr)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      return data
+    },
+    enabled: !!profile?.id,
+  })
+
+  const effectiveWorkday = activeWorkday || todayWorkday
+  const targetWorkDate = effectiveWorkday?.work_date || todayStr
+  const isPastWorkday = !!effectiveWorkday && effectiveWorkday.work_date < todayStr
+
+  const { data: settlement, isLoading: isLoadingSettlement } = useWorkdaySettlement(effectiveWorkday?.id)
+  const { data: movements = [], isLoading: isLoadingMovements } = useCashMovements(effectiveWorkday?.id)
   const { data: pendingBalances, isLoading: isLoadingPendingBalances } = useCourierPendingBalances(
     profile?.id,
     targetWorkDate
@@ -163,11 +185,11 @@ export default function CourierSettlementPage() {
   const cashSummary = useMemo(
     () =>
       calculateWorkdayCashSummary(
-        activeWorkday?.initial_cash || 0,
+        effectiveWorkday?.initial_cash || 0,
         completedTasks,
         movements
       ),
-    [activeWorkday?.initial_cash, completedTasks, movements]
+    [effectiveWorkday?.initial_cash, completedTasks, movements]
   )
 
   const liveCashCollections = cashSummary.collectionsNIO
@@ -235,7 +257,7 @@ export default function CourierSettlementPage() {
   const grandTotalNetCashToDeliver = todayNetCashToDeliver + pendingCarryoverCash
 
   const handleSubmitReview = async () => {
-    if (!activeWorkday) return
+    if (!effectiveWorkday) return
     // Bloquear envío si hay tareas pendientes por cerrar
     if (hasPendingTasks) {
       setShowPendingTasksError(true)
@@ -243,14 +265,14 @@ export default function CourierSettlementPage() {
     }
     setShowPendingTasksError(false)
     try {
-      await submitSettlement({ workdayId: activeWorkday.id, notes: notes.trim() || undefined })
+      await submitSettlement({ workdayId: effectiveWorkday.id, notes: notes.trim() || undefined })
     } catch (err) {
       console.error('Error submitting settlement:', err)
     }
   }
 
 
-  if (isLoadingWorkday || isLoadingSettlement || isLoadingMovements || isLoadingTasks || isLoadingPendingBalances) {
+  if (isLoadingActiveWorkday || isLoadingTodayWorkday || isLoadingSettlement || isLoadingMovements || isLoadingTasks || isLoadingPendingBalances) {
     return (
       <div className="space-y-4 max-w-2xl mx-auto">
         <Skeleton className="h-28 rounded-2xl" />
@@ -259,7 +281,7 @@ export default function CourierSettlementPage() {
     )
   }
 
-  if (!activeWorkday) {
+  if (!effectiveWorkday) {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
         {hasPendingCarryover && (
@@ -308,10 +330,10 @@ export default function CourierSettlementPage() {
   }
 
   const handlePrintSettlement = () => {
-    if (!activeWorkday) return
+    if (!effectiveWorkday) return
     printSettlementReceipt({
-      settlementId: settlement?.id || activeWorkday.id,
-      settlementDate: activeWorkday.work_date,
+      settlementId: settlement?.id || effectiveWorkday.id,
+      settlementDate: effectiveWorkday.work_date,
       courierName: profile?.display_name || profile?.full_name || 'Motorizado',
       courierPhone: profile?.phone || null,
       branchName: 'Sucursal Principal',
@@ -407,14 +429,14 @@ export default function CourierSettlementPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-black uppercase tracking-wider text-amber-100 block">
-                  Liquidando Jornada Anterior ({formatDate(activeWorkday.work_date)})
+                  Liquidando Jornada Anterior ({formatDate(targetWorkDate)})
                 </span>
                 <span className="text-xs font-black bg-white/20 px-2.5 py-0.5 rounded-full font-tabular">
                   Cierre Pendiente
                 </span>
               </div>
               <p className="text-xs text-white/95 mt-1 leading-snug">
-                Esta jornada del <strong>{formatDate(activeWorkday.work_date)}</strong> quedó abierta al finalizar el día. Revisa los montos cobrados y presiona <strong>"Enviar Liquidación a Revisión"</strong> para formalizar la entrega en caja y poder iniciar tu jornada de hoy.
+                Esta jornada del <strong>{formatDate(targetWorkDate)}</strong> quedó abierta al finalizar el día. Revisa los montos cobrados y presiona <strong>"Enviar Liquidación a Revisión"</strong> para formalizar la entrega en caja y poder iniciar tu jornada de hoy.
               </p>
             </div>
           </div>
@@ -456,7 +478,7 @@ export default function CourierSettlementPage() {
             Liquidación de Turno
           </h1>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Resumen ejecutivo del arqueo y cierre diario de entregas ({formatDate(activeWorkday.work_date)}).
+            Resumen ejecutivo del arqueo y cierre diario de entregas ({formatDate(targetWorkDate)}).
           </p>
         </div>
 
@@ -635,7 +657,7 @@ export default function CourierSettlementPage() {
           <div className="flex justify-between items-center p-3.5 bg-indigo-50/70 rounded-2xl border border-indigo-100 font-bold">
             <span className="text-indigo-950 flex items-center gap-2">
               <Calculator className="h-4 w-4 text-indigo-600" />
-              Saldo Neto de este Turno ({formatDate(activeWorkday.work_date)}):
+              Saldo Neto de este Turno ({formatDate(targetWorkDate)}):
             </span>
             <span className="font-black text-indigo-950 font-tabular text-sm">
               C$ {todayNetCashToDeliver.toLocaleString('es-NI', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}

@@ -16,6 +16,8 @@ import {
   HandCoins,
   Building2,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
 import { useCashMovements } from '@/modules/settlements/hooks/useSettlements'
@@ -41,11 +43,31 @@ export default function CourierFundsPage() {
   const [isAddMovementOpen, setIsAddMovementOpen] = useState(false)
   const [showCarryoverDetails, setShowCarryoverDetails] = useState(false)
 
-  const { data: activeWorkday, isLoading: isLoadingWorkday } = useActiveWorkday(profile?.id)
-  const targetWorkDate = activeWorkday?.work_date || todayStr
-  const isPastWorkday = !!activeWorkday && activeWorkday.work_date < todayStr
+  const { data: activeWorkday, isLoading: isLoadingActiveWorkday } = useActiveWorkday(profile?.id)
 
-  const { data: movements = [], isLoading: isLoadingMovements } = useCashMovements(activeWorkday?.id)
+  // Consultar también la jornada de hoy (incluso si ya fue cerrada o liquidada)
+  const { data: todayWorkday, isLoading: isLoadingTodayWorkday } = useQuery({
+    queryKey: ['today-courier-workday', profile?.id, todayStr],
+    queryFn: async () => {
+      if (!profile?.id) return null
+      const { data } = await supabase
+        .from('workdays')
+        .select('*')
+        .eq('courier_id', profile.id)
+        .eq('work_date', todayStr)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      return data
+    },
+    enabled: !!profile?.id,
+  })
+
+  const effectiveWorkday = activeWorkday || todayWorkday
+  const targetWorkDate = effectiveWorkday?.work_date || todayStr
+  const isPastWorkday = !!effectiveWorkday && effectiveWorkday.work_date < todayStr
+
+  const { data: movements = [], isLoading: isLoadingMovements } = useCashMovements(effectiveWorkday?.id)
   const { data: pendingBalances, isLoading: isLoadingPendingBalances } = useCourierPendingBalances(
     profile?.id,
     targetWorkDate
@@ -67,11 +89,11 @@ export default function CourierFundsPage() {
   const cashSummary = useMemo(
     () =>
       calculateWorkdayCashSummary(
-        activeWorkday?.initial_cash || 0,
+        effectiveWorkday?.initial_cash || 0,
         completedTasks,
         movements
       ),
-    [activeWorkday?.initial_cash, completedTasks, movements]
+    [effectiveWorkday?.initial_cash, completedTasks, movements]
   )
 
   const cashCollections = cashSummary.collectionsNIO
@@ -112,7 +134,7 @@ export default function CourierFundsPage() {
     [completedTasks]
   )
 
-  if (isLoadingWorkday || isLoadingMovements || isLoadingTasks || isLoadingPendingBalances) {
+  if (isLoadingActiveWorkday || isLoadingTodayWorkday || isLoadingMovements || isLoadingTasks || isLoadingPendingBalances) {
     return (
       <div className="space-y-4 max-w-2xl mx-auto">
         <Skeleton className="h-28 rounded-2xl" />
@@ -182,14 +204,14 @@ export default function CourierFundsPage() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-black uppercase tracking-wider text-amber-100 block">
-                  Turno Activo: {formatDate(activeWorkday.work_date)}
+                  Turno Activo: {formatDate(targetWorkDate)}
                 </span>
                 <span className="text-xs font-black bg-white/20 px-2.5 py-0.5 rounded-full font-tabular">
                   Cierre Pendiente
                 </span>
               </div>
               <p className="text-xs text-white/95 mt-1 leading-snug">
-                Esta jornada pertenece al <strong>{formatDate(activeWorkday.work_date)}</strong> y está abierta. Recuerda liquidarla en la pestaña <strong>"Liquidación"</strong> para entregar cuentas e iniciar tu jornada de hoy.
+                Esta jornada pertenece al <strong>{formatDate(targetWorkDate)}</strong> y está abierta. Recuerda liquidarla en la pestaña <strong>"Liquidación"</strong> para entregar cuentas e iniciar tu jornada de hoy.
               </p>
             </div>
           </div>
