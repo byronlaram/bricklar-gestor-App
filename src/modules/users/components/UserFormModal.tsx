@@ -1,8 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
-import { X, UserPlus, Edit3, Loader2, ShieldCheck, Mail, KeyRound, Camera, Trash2, Upload } from 'lucide-react'
+import { X, UserPlus, Edit3, Loader2, ShieldCheck, Mail, KeyRound, Camera, Trash2 } from 'lucide-react'
 import type { UserProfileExtended } from '../types/users.types'
 import type { UserRole } from '@/shared/types'
-import { USER_ROLE_LABELS } from '@/shared/types'
 import { useUserMutations } from '../hooks/useUsers'
 import { useAuth } from '@/modules/auth/useAuth'
 import { Avatar, ConfirmDialog, useToast, Button } from '@/shared/components/ui'
@@ -406,19 +405,20 @@ export function UserFormModal({ userToEdit, branches, isOpen, onClose }: UserFor
       <ConfirmDialog
         isOpen={showResetConfirm}
         title="¿Enviar enlace de recuperación?"
-        message={`Se enviará un correo a "${userToEdit?.email}" con instrucciones para que el usuario restablezca su contraseña.`}
+        description={`Se enviará un correo a "${userToEdit?.email}" con instrucciones para que el usuario restablezca su contraseña.`}
         confirmText="Enviar Enlace"
         cancelText="Cancelar"
-        variant="info"
+        variant="primary"
         isLoading={isSendingResetLink}
         onConfirm={handleSendResetLink}
-        onCancel={() => setShowResetConfirm(false)}
+        onClose={() => setShowResetConfirm(false)}
       />
 
       {/* Modal para Asignar Contraseña Temporal */}
       {userToEdit && (
         <TempPasswordModal
-          user={userToEdit}
+          userId={userToEdit.id}
+          userName={userToEdit.full_name || userToEdit.email}
           isOpen={showTempPasswordModal}
           onClose={() => setShowTempPasswordModal(false)}
         />

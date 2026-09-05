@@ -88,7 +88,7 @@ export async function saveCompanySettings(
       .upsert(
         {
           key: SETTINGS_KEY,
-          value_json: settings,
+          value_json: settings as any,
           updated_at: new Date().toISOString(),
           updated_by: userId || null,
         },

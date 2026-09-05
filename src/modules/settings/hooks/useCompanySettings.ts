@@ -23,7 +23,7 @@ export function useCompanySettings() {
   const saveMutation = useMutation({
     mutationFn: (newSettings: CompanySettings) =>
       saveCompanySettings(newSettings, profile?.id),
-    onSuccess: (data, variables) => {
+    onSuccess: (_, variables) => {
       queryClient.setQueryData(COMPANY_SETTINGS_QUERY_KEY, variables)
     },
   })

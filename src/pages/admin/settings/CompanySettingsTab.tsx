@@ -11,16 +11,11 @@ import {
   MessageCircle,
   MapPin,
   Globe,
-  FileText,
-  Sparkles,
   CheckCircle2,
-  Eye,
-  Info,
 } from 'lucide-react'
 import { useCompanySettings } from '@/modules/settings/hooks/useCompanySettings'
 import { type CompanySettings } from '@/modules/settings/services/companySettingsService'
 import { Button, useToast } from '@/shared/components/ui'
-import { cn } from '@/shared/utils/cn'
 
 export function CompanySettingsTab() {
   const { settings, saveSettings, uploadLogo, isSaving, isLoading, isUploadingLogo } = useCompanySettings()

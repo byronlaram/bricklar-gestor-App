@@ -6,8 +6,6 @@ import {
   Save,
   RotateCcw,
   Edit3,
-  CheckCircle2,
-  AlertCircle,
   Truck,
   ShoppingBag,
   Fuel,
@@ -15,10 +13,7 @@ import {
   CreditCard,
   FileText,
   HelpCircle,
-  Sparkles,
-  Info,
   X,
-  Check,
   ToggleLeft,
   ToggleRight,
   Loader2,
@@ -572,13 +567,13 @@ export function TaskTypesSettingsTab() {
       <ConfirmDialog
         isOpen={showResetConfirm}
         title="¿Restablecer configuraciones recomendadas?"
-        message="Esta acción reconfigurará todos los tipos de gestiones a sus valores iniciales sugeridos por el sistema (naturalezas, títulos y etiquetas)."
+        description="Esta acción reconfigurará todos los tipos de gestiones a sus valores iniciales sugeridos por el sistema (naturalezas, títulos y etiquetas)."
         confirmText="Restablecer"
         cancelText="Cancelar"
-        variant="warning"
+        variant="primary"
         isLoading={isResetting}
         onConfirm={handleResetDefaults}
-        onCancel={() => setShowResetConfirm(false)}
+        onClose={() => setShowResetConfirm(false)}
       />
     </div>
   )

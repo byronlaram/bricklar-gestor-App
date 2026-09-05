@@ -6,10 +6,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Camera,
-  Upload,
   Trash2,
-  Mail,
-  Phone,
   Shield,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'

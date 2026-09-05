@@ -5,7 +5,6 @@ import {
   saveTaskTypesSettings,
   buildDefaultCustomConfigs,
   type CustomTaskTypeConfig,
-  type TaskNature,
 } from '../services/taskTypeSettingsService'
 import { useAuth } from '@/modules/auth/useAuth'
 
@@ -24,7 +23,7 @@ export function useTaskTypesConfig() {
   const mutation = useMutation({
     mutationFn: (newConfigs: Record<TaskType, CustomTaskTypeConfig>) =>
       saveTaskTypesSettings(newConfigs, profile?.id),
-    onSuccess: (data, variables) => {
+    onSuccess: (_, variables) => {
       queryClient.setQueryData(TASK_TYPES_CONFIG_QUERY_KEY, variables)
     },
   })
