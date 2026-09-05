@@ -17,6 +17,7 @@ import {
   Package,
   HandCoins,
   FileCheck,
+  Printer,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useActiveWorkday } from '@/modules/workdays/hooks/useWorkday'
@@ -29,6 +30,7 @@ import { useCourierPendingBalances } from '@/modules/settlements/hooks/usePendin
 import { useTasks } from '@/modules/tasks/hooks/useTasks'
 import { calculateWorkdayCashSummary } from '@/modules/workdays/utils/workdayCalculations'
 import { SETTLEMENT_STATUS_LABELS } from '@/shared/types'
+import { printSettlementReceipt } from '@/shared/utils/pdfReceiptService'
 import {
   Card,
   CardTitle,
@@ -305,6 +307,45 @@ export default function CourierSettlementPage() {
     )
   }
 
+  const handlePrintSettlement = () => {
+    if (!activeWorkday) return
+    printSettlementReceipt({
+      settlementId: settlement?.id || activeWorkday.id,
+      settlementDate: activeWorkday.work_date,
+      courierName: profile?.display_name || profile?.full_name || 'Motorizado',
+      courierPhone: profile?.phone || null,
+      branchName: 'Sucursal Principal',
+      status: settlement?.status || 'draft',
+      reviewerName: settlement?.reviewer_profile?.display_name || settlement?.reviewer_profile?.full_name || null,
+      reviewedAt: settlement?.reviewed_at || null,
+      initialCash: initialCash,
+      advances: totalAdvances,
+      collectionsNIO: expectedCash,
+      collectionsUSD: 0,
+      transfersNIO: expectedTransfers,
+      transfersUSD: 0,
+      expensesNIO: totalExpenses,
+      expectedCashNIO: todayNetCashToDeliver,
+      actualCashNIO: settlement?.actual_cash ?? todayNetCashToDeliver,
+      differenceNIO: settlement?.difference ?? 0,
+      notes: settlement?.notes || notes || null,
+      tasksCount: completedTasks.length,
+      expensesList: movements.map((m) => ({
+        description: m.description,
+        amount: m.amount,
+        currency: m.currency,
+        movementType: m.movement_type,
+      })),
+      collectionsList: completedTasks.map((t) => ({
+        code: t.code,
+        title: t.title,
+        amount: t.expected_collection_amount || 0,
+        currency: t.expected_collection_currency || 'NIO',
+        paymentMethod: t.expected_payment_method === 'bank_transfer' ? 'Transferencia' : 'Efectivo',
+      })),
+    })
+  }
+
   return (
     <div className="space-y-5 animate-fade-in pb-20 max-w-2xl mx-auto">
       {/* ⚠️ ALERTA DE SALDO PENDIENTE ARRASTRADO DE DÍAS ANTERIORES */}
@@ -419,20 +460,32 @@ export default function CourierSettlementPage() {
           </p>
         </div>
 
-        {settlement && (
-          <Badge
-            variant={
-              settlement.status === 'approved'
-                ? 'completed'
-                : settlement.status === 'observed'
-                ? 'urgent'
-                : 'pending'
-            }
-            size="md"
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={handlePrintSettlement}
+            variant="outline"
+            size="sm"
+            leftIcon={<Printer className="h-4 w-4 text-amber-700" />}
+            className="border-amber-200 text-amber-900 bg-white/90 hover:bg-amber-50 shadow-2xs font-bold text-xs"
           >
-            {SETTLEMENT_STATUS_LABELS[settlement.status] || settlement.status}
-          </Badge>
-        )}
+            Imprimir Comprobante
+          </Button>
+
+          {settlement && (
+            <Badge
+              variant={
+                settlement.status === 'approved'
+                  ? 'completed'
+                  : settlement.status === 'observed'
+                  ? 'urgent'
+                  : 'pending'
+              }
+              size="md"
+            >
+              {SETTLEMENT_STATUS_LABELS[settlement.status] || settlement.status}
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Grid Ejecutiva de Resumen Financiero en Tarjetas Pastel Suaves */}

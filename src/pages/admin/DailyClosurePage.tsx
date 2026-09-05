@@ -15,12 +15,14 @@ import {
   PackageCheck,
   ShieldCheck,
   TrendingUp,
+  Printer,
 } from 'lucide-react'
 
 import { useAuth } from '@/modules/auth/useAuth'
 import { useDailyClosure, useSettlementMutations } from '@/modules/settlements/hooks/useSettlements'
 import { useBranches } from '@/modules/branches/hooks/useBranches'
 import { useExchangeRates } from '@/modules/exchange-rates/hooks/useExchangeRates'
+import { printDailyClosureReceipt } from '@/shared/utils/pdfReceiptService'
 import {
   Card,
   MetricCard,
@@ -81,6 +83,42 @@ export default function AdminDailyClosurePage() {
     }
   }
 
+  const handlePrintClosure = () => {
+    if (!closure) return
+    const currentBranch = branches.find((b: any) => b.id === selectedBranchId)
+    const settledCount = workdaysDetail.filter(
+      (w) => w.status === 'closed' || w.settlementStatus === 'approved'
+    ).length
+
+    printDailyClosureReceipt({
+      branchName: currentBranch?.name || 'Todas las Sucursales',
+      date,
+      closedBy: savedClosure?.closed_by_profile?.full_name || profile?.full_name || 'Administración',
+      closedAt: savedClosure?.closed_at || null,
+      notes: savedClosure?.notes || null,
+      totalCouriers: closure.total_workdays || 0,
+      settledCouriers: settledCount,
+      totalCollectionsNIO: savedClosure?.total_collections_nio ?? closure.total_collections_cash,
+      totalCollectionsUSD: savedClosure?.total_collections_usd ?? (closure.tasks_summary?.expected_usd || 0),
+      totalTransfersNIO: closure.total_collections_transfer || 0,
+      totalTransfersUSD: 0,
+      totalExpensesNIO: closure.total_expenses || 0,
+      totalFundsGivenNIO: closure.total_initial_cash || 0,
+      totalCashInVaultNIO: savedClosure?.total_delivered_nio ?? closure.net_cash_in_hand,
+      exchangeRate: latestRate?.nio_per_usd || null,
+      workdays: (closure.workdays_detail || []).map((w) => ({
+        courierName: w.courierName || 'Motorizado',
+        status: w.status,
+        initialCash: w.initialCash || 0,
+        collectionsNIO: w.collections || 0,
+        expensesNIO: w.expenses || 0,
+        expectedCash: w.pendingCash || 0,
+        actualCash: w.deliveredCash ?? w.pendingCash ?? 0,
+        difference: (w.deliveredCash ?? w.pendingCash ?? 0) - (w.pendingCash || 0),
+      })),
+    })
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header y Acción Principal */}
@@ -92,13 +130,24 @@ export default function AdminDailyClosurePage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isSavedInDb && (
             <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold">
               <ShieldCheck className="h-4 w-4 text-emerald-600" />
               <span>Guardado en BD</span>
             </div>
           )}
+
+          <Button
+            onClick={handlePrintClosure}
+            disabled={!closure || (closure.total_workdays === 0 && closure.tasks_summary?.total === 0)}
+            variant="outline"
+            size="md"
+            leftIcon={<Printer className="h-4 w-4 text-sky-600" />}
+            className="shrink-0 font-semibold border-slate-300 text-slate-700 hover:bg-slate-50 shadow-2xs"
+          >
+            Imprimir Cierre PDF
+          </Button>
 
           <Button
             onClick={() => {

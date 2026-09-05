@@ -20,6 +20,7 @@ import type { SettlementFilters, Settlement } from '@/modules/settlements/types/
 import { SETTLEMENT_STATUS_LABELS } from '@/shared/types'
 import { ApproveSettlementModal } from '@/modules/settlements/components/ApproveSettlementModal'
 import { AdminForceSettlementModal } from '@/modules/settlements/components/AdminForceSettlementModal'
+import { printSettlementReceipt } from '@/shared/utils/pdfReceiptService'
 import {
   Card,
   MetricCard,
@@ -28,6 +29,7 @@ import {
   TableSkeleton,
   EmptyState,
 } from '@/shared/components/ui'
+import { Printer } from 'lucide-react'
 import { getLocalDateString } from '@/shared/utils/date'
 import { formatDate } from '@/shared/utils/format'
 
@@ -409,31 +411,73 @@ export default function AdminSettlementsPage() {
                       </td>
 
                       <td className="py-3 px-4 text-right">
-                        <Button
-                          onClick={() => setTargetSettlement(s)}
-                          variant={s.status === 'approved' ? 'outline' : 'primary'}
-                          size="sm"
-                          leftIcon={
-                            s.status === 'approved' ? (
-                              <Eye className="h-3.5 w-3.5 text-slate-600" />
-                            ) : (
-                              <Calculator className="h-3.5 w-3.5" />
-                            )
-                          }
-                          className={
-                            s.status === 'approved'
-                              ? 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-2xs font-bold shadow-2xs'
+                        <div className="flex items-center justify-end gap-1.5">
+                          <Button
+                            onClick={() => {
+                              const summary = s.cash_summary
+                              const collections = summary?.collectionsNIO ?? s.expected_cash
+                              const expenses = summary?.expensesNIO ?? s.total_expenses
+                              const expNetCash = s.expected_cash ?? 0
+                              const actCash = s.actual_cash ?? 0
+                              const diff = s.difference ?? 0
+
+                              printSettlementReceipt({
+                                settlementId: s.id,
+                                settlementDate: s.settlement_date,
+                                courierName: s.courier_profile?.display_name || s.courier_profile?.full_name || 'Motorizado',
+                                courierPhone: s.courier_profile?.phone || null,
+                                branchName: s.branch?.name || 'Sucursal Principal',
+                                status: s.status,
+                                reviewerName: s.reviewer_profile?.display_name || s.reviewer_profile?.full_name || null,
+                                reviewedAt: s.reviewed_at || null,
+                                initialCash: summary?.initialCashNIO ?? 0,
+                                advances: summary?.advancesNIO ?? 0,
+                                collectionsNIO: collections,
+                                collectionsUSD: 0,
+                                transfersNIO: s.actual_transfers || s.expected_transfers || 0,
+                                transfersUSD: 0,
+                                expensesNIO: expenses,
+                                expectedCashNIO: expNetCash,
+                                actualCashNIO: actCash,
+                                differenceNIO: diff,
+                                notes: s.notes || null,
+                              })
+                            }}
+                            variant="outline"
+                            size="sm"
+                            leftIcon={<Printer className="h-3.5 w-3.5 text-slate-500" />}
+                            className="border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-2xs font-bold shadow-2xs px-2.5"
+                            title="Imprimir Comprobante Oficial PDF"
+                          >
+                            PDF
+                          </Button>
+
+                          <Button
+                            onClick={() => setTargetSettlement(s)}
+                            variant={s.status === 'approved' ? 'outline' : 'primary'}
+                            size="sm"
+                            leftIcon={
+                              s.status === 'approved' ? (
+                                <Eye className="h-3.5 w-3.5 text-slate-600" />
+                              ) : (
+                                <Calculator className="h-3.5 w-3.5" />
+                              )
+                            }
+                            className={
+                              s.status === 'approved'
+                                ? 'border-slate-200 text-slate-700 bg-white hover:bg-slate-50 text-2xs font-bold shadow-2xs'
+                                : s.status === 'observed'
+                                ? 'bg-amber-600 hover:bg-amber-700 text-white border-transparent text-2xs font-bold'
+                                : 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent text-2xs font-bold'
+                            }
+                          >
+                            {s.status === 'approved'
+                              ? 'Ver Arqueo'
                               : s.status === 'observed'
-                              ? 'bg-amber-600 hover:bg-amber-700 text-white border-transparent text-2xs font-bold'
-                              : 'bg-emerald-600 hover:bg-emerald-700 text-white border-transparent text-2xs font-bold'
-                          }
-                        >
-                          {s.status === 'approved'
-                            ? 'Ver Arqueo'
-                            : s.status === 'observed'
-                            ? 'Revisar (Observada)'
-                            : 'Revisar / Aprobar'}
-                        </Button>
+                              ? 'Revisar (Observada)'
+                              : 'Revisar / Aprobar'}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   )
