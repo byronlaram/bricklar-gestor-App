@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   MessageCircle,
   ExternalLink,
@@ -20,7 +20,13 @@ import {
   Button,
   useToast,
 } from '@/shared/components/ui'
-import { formatDepartureWhatsAppMessage } from '@/shared/utils/navigationHelper'
+import {
+  getWhatsAppTemplatesSettings,
+  renderWhatsAppTemplate,
+  DEFAULT_DEPARTURE_TEMPLATE,
+  DEFAULT_COMPLETION_TEMPLATE,
+  type WhatsAppTemplatesSettings,
+} from '../services/whatsappTemplatesService'
 import type { Task } from '../types/task.types'
 
 export interface NotifyCustomerModalProps {
@@ -28,6 +34,7 @@ export interface NotifyCustomerModalProps {
   onClose: () => void
   task: Task
   courierName?: string | null
+  mode?: 'departure' | 'completion'
   onConfirmStatusOnly?: () => Promise<void> | void
 }
 
@@ -36,11 +43,21 @@ export function NotifyCustomerModal({
   onClose,
   task,
   courierName,
+  mode = 'departure',
   onConfirmStatusOnly,
 }: NotifyCustomerModalProps) {
   const toast = useToast()
   const [copied, setCopied] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [templateSettings, setTemplateSettings] = useState<WhatsAppTemplatesSettings | null>(null)
+
+  useEffect(() => {
+    if (isOpen) {
+      getWhatsAppTemplatesSettings().then((settings) => {
+        setTemplateSettings(settings)
+      })
+    }
+  }, [isOpen])
 
   const trackingUrl = useMemo(() => {
     const origin = window.location.origin
@@ -48,19 +65,27 @@ export function NotifyCustomerModal({
   }, [task.code, task.id])
 
   const messageText = useMemo(() => {
-    return formatDepartureWhatsAppMessage({
-      contactName: task.contact_name,
-      taskCode: task.code,
-      address: task.address,
-      requiresCollection: task.requires_collection,
-      collectionAmount: task.expected_collection_amount,
-      collectionCurrency: task.expected_collection_currency,
-      courierName: courierName || 'tu motorizado',
-      trackingUrl,
+    const rawTemplate =
+      mode === 'departure'
+        ? templateSettings?.departure_template || DEFAULT_DEPARTURE_TEMPLATE
+        : templateSettings?.completion_template || DEFAULT_COMPLETION_TEMPLATE
+
+    return renderWhatsAppTemplate(rawTemplate, {
+      cliente: task.contact_name,
+      pedido: task.code || task.id.slice(0, 8),
+      direccion: task.address,
+      monto: task.requires_collection ? task.expected_collection_amount : null,
+      moneda: task.expected_collection_currency,
+      repartidor: courierName || 'tu motorizado',
+      link_rastreo: trackingUrl,
+      empresa: 'Bricklar Logística',
     })
   }, [
+    mode,
+    templateSettings,
     task.contact_name,
     task.code,
+    task.id,
     task.address,
     task.requires_collection,
     task.expected_collection_amount,
@@ -134,9 +159,15 @@ export function NotifyCustomerModal({
               <MessageCircle className="h-5 w-5" />
             </div>
             <div>
-              <ModalTitle>Notificar al Cliente por WhatsApp</ModalTitle>
+              <ModalTitle>
+                {mode === 'departure'
+                  ? 'Notificar al Cliente por WhatsApp'
+                  : 'Confirmar Entrega por WhatsApp'}
+              </ModalTitle>
               <ModalDescription>
-                Avisar al destinatario con enlace de rastreo en vivo y datos de entrega
+                {mode === 'departure'
+                  ? 'Avisar al destinatario con enlace de rastreo en vivo y datos de entrega'
+                  : 'Enviar comprobante de entrega completada al cliente'}
               </ModalDescription>
             </div>
           </div>
@@ -184,7 +215,7 @@ export function NotifyCustomerModal({
               <button
                 type="button"
                 onClick={handleCopyMessage}
-                className="text-indigo-600 hover:text-indigo-800 flex items-center gap-1 font-semibold cursor-pointer"
+                className="text-emerald-600 hover:text-emerald-800 flex items-center gap-1 font-semibold cursor-pointer"
               >
                 {copied ? <Check className="h-3 w-3 text-emerald-600" /> : <Copy className="h-3 w-3" />}
                 {copied ? 'Copiado' : 'Copiar'}
@@ -205,7 +236,7 @@ export function NotifyCustomerModal({
             disabled={isProcessing}
             className="w-full sm:w-auto"
           >
-            Solo Iniciar Ruta (Sin WhatsApp)
+            {mode === 'departure' ? 'Solo Iniciar Ruta (Sin WhatsApp)' : 'Solo Finalizar (Sin WhatsApp)'}
           </Button>
 
           {whatsappLink ? (
@@ -218,7 +249,11 @@ export function NotifyCustomerModal({
               rightIcon={<ExternalLink className="h-3.5 w-3.5" />}
               className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto font-bold"
             >
-              {isProcessing ? 'Iniciando...' : 'Enviar WhatsApp y Salir'}
+              {isProcessing
+                ? 'Procesando...'
+                : mode === 'departure'
+                ? 'Enviar WhatsApp y Salir'
+                : 'Enviar WhatsApp de Finalizado'}
             </Button>
           ) : (
             <Button
@@ -229,7 +264,7 @@ export function NotifyCustomerModal({
               rightIcon={<ArrowRight className="h-3.5 w-3.5" />}
               className="w-full sm:w-auto"
             >
-              Iniciar Ruta
+              {mode === 'departure' ? 'Iniciar Ruta' : 'Finalizar Entrega'}
             </Button>
           )}
         </ModalFooter>
