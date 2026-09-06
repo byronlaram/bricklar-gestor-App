@@ -9,6 +9,8 @@ import {
 export interface CashMovementsFilter {
   branch_id?: string
   date?: string
+  date_from?: string
+  date_to?: string
   workday_id?: string
   courier_id?: string
 }

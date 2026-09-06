@@ -1,6 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
-  Calendar,
   Clock,
   Gauge,
   HandCoins,
@@ -40,6 +39,7 @@ import { WorkdayMovementsModal } from '@/modules/workdays/components/WorkdayMove
 import { VoidMovementModal } from '@/modules/workdays/components/VoidMovementModal'
 import { FinancialSummaryDetailModal, type FinancialCardType } from '@/modules/workdays/components/FinancialSummaryDetailModal'
 import { OfflineConflictsBanner } from '@/modules/settlements/components/OfflineConflictsBanner'
+import { DateRangeFilter } from '@/shared/components/DateRangeFilter'
 import type { DetailedCashMovement } from '@/modules/workdays/services/workdaysService'
 import {
   Card,
@@ -91,13 +91,17 @@ export default function AdminWorkdaysPage() {
     isLoading: isLoadingLedger,
     isError: isErrorLedger,
   } = useCashMovements({
-    date: filters.date || undefined,
+    date: filters.date,
+    date_from: filters.date_from,
+    date_to: filters.date_to,
     branch_id: filters.branch_id || undefined,
   })
   const { data: tasksData } = useTasks({
     branch_id: filters.branch_id || undefined,
-    date: filters.date || undefined,
-    page_size: 200,
+    date: filters.date,
+    date_from: filters.date_from,
+    date_to: filters.date_to,
+    page_size: 1000,
   })
 
   const allTasks = tasksData?.data || []
@@ -582,83 +586,57 @@ export default function AdminWorkdaysPage() {
         </div>
       </div>
 
-      {/* Filtros de Fecha y Estado */}
-      <Card className="p-4 bg-white border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative w-full sm:w-48">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            <input
-              type="date"
-              value={filters.date || ''}
-              onChange={(e) => setFilters({ ...filters, date: e.target.value })}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
-            />
-          </div>
+      {/* Filtros de Rango de Fechas (Desde / Hasta), Estado y Sucursal */}
+      <Card className="p-4 bg-white border-slate-200 shadow-2xs space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <DateRangeFilter
+            dateFrom={filters.date || filters.date_from || ''}
+            dateTo={filters.date || filters.date_to || ''}
+            onChange={({ dateFrom, dateTo, isSingleDate }) => {
+              if (isSingleDate || (dateFrom && dateTo && dateFrom === dateTo)) {
+                setFilters((prev) => ({ ...prev, date: dateFrom, date_from: undefined, date_to: undefined }))
+              } else {
+                setFilters((prev) => ({ ...prev, date: undefined, date_from: dateFrom || undefined, date_to: dateTo || undefined }))
+              }
+            }}
+            onReset={() => setFilters((prev) => ({ ...prev, date: todayStr, date_from: undefined, date_to: undefined }))}
+          />
 
-          <button
-            type="button"
-            onClick={() => setFilters({ ...filters, date: todayStr })}
-            className={`px-3.5 py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
-              filters.date === todayStr
-                ? 'bg-[#004594] text-white border-[#004594] shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            Hoy
-          </button>
+          <div className="flex flex-wrap items-center gap-2.5 self-end lg:self-center">
+            {/* Estado */}
+            <div className="w-full sm:w-44">
+              <select
+                value={filters.status || ''}
+                onChange={(e) => setFilters({ ...filters, status: e.target.value as any })}
+                className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
+              >
+                <option value="">Todos los estados</option>
+                <option value="open">Abierta</option>
+                <option value="pending_settlement">Pendiente Liquidación</option>
+                <option value="closed">Cerrada</option>
+              </select>
+            </div>
 
-          <button
-            type="button"
-            onClick={() => setFilters({ ...filters, date: '' })}
-            className={`px-3.5 py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
-              !filters.date
-                ? 'bg-[#004594] text-white border-[#004594] shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            Todo el Historial
-          </button>
-
-          <div className="w-full sm:w-44">
-            <select
-              value={filters.status || ''}
-              onChange={(e) => setFilters({ ...filters, status: e.target.value as any })}
-              className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
-            >
-              <option value="">Todos los estados</option>
-              <option value="open">Abierta</option>
-              <option value="pending_settlement">Pendiente Liquidación</option>
-              <option value="closed">Cerrada</option>
-            </select>
-          </div>
-
-          {/* Selector de Sucursal */}
-          <div className="relative w-full sm:w-48">
-            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            <select
-              value={filters.branch_id || ''}
-              onChange={(e) => setFilters({ ...filters, branch_id: e.target.value })}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
-            >
-              <option value="">Todas las sucursales</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name} ({b.code})
-                </option>
-              ))}
-            </select>
+            {/* Selector de Sucursal */}
+            {branches.length > 0 && (
+              <div className="relative w-full sm:w-48">
+                <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+                <select
+                  value={filters.branch_id || ''}
+                  onChange={(e) => setFilters({ ...filters, branch_id: e.target.value })}
+                  className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
+                >
+                  {branches.length > 1 && <option value="">Todas las sucursales</option>}
+                  {branches.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.name} ({b.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
         </div>
-
-        {filters.date ? (
-          <span className="text-2xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
-            Jornadas del: <strong className="text-slate-800 font-mono">{formatDate(filters.date)}</strong> {filters.date === todayStr ? '(Hoy)' : ''}
-          </span>
-        ) : (
-          <span className="text-2xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full">
-            Mostrando acumulado de todo el historial
-          </span>
-        )}
       </Card>
 
       {/* 📑 Selector de Pestañas: Turnos vs Libro Diario de Movimientos */}

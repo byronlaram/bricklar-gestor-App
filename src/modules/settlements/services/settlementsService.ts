@@ -41,9 +41,12 @@ export async function getSettlements(filters: SettlementFilters = {}): Promise<S
 
   if (branch_id) query = query.eq('branch_id', branch_id)
   if (courier_id) query = query.eq('courier_id', courier_id)
-  if (date) query = query.eq('settlement_date', date)
-  if (date_from) query = query.gte('settlement_date', date_from)
-  if (date_to) query = query.lte('settlement_date', date_to)
+  if (date) {
+    query = query.eq('settlement_date', date)
+  } else {
+    if (date_from) query = query.gte('settlement_date', date_from)
+    if (date_to) query = query.lte('settlement_date', date_to)
+  }
   if (status) query = query.eq('status', status)
 
   const { data, error } = await query
@@ -64,24 +67,24 @@ export async function getSettlements(filters: SettlementFilters = {}): Promise<S
   const { data: workdays } = await supabase
     .from('workdays')
     .select('id, initial_cash')
-    .in('id', workdayIds)
+    .in('id', workdayIds.length > 0 ? workdayIds : ['00000000-0000-0000-0000-000000000000'])
 
   const workdayMap = new Map<string, number>()
   ;(workdays || []).forEach((w) => workdayMap.set(w.id, w.initial_cash || 0))
 
-    // 2. Carga en lote de tareas completadas
+  // 2. Carga en lote de tareas completadas
   const { data: batchTasks } = await supabase
     .from('tasks')
     .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
-    .in('assigned_courier_id', courierIds)
-    .in('scheduled_date', workDates)
+    .in('assigned_courier_id', courierIds.length > 0 ? courierIds : ['00000000-0000-0000-0000-000000000000'])
+    .in('scheduled_date', workDates.length > 0 ? workDates : ['1970-01-01'])
     .eq('status', 'completed')
 
   // 3. Carga en lote de movimientos de caja
   const { data: batchMovements } = await supabase
     .from('cash_movements')
     .select('workday_id, amount, currency, direction, movement_type, description')
-    .in('workday_id', workdayIds)
+    .in('workday_id', workdayIds.length > 0 ? workdayIds : ['00000000-0000-0000-0000-000000000000'])
 
   return list.map((s) => {
     const initialCash = workdayMap.get(s.workday_id) || 0
@@ -891,10 +894,14 @@ export async function createCashMovement(payload: CreateMovementPayload): Promis
 
 export async function getDailyClosure(
   branchId: string | undefined,
-  date: string
+  date: string,
+  dateTo?: string
 ): Promise<DailyClosureSummary> {
   const { data: session } = await supabase.auth.getSession()
   if (!session?.session?.user?.id) throw new Error('No hay sesión activa.')
+
+  const isRange = !!dateTo && dateTo !== date
+  const effectiveDateTo = dateTo || date
 
   // 1. Consultar si ya existe un registro congelado en daily_closures
   let closureRecordQuery = supabase
@@ -904,7 +911,12 @@ export async function getDailyClosure(
       branch:branches!daily_closures_branch_id_fkey (id, name),
       closed_by_profile:profiles!daily_closures_closed_by_fkey (id, full_name, display_name)
     `)
-    .eq('closure_date', date)
+
+  if (isRange) {
+    closureRecordQuery = closureRecordQuery.gte('closure_date', date).lte('closure_date', effectiveDateTo)
+  } else {
+    closureRecordQuery = closureRecordQuery.eq('closure_date', date)
+  }
 
   if (branchId) {
     closureRecordQuery = closureRecordQuery.eq('branch_id', branchId)
@@ -913,7 +925,7 @@ export async function getDailyClosure(
   const { data: rawClosureRecords } = await closureRecordQuery.limit(1)
   const savedClosure = (rawClosureRecords?.[0] as unknown as DailyClosureRecord) || null
 
-  // 2. Obtener todas las jornadas del día
+  // 2. Obtener todas las jornadas del período
   let query = supabase
     .from('workdays')
     .select(`
@@ -925,7 +937,12 @@ export async function getDailyClosure(
         id, name, code
       )
     `)
-    .eq('work_date', date)
+
+  if (isRange) {
+    query = query.gte('work_date', date).lte('work_date', effectiveDateTo)
+  } else {
+    query = query.eq('work_date', date)
+  }
 
   if (branchId) {
     query = query.eq('branch_id', branchId)
@@ -938,18 +955,30 @@ export async function getDailyClosure(
   const workdayIds = workdaysList.map((w) => w.id)
   const courierIds = Array.from(new Set(workdaysList.map((w) => w.courier_id)))
 
-  const { data: batchTasks } = await supabase
+  let batchTasksQuery = supabase
     .from('tasks')
     .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
     .in('assigned_courier_id', courierIds.length > 0 ? courierIds : ['00000000-0000-0000-0000-000000000000'])
-    .eq('scheduled_date', date)
     .eq('status', 'completed')
 
-  // Conteo total y estados de todas las tareas del día
+  if (isRange) {
+    batchTasksQuery = batchTasksQuery.gte('scheduled_date', date).lte('scheduled_date', effectiveDateTo)
+  } else {
+    batchTasksQuery = batchTasksQuery.eq('scheduled_date', date)
+  }
+
+  const { data: batchTasks } = await batchTasksQuery
+
+  // Conteo total y estados de todas las tareas del período
   let allDayTasksQuery = supabase
     .from('tasks')
     .select('id, status, expected_collection_amount, expected_collection_currency, requires_collection')
-    .eq('scheduled_date', date)
+
+  if (isRange) {
+    allDayTasksQuery = allDayTasksQuery.gte('scheduled_date', date).lte('scheduled_date', effectiveDateTo)
+  } else {
+    allDayTasksQuery = allDayTasksQuery.eq('scheduled_date', date)
+  }
 
   if (branchId) {
     allDayTasksQuery = allDayTasksQuery.eq('branch_id', branchId)
@@ -974,11 +1003,16 @@ export async function getDailyClosure(
     .select('workday_id, amount, currency, direction, movement_type, description')
     .in('workday_id', workdayIds.length > 0 ? workdayIds : ['00000000-0000-0000-0000-000000000000'])
 
-  // 4. Liquidaciones registradas para este día
+  // 4. Liquidaciones registradas para este período
   let settlementsQuery = supabase
     .from('settlements')
     .select(SETTLEMENT_SELECT)
-    .eq('settlement_date', date)
+
+  if (isRange) {
+    settlementsQuery = settlementsQuery.gte('settlement_date', date).lte('settlement_date', effectiveDateTo)
+  } else {
+    settlementsQuery = settlementsQuery.eq('settlement_date', date)
+  }
 
   if (branchId) {
     settlementsQuery = settlementsQuery.eq('branch_id', branchId)

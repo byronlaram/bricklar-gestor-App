@@ -119,6 +119,7 @@ async function fetchReportData(
 
       return {
         id: s.id,
+        rawDate: s.settlement_date,
         fecha_liquidacion: formatDate(s.settlement_date),
         motorizado: s.courier_profile?.display_name || s.courier_profile?.full_name || 'N/A',
         sucursal: s.branch?.name || 'N/A',
@@ -133,6 +134,7 @@ async function fetchReportData(
       }
     })
 
+    formatted.sort((a, b) => String(b.rawDate || '').localeCompare(String(a.rawDate || '')))
     return formatted as unknown as Record<string, unknown>[]
   }
 
@@ -160,6 +162,7 @@ async function fetchReportData(
 
       return {
         id: w.id,
+        rawDate: w.work_date,
         fecha: formatDate(w.work_date),
         motorizado: w.courier_profile?.display_name || w.courier_profile?.full_name || 'N/A',
         sucursal: w.branch?.name || 'N/A',
@@ -175,14 +178,15 @@ async function fetchReportData(
       }
     })
 
+    formatted.sort((a, b) => String(b.rawDate || '').localeCompare(String(a.rawDate || '')))
     return formatted as unknown as Record<string, unknown>[]
   }
 
   if (type === 'adjustments') {
-    // 1. Obtener liquidaciones en el rango solicitado
+    // 1. Obtener liquidaciones en el rango solicitado (rango ampliado de meses)
     const settlementsList = await getSettlements({
-      date_from: from,
-      date_to: to,
+      date_from: from || undefined,
+      date_to: to || undefined,
       branch_id: branchId || undefined,
     })
 
@@ -197,7 +201,7 @@ async function fetchReportData(
           created_at,
           adjustment_amount,
           reason,
-          settlement:settlements!settlement_adjustments_settlement_id_fkey (
+          settlement:settlements (
             id,
             settlement_date,
             expected_cash,
@@ -232,7 +236,7 @@ async function fetchReportData(
       }
     })
 
-    const formatted: Record<string, unknown>[] = []
+    const formatted: Array<Record<string, unknown> & { rawDate: string }> = []
     const processedSettlementIds = new Set<string>()
 
     // 3. Filtrar liquidaciones que presenten discrepancia (faltante o sobrante)
@@ -251,6 +255,7 @@ async function fetchReportData(
 
       formatted.push({
         id: adj?.id || s.id,
+        rawDate: s.settlement_date,
         fecha_liquidacion: formatDate(s.settlement_date),
         motorizado:
           s.courier_profile?.display_name || s.courier_profile?.full_name || 'N/A',
@@ -279,12 +284,13 @@ async function fetchReportData(
       const dateMatch = (!from || rowDate >= from) && (!to || rowDate <= to)
       const branchMatch = !branchId || adj.settlement?.branch_id === branchId
 
-      if (dateMatch && branchMatch) {
+      if (dateMatch && branchMatch && rowDate) {
         const amount = Number(adj.adjustment_amount || 0)
         const isShortage = amount < 0
 
         formatted.push({
           id: adj.id,
+          rawDate: rowDate,
           fecha_liquidacion: formatDate(rowDate),
           motorizado:
             adj.settlement?.courier?.display_name ||
@@ -302,9 +308,9 @@ async function fetchReportData(
       }
     }
 
-    // Ordenar por fecha de liquidación descendente
+    // Ordenar cronológicamente descendente por fecha ISO real
     formatted.sort((a, b) =>
-      String(b.fecha_liquidacion).localeCompare(String(a.fecha_liquidacion))
+      String(b.rawDate || '').localeCompare(String(a.rawDate || ''))
     )
 
     return formatted as unknown as Record<string, unknown>[]
@@ -653,58 +659,122 @@ export default function ReportsPage() {
         </div>
 
         {/* Rango de fechas y sucursal */}
-        <div className="flex flex-col sm:flex-row flex-wrap gap-3">
-          <div className="flex-1 min-w-[140px]">
-            <label className="block text-xs font-semibold text-foreground mb-1">
-              <Calendar className="h-3.5 w-3.5 inline mr-1 text-foreground-muted" />
-              Desde
-            </label>
-            <input
-              type="date"
-              value={from}
-              onChange={(e) => setFrom(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
-            />
-          </div>
-          <div className="flex-1 min-w-[140px]">
-            <label className="block text-xs font-semibold text-foreground mb-1">
-              <Calendar className="h-3.5 w-3.5 inline mr-1 text-foreground-muted" />
-              Hasta
-            </label>
-            <input
-              type="date"
-              value={to}
-              min={from}
-              onChange={(e) => setTo(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
-            />
-          </div>
-          <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs font-semibold text-foreground mb-1">
-              <Building2 className="h-3.5 w-3.5 inline mr-1 text-foreground-muted" />
-              Sucursal
-            </label>
-            <select
-              value={selectedBranchId}
-              onChange={(e) => setSelectedBranchId(e.target.value)}
-              className="w-full px-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground font-medium"
-            >
-              {userBranches.length > 1 && <option value="">Todas las sucursales</option>}
-              {userBranches.map((b: any) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-end">
+        <div className="space-y-3">
+          {/* Quick preset chips */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] font-semibold text-foreground-muted mr-1">Atajos:</span>
             <button
-              onClick={handleGenerate}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-accent hover:bg-accent/90 rounded-lg shadow-sm transition cursor-pointer"
+              type="button"
+              onClick={() => {
+                const today = getLocalDateString()
+                setFrom(today)
+                setTo(today)
+              }}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition cursor-pointer ${
+                from === todayStr && to === todayStr
+                  ? 'bg-accent/15 text-accent border-accent/40 shadow-2xs font-bold'
+                  : 'bg-muted/40 text-foreground-muted border-border/80 hover:bg-muted hover:text-foreground'
+              }`}
             >
-              <BarChart3 className="h-4 w-4" />
-              Generar
+              Hoy
             </button>
+            <button
+              type="button"
+              onClick={() => {
+                const now = new Date()
+                const start = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`
+                const end = getLocalDateString()
+                setFrom(start)
+                setTo(end)
+              }}
+              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border bg-muted/40 text-foreground-muted border-border/80 hover:bg-muted hover:text-foreground transition cursor-pointer"
+            >
+              Este Mes
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                const now = new Date()
+                const prevMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+                const lastDayPrevMonth = new Date(now.getFullYear(), now.getMonth(), 0)
+                const start = `${prevMonth.getFullYear()}-${String(prevMonth.getMonth() + 1).padStart(2, '0')}-01`
+                const end = `${lastDayPrevMonth.getFullYear()}-${String(lastDayPrevMonth.getMonth() + 1).padStart(2, '0')}-${String(lastDayPrevMonth.getDate()).padStart(2, '0')}`
+                setFrom(start)
+                setTo(end)
+              }}
+              className="px-2.5 py-1 text-[11px] font-semibold rounded-lg border bg-muted/40 text-foreground-muted border-border/80 hover:bg-muted hover:text-foreground transition cursor-pointer"
+            >
+              Mes Anterior
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFrom('')
+                setTo('')
+              }}
+              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition cursor-pointer ${
+                !from && !to
+                  ? 'bg-accent/15 text-accent border-accent/40 shadow-2xs font-bold'
+                  : 'bg-muted/40 text-foreground-muted border-border/80 hover:bg-muted hover:text-foreground'
+              }`}
+            >
+              Todo el Historial
+            </button>
+          </div>
+
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3">
+            <div className="flex-1 min-w-[140px]">
+              <label className="block text-xs font-semibold text-foreground mb-1">
+                <Calendar className="h-3.5 w-3.5 inline mr-1 text-foreground-muted" />
+                Desde
+              </label>
+              <input
+                type="date"
+                value={from}
+                onChange={(e) => setFrom(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
+              />
+            </div>
+            <div className="flex-1 min-w-[140px]">
+              <label className="block text-xs font-semibold text-foreground mb-1">
+                <Calendar className="h-3.5 w-3.5 inline mr-1 text-foreground-muted" />
+                Hasta
+              </label>
+              <input
+                type="date"
+                value={to}
+                min={from || undefined}
+                onChange={(e) => setTo(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
+              />
+            </div>
+            <div className="flex-1 min-w-[180px]">
+              <label className="block text-xs font-semibold text-foreground mb-1">
+                <Building2 className="h-3.5 w-3.5 inline mr-1 text-foreground-muted" />
+                Sucursal
+              </label>
+              <select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                className="w-full px-3 py-2 text-xs bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground font-medium"
+              >
+                {userBranches.length > 1 && <option value="">Todas las sucursales</option>}
+                {userBranches.map((b: any) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <button
+                onClick={handleGenerate}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-accent hover:bg-accent/90 rounded-lg shadow-sm transition cursor-pointer"
+              >
+                <BarChart3 className="h-4 w-4" />
+                Generar
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -1,10 +1,11 @@
-import { Search, X, Calendar } from 'lucide-react'
+import React from 'react'
+import { Search, X } from 'lucide-react'
 import type { TaskFilters as FilterType } from '../types/task.types'
 import { TASK_STATUS_LABELS, TASK_TYPE_LABELS, TASK_PRIORITY_LABELS } from '@/shared/types'
 import type { TaskStatus, TaskType, TaskPriority } from '@/shared/types'
 import { Card, Button, Input } from '@/shared/components/ui'
 import { getLocalDateString } from '@/shared/utils/date'
-import { formatDate } from '@/shared/utils/format'
+import { DateRangeFilter } from '@/shared/components/DateRangeFilter'
 
 interface TaskFiltersProps {
   filters: FilterType
@@ -36,18 +37,27 @@ export function TaskFilters({ filters, onFilterChange, couriers = [], branches =
     onFilterChange({ ...filters, courier_id: e.target.value, page: 1 })
   }
 
-  const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onFilterChange({ ...filters, date: e.target.value, page: 1 })
+  const handleDateRangeChange = ({ dateFrom, dateTo, isSingleDate }: { dateFrom: string; dateTo: string; isSingleDate?: boolean }) => {
+    if (isSingleDate || (dateFrom && dateTo && dateFrom === dateTo)) {
+      onFilterChange({ ...filters, date: dateFrom, date_from: undefined, date_to: undefined, page: 1 })
+    } else {
+      onFilterChange({ ...filters, date: undefined, date_from: dateFrom || undefined, date_to: dateTo || undefined, page: 1 })
+    }
   }
 
   const handleClearFilters = () => {
     onFilterChange({
       branch_id: filters.branch_id,
       date: todayStr,
+      date_from: undefined,
+      date_to: undefined,
       page: 1,
       page_size: filters.page_size,
     })
   }
+
+  const activeDateFrom = filters.date || filters.date_from || ''
+  const activeDateTo = filters.date || filters.date_to || ''
 
   const hasActiveFilters =
     !!filters.search ||
@@ -57,10 +67,12 @@ export function TaskFilters({ filters, onFilterChange, couriers = [], branches =
     !!filters.courier_id ||
     !!filters.approval_status ||
     (filters.date !== todayStr && !!filters.date) ||
+    !!filters.date_from ||
+    !!filters.date_to ||
     !filters.date
 
   return (
-    <Card className="p-4 space-y-3 bg-white border-slate-200 shadow-2xs">
+    <Card className="p-4 space-y-3.5 bg-white border-slate-200 shadow-2xs">
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
         {/* Buscador General */}
         <div className="flex-1">
@@ -72,72 +84,32 @@ export function TaskFilters({ filters, onFilterChange, couriers = [], branches =
           />
         </div>
 
-        {/* Selector de Fecha y Botones Rápidos */}
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="relative w-full sm:w-40">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            <input
-              type="date"
-              value={filters.date || ''}
-              onChange={handleDateChange}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => onFilterChange({ ...filters, date: todayStr, page: 1 })}
-            className={`px-3 py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
-              filters.date === todayStr
-                ? 'bg-[#004594] text-white border-[#004594] shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
+        {/* Botón Limpiar general */}
+        {hasActiveFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleClearFilters}
+            className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 shrink-0 text-xs h-9 self-end lg:self-center"
+            leftIcon={<X className="h-3.5 w-3.5" />}
           >
-            Hoy
-          </button>
-
-          <button
-            type="button"
-            onClick={() => onFilterChange({ ...filters, date: '', page: 1 })}
-            className={`px-3 py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
-              !filters.date
-                ? 'bg-[#004594] text-white border-[#004594] shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            Todo el Historial
-          </button>
-
-          {/* Botón Limpiar */}
-          {hasActiveFilters && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearFilters}
-              className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border border-rose-200 shrink-0 text-xs h-8"
-              leftIcon={<X className="h-3.5 w-3.5" />}
-            >
-              Restablecer
-            </Button>
-          )}
-        </div>
-      </div>
-
-      {/* Indicador de Fecha Activa */}
-      <div className="flex items-center justify-between pt-1 text-2xs">
-        {filters.date ? (
-          <span className="font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-            Mostrando tareas del: <strong className="text-slate-800 font-mono">{formatDate(filters.date)}</strong> {filters.date === todayStr ? '(Hoy)' : ''}
-          </span>
-        ) : (
-          <span className="font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full">
-            Mostrando acumulado de todo el historial
-          </span>
+            Restablecer Filtros
+          </Button>
         )}
       </div>
 
+      {/* Selector de Rango de Fecha (Desde / Hasta) */}
+      <div className="pt-1">
+        <DateRangeFilter
+          dateFrom={activeDateFrom}
+          dateTo={activeDateTo}
+          onChange={handleDateRangeChange}
+          onReset={handleClearFilters}
+        />
+      </div>
+
       {/* Selectores Secundarios */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-2 border-t border-slate-100">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 pt-3 border-t border-slate-100">
         {/* Sucursal */}
         {branches.length > 0 && (
           <div>

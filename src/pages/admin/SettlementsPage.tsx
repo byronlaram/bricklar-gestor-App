@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import {
-  Calendar,
   Calculator,
   CheckCircle2,
   DollarSign,
@@ -21,6 +20,7 @@ import { SETTLEMENT_STATUS_LABELS } from '@/shared/types'
 import { ApproveSettlementModal } from '@/modules/settlements/components/ApproveSettlementModal'
 import { AdminForceSettlementModal } from '@/modules/settlements/components/AdminForceSettlementModal'
 import { OfflineConflictsBanner } from '@/modules/settlements/components/OfflineConflictsBanner'
+import { DateRangeFilter } from '@/shared/components/DateRangeFilter'
 import { printSettlementReceipt } from '@/shared/utils/pdfReceiptService'
 import {
   Card,
@@ -221,53 +221,40 @@ export default function AdminSettlementsPage() {
       </div>
 
 
-      {/* Filtro de Fecha y Selector Rápido */}
-      <Card className="p-4 bg-white border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <div className="relative w-full sm:w-48">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            <input
-              type="date"
-              value={filters.date || ''}
-              onChange={(e) => setFilters({ ...filters, date: e.target.value })}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
-            />
-          </div>
+      {/* Filtro de Rango de Fechas (Desde / Hasta) y Sucursal */}
+      <Card className="p-4 bg-white border-slate-200 shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <DateRangeFilter
+            dateFrom={filters.date || filters.date_from || ''}
+            dateTo={filters.date || filters.date_to || ''}
+            onChange={({ dateFrom, dateTo, isSingleDate }) => {
+              if (isSingleDate || (dateFrom && dateTo && dateFrom === dateTo)) {
+                setFilters((prev) => ({ ...prev, date: dateFrom, date_from: undefined, date_to: undefined }))
+              } else {
+                setFilters((prev) => ({ ...prev, date: undefined, date_from: dateFrom || undefined, date_to: dateTo || undefined }))
+              }
+            }}
+            onReset={() => setFilters((prev) => ({ ...prev, date: todayStr, date_from: undefined, date_to: undefined }))}
+          />
 
-          <button
-            type="button"
-            onClick={() => setFilters({ ...filters, date: todayStr })}
-            className={`px-3.5 py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
-              filters.date === todayStr
-                ? 'bg-[#004594] text-white border-[#004594] shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            Hoy
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setFilters({ ...filters, date: '' })}
-            className={`px-3.5 py-2 text-xs font-bold rounded-lg border transition cursor-pointer ${
-              !filters.date
-                ? 'bg-[#004594] text-white border-[#004594] shadow-xs'
-                : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-            }`}
-          >
-            Todo el Historial
-          </button>
+          {branches.length > 0 && (
+            <div className="flex items-center gap-2 self-end sm:self-center">
+              <span className="text-xs font-bold text-slate-500">Sucursal:</span>
+              <select
+                value={filters.branch_id || ''}
+                onChange={(e) => setFilters((prev) => ({ ...prev, branch_id: e.target.value }))}
+                className="text-xs font-bold text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
+              >
+                {branches.length > 1 && <option value="">🏢 Todas las sucursales</option>}
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    🏢 {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
-
-        {filters.date ? (
-          <span className="text-2xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-full">
-            Liquidaciones del: <strong className="text-slate-800 font-mono">{formatDate(filters.date)}</strong> {filters.date === todayStr ? '(Hoy)' : ''}
-          </span>
-        ) : (
-          <span className="text-2xs font-bold text-amber-800 bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-full">
-            Mostrando acumulado de todo el historial
-          </span>
-        )}
       </Card>
 
       {/* Tabla de Liquidaciones */}

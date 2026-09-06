@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
-  Calendar,
   DollarSign,
   Receipt,
   Wallet,
@@ -39,6 +38,7 @@ import {
   ModalBody,
   ModalFooter,
 } from '@/shared/components/ui'
+import { DateRangeFilter } from '@/shared/components/DateRangeFilter'
 import { getLocalDateString } from '@/shared/utils/date'
 import { formatDate } from '@/shared/utils/format'
 import { WORKDAY_STATUS_LABELS } from '@/shared/types'
@@ -49,15 +49,21 @@ export default function AdminDailyClosurePage() {
   const todayStr = getLocalDateString()
   const toast = useToast()
 
-  const [date, setDate] = useState(todayStr)
+  const [dateFrom, setDateFrom] = useState(todayStr)
+  const [dateTo, setDateTo] = useState(todayStr)
   const [selectedBranchId, setSelectedBranchId] = useState<string>(defaultBranchId || '')
   const [isConfirmModalOpen, setIsConfirmModalOpen] = useState(false)
   const [closureNotes, setClosureNotes] = useState('')
 
   const { data: branches = [] } = useBranches()
-  const { data: closure, isLoading } = useDailyClosure(selectedBranchId || undefined, date)
+  const { data: closure, isLoading } = useDailyClosure(selectedBranchId || undefined, dateFrom, dateTo)
   const { confirmDailyClosure, isConfirmingDailyClosure } = useSettlementMutations()
   const { latestRate } = useExchangeRates({ branch_id: selectedBranchId || undefined })
+
+  const date = dateFrom || dateTo || todayStr
+  const dateLabel = dateFrom === dateTo
+    ? (dateFrom ? formatDate(dateFrom) : 'Todo el Historial')
+    : `${formatDate(dateFrom)} al ${formatDate(dateTo)}`
 
   const workdaysDetail = closure?.workdays_detail || []
   const savedClosure = closure?.saved_closure
@@ -69,14 +75,14 @@ export default function AdminDailyClosurePage() {
     try {
       await confirmDailyClosure({
         branchId: selectedBranchId || undefined,
-        date,
+        date: dateFrom || todayStr,
         notes: closureNotes.trim() || undefined,
       })
       setIsConfirmModalOpen(false)
       setClosureNotes('')
       toast.success(
         'Cierre Diario Guardado en BD',
-        `Se ha persistido exitosamente el cierre diario para la fecha ${date}.`
+        `Se ha persistido exitosamente el cierre diario para la fecha ${dateFrom || todayStr}.`
       )
     } catch (err) {
       toast.error('Error en Cierre Diario', (err as Error).message)
@@ -92,7 +98,7 @@ export default function AdminDailyClosurePage() {
 
     printDailyClosureReceipt({
       branchName: currentBranch?.name || 'Todas las Sucursales',
-      date,
+      date: dateLabel,
       closedBy: savedClosure?.closed_by_profile?.full_name || profile?.full_name || 'Administración',
       closedAt: savedClosure?.closed_at || null,
       notes: savedClosure?.notes || null,
@@ -171,52 +177,55 @@ export default function AdminDailyClosurePage() {
         </div>
       </div>
 
-      {/* Selector de Fecha y Sucursal */}
-      <Card className="p-4 bg-white border-slate-200 shadow-2xs flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative w-full sm:w-48">
-            <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => {
-                setDate(e.target.value)
-              }}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
-            />
-          </div>
+      {/* Selector de Rango de Fechas (Desde / Hasta) y Sucursal */}
+      <Card className="p-4 bg-white border-slate-200 shadow-2xs space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <DateRangeFilter
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            onChange={({ dateFrom: newFrom, dateTo: newTo }) => {
+              setDateFrom(newFrom)
+              setDateTo(newTo)
+            }}
+            onReset={() => {
+              setDateFrom(todayStr)
+              setDateTo(todayStr)
+            }}
+          />
 
-          <div className="relative w-full sm:w-56">
-            <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
-            <select
-              value={selectedBranchId}
-              onChange={(e) => setSelectedBranchId(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
+          <div className="flex flex-wrap items-center gap-3 self-end lg:self-center">
+            <div className="relative w-full sm:w-56">
+              <Building2 className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" />
+              <select
+                value={selectedBranchId}
+                onChange={(e) => setSelectedBranchId(e.target.value)}
+                className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
+              >
+                {branches.length > 1 && <option value="">Todas las sucursales</option>}
+                {branches.map((b) => (
+                  <option key={b.id} value={b.id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Badge de Tasa de Cambio Activa */}
+            <Link
+              to="/admin/configuracion?tab=tipo-cambio"
+              className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition"
+              title="Ver o editar tipos de cambio en Configuración"
             >
-              <option value="">Todas las sucursales</option>
-              {branches.map((b) => (
-                <option key={b.id} value={b.id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+              <TrendingUp className="w-3.5 h-3.5 text-accent" />
+              <span>
+                TC:{' '}
+                <span className="text-accent font-bold">
+                  1 USD = C$ {latestRate ? latestRate.nio_per_usd.toFixed(4) : '36.6242'}
+                </span>
+              </span>
+            </Link>
           </div>
         </div>
-
-        {/* Badge de Tasa de Cambio Activa */}
-        <Link
-          to="/admin/configuracion?tab=tipo-cambio"
-          className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 transition"
-          title="Ver o editar tipos de cambio en Configuración"
-        >
-          <TrendingUp className="w-3.5 h-3.5 text-accent" />
-          <span>
-            Tipo de Cambio:{' '}
-            <span className="text-accent font-bold">
-              1 USD = C$ {latestRate ? latestRate.nio_per_usd.toFixed(4) : '36.6242'}
-            </span>
-          </span>
-        </Link>
       </Card>
 
       {/* Banner de Cierre Persistido en Base de Datos */}
@@ -333,7 +342,7 @@ export default function AdminDailyClosurePage() {
                 Efectivo Neto Físico Ingresado en Bóveda / Caja General
               </span>
               <span className="text-xs bg-black/30 px-3.5 py-1 rounded-full font-mono font-bold text-indigo-100 border border-white/10 shadow-2xs">
-                {formatDate(date)}
+                {dateLabel}
               </span>
             </div>
 
@@ -359,7 +368,7 @@ export default function AdminDailyClosurePage() {
             <div className="p-4 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Users className="h-4 w-4 text-indigo-600" />
-                Detalle de Motorizados del Día ({date})
+                Detalle de Motorizados ({dateLabel})
               </h2>
               <span className="text-xs text-slate-500 font-medium">
                 {workdaysDetail.length} motorizado(s)

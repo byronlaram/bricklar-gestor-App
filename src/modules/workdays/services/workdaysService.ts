@@ -249,9 +249,12 @@ export async function getWorkdays(filters: WorkdayFilters = {}): Promise<Workday
 
   if (branch_id) query = query.eq('branch_id', branch_id)
   if (courier_id) query = query.eq('courier_id', courier_id)
-  if (date) query = query.eq('work_date', date)
-  if (date_from) query = query.gte('work_date', date_from)
-  if (date_to) query = query.lte('work_date', date_to)
+  if (date) {
+    query = query.eq('work_date', date)
+  } else {
+    if (date_from) query = query.gte('work_date', date_from)
+    if (date_to) query = query.lte('work_date', date_to)
+  }
   if (status) query = query.eq('status', status)
 
   const { data, error } = await query
@@ -272,15 +275,15 @@ export async function getWorkdays(filters: WorkdayFilters = {}): Promise<Workday
   const { data: batchTasks } = await supabase
     .from('tasks')
     .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
-    .in('assigned_courier_id', courierIds)
-    .in('scheduled_date', workDates)
+    .in('assigned_courier_id', courierIds.length > 0 ? courierIds : ['00000000-0000-0000-0000-000000000000'])
+    .in('scheduled_date', workDates.length > 0 ? workDates : ['1970-01-01'])
     .eq('status', 'completed')
 
   // 2. Carga en lote de movimientos de caja
   const { data: batchMovements } = await supabase
     .from('cash_movements')
     .select('workday_id, amount, currency, direction, movement_type, description')
-    .in('workday_id', workdayIds)
+    .in('workday_id', workdayIds.length > 0 ? workdayIds : ['00000000-0000-0000-0000-000000000000'])
 
   return list.map((w) => {
     const wTasks = (batchTasks || []).filter(
@@ -338,6 +341,8 @@ export interface DetailedCashMovement {
 export async function getCashMovements(filters: {
   branch_id?: string
   date?: string
+  date_from?: string
+  date_to?: string
   workday_id?: string
   courier_id?: string
 } = {}): Promise<DetailedCashMovement[]> {
@@ -376,6 +381,14 @@ export async function getCashMovements(filters: {
       const createdLocalDate = new Date(m.created_at).toLocaleDateString('en-CA')
       const wDate = m.workday?.work_date || createdLocalDate
       return wDate === filters.date || createdLocalDate === filters.date
+    })
+  } else if (filters.date_from || filters.date_to) {
+    list = list.filter((m) => {
+      const createdLocalDate = new Date(m.created_at).toLocaleDateString('en-CA')
+      const wDate = m.workday?.work_date || createdLocalDate
+      const matchesFrom = !filters.date_from || wDate >= filters.date_from
+      const matchesTo = !filters.date_to || wDate <= filters.date_to
+      return matchesFrom && matchesTo
     })
   }
 

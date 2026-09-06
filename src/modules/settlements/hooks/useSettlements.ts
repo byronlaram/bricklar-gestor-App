@@ -54,10 +54,10 @@ export function useCashMovements(workdayId?: string) {
   })
 }
 
-export function useDailyClosure(branchId?: string, date?: string) {
+export function useDailyClosure(branchId?: string, date?: string, dateTo?: string) {
   return useQuery({
-    queryKey: ['daily-closure', branchId, date],
-    queryFn: () => getDailyClosure(branchId, date!),
+    queryKey: ['daily-closure', branchId, date, dateTo],
+    queryFn: () => getDailyClosure(branchId, date!, dateTo),
     enabled: !!date,
   })
 }
