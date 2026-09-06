@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Wrench, CheckCircle } from 'lucide-react'
+import { X, Wrench, CheckCircle, Calendar, AlertTriangle } from 'lucide-react'
 import { Button } from '@/shared/components/ui'
 import { MAINTENANCE_TYPE_LABELS } from '@/modules/fleet/types/fleet.types'
 import type { Vehicle, MaintenanceServiceType } from '@/modules/fleet/types/fleet.types'
@@ -30,22 +30,22 @@ export function MaintenanceRecordModal({
   onSave,
   isLoading = false,
 }: MaintenanceRecordModalProps) {
-  const [serviceType, setServiceType] = useState<MaintenanceServiceType>('oil_change')
+  const [serviceType, setServiceType] = useState<MaintenanceServiceType>('general_maintenance')
   const [odometer, setOdometer] = useState<number>(0)
   const [cost, setCost] = useState<number>(0)
   const [currency, setCurrency] = useState<'NIO' | 'USD'>('NIO')
   const [serviceDate, setServiceDate] = useState<string>(new Date().toISOString().split('T')[0])
   const [workshop, setWorkshop] = useState<string>('')
-  const [parts, setParts] = useState<string>('Aceite 20W-50 4T + Filtro')
+  const [parts, setParts] = useState<string>('Mantenimiento preventivo general mensual')
   const [notes, setNotes] = useState<string>('')
 
   useEffect(() => {
     if (vehicle) {
-      setOdometer(vehicle.current_odometer || 0)
+      setOdometer(vehicle.has_working_odometer !== false ? (vehicle.current_odometer || 0) : 0)
       setServiceDate(new Date().toISOString().split('T')[0])
-      setServiceType('oil_change')
-      setParts('Aceite 20W-50 4T + Filtro')
-      setCost(350)
+      setServiceType('general_maintenance')
+      setParts('Mantenimiento preventivo general mensual')
+      setCost(750)
       setWorkshop('Taller Autorizado')
       setNotes('')
     }
@@ -53,15 +53,30 @@ export function MaintenanceRecordModal({
 
   const handleTypeChange = (type: MaintenanceServiceType) => {
     setServiceType(type)
-    if (type === 'oil_change') {
+    if (type === 'general_maintenance') {
+      setParts('Mantenimiento preventivo general mensual')
+      setCost(750)
+    } else if (type === 'oil_change') {
       setParts('Aceite 20W-50 4T + Filtro')
       setCost(350)
+    } else if (type === 'spare_parts') {
+      setParts('Compra / Reemplazo de repuesto (bujía, cables, foco, espejos)')
+      setCost(400)
+    } else if (type === 'minor_repair') {
+      setParts('Ajuste mecánico / soldadura / freno / carburación')
+      setCost(250)
     } else if (type === 'tires') {
-      setParts('Llanta Trasera / Delantera')
+      setParts('Llanta Trasera / Delantera / Neumático')
       setCost(1200)
     } else if (type === 'brakes') {
       setParts('Pastillas de freno / Bandas')
       setCost(450)
+    } else if (type === 'electrical') {
+      setParts('Batería / Bombillos / Sistema Eléctrico')
+      setCost(500)
+    } else if (type === 'transmission') {
+      setParts('Kit de Arrastre / Cadena / Sprocket')
+      setCost(850)
     } else {
       setParts('')
       setCost(0)
@@ -69,6 +84,8 @@ export function MaintenanceRecordModal({
   }
 
   if (!isOpen || !vehicle) return null
+
+  const isOdometerBroken = vehicle.has_working_odometer === false
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -78,7 +95,7 @@ export function MaintenanceRecordModal({
         vehicle_id: vehicle.id,
         vehicle_plate: vehicle.plate,
         service_type: serviceType,
-        odometer_at_service: odometer,
+        odometer_at_service: isOdometerBroken ? 0 : odometer,
         cost,
         currency,
         service_date: serviceDate,
@@ -103,7 +120,7 @@ export function MaintenanceRecordModal({
             </div>
             <div>
               <h2 className="text-base font-black text-slate-900">
-                Registrar Servicio Mecánico
+                Registrar Servicio / Mantenimiento
               </h2>
               <p className="text-xs text-slate-500 font-medium font-mono">
                 Moto {vehicle.plate} &bull; {vehicle.brand} {vehicle.model}
@@ -121,9 +138,22 @@ export function MaintenanceRecordModal({
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[75vh] overflow-y-auto">
+          {/* Banner si el odómetro está averiado */}
+          {isOdometerBroken && (
+            <div className="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-xs flex items-start gap-2">
+              <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+              <div>
+                <span className="font-bold block">Moto con Odómetro Averiado</span>
+                <span className="text-2xs text-amber-800 block">
+                  El registro actualizará la fecha del servicio para el control del ciclo mensual.
+                </span>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="text-xs font-bold text-slate-700 block mb-1">
-              Tipo de Servicio *
+              Tipo de Servicio o Reparación *
             </label>
             <select
               value={serviceType}
@@ -140,22 +170,28 @@ export function MaintenanceRecordModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">
-                Kilometraje del Servicio (km) *
+              <label className="text-xs font-bold text-slate-700 block mb-1 flex items-center justify-between">
+                <span>{isOdometerBroken ? 'Odómetro (N/A)' : 'Kilometraje (km) *'}</span>
+                {isOdometerBroken && (
+                  <span className="text-3xs text-amber-600 font-normal">Averiado</span>
+                )}
               </label>
               <input
                 type="number"
-                required
+                disabled={isOdometerBroken}
+                required={!isOdometerBroken}
                 min={0}
-                value={odometer}
+                value={isOdometerBroken ? 0 : odometer}
                 onChange={(e) => setOdometer(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                placeholder={isOdometerBroken ? 'Desactivado' : 'Ej: 14500'}
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-bold font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500 disabled:bg-slate-100 disabled:text-slate-400"
               />
             </div>
 
             <div>
-              <label className="text-xs font-bold text-slate-700 block mb-1">
-                Fecha de Realización *
+              <label className="text-xs font-bold text-slate-700 block mb-1 flex items-center gap-1">
+                <Calendar className="h-3 w-3 text-indigo-600" />
+                <span>Fecha Realización *</span>
               </label>
               <input
                 type="date"
@@ -170,7 +206,7 @@ export function MaintenanceRecordModal({
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2">
               <label className="text-xs font-bold text-slate-700 block mb-1">
-                Costo del Servicio / Repuestos
+                Costo Total (Repuestos + Mano de Obra)
               </label>
               <input
                 type="number"
@@ -205,7 +241,7 @@ export function MaintenanceRecordModal({
               type="text"
               value={parts}
               onChange={(e) => setParts(e.target.value)}
-              placeholder="Ej: Aceite Motul 20w50, Filtro de aire"
+              placeholder="Ej: Aceite Motul 20w50, Bujía, Pastillas"
               className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
           </div>
@@ -225,12 +261,12 @@ export function MaintenanceRecordModal({
 
           <div>
             <label className="text-xs font-bold text-slate-700 block mb-1">
-              Observaciones del Mantenimiento
+              Observaciones o Diagnóstico
             </label>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Detalles sobre el estado mecánico o recomendaciones..."
+              placeholder="Detalles sobre el estado de la moto, reparaciones menores o recomendaciones..."
               rows={2}
               className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs font-medium text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
             />
@@ -255,3 +291,4 @@ export function MaintenanceRecordModal({
     </div>
   )
 }
+

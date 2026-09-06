@@ -13,6 +13,9 @@ import {
   Trash2,
   History,
   ShieldAlert,
+  Calendar,
+  Gauge,
+  Clock,
 } from 'lucide-react'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useBranches } from '@/modules/branches/hooks/useBranches'
@@ -60,6 +63,7 @@ export default function FleetPage() {
     let warningCount = 0
     let urgentCount = 0
     let activeRiders = 0
+    let brokenOdometerCount = 0
 
     vehicles.forEach((v) => {
       const health = calculateVehicleHealth(v)
@@ -68,9 +72,10 @@ export default function FleetPage() {
       else okCount++
 
       if (v.assigned_courier_id) activeRiders++
+      if (v.has_working_odometer === false) brokenOdometerCount++
     })
 
-    return { total, okCount, warningCount, urgentCount, activeRiders }
+    return { total, okCount, warningCount, urgentCount, activeRiders, brokenOdometerCount }
   }, [vehicles])
 
   // Total gastado en mantenimientos
@@ -155,11 +160,11 @@ export default function FleetPage() {
             </h1>
             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-2xs font-extrabold bg-indigo-100 text-indigo-800 border border-indigo-200">
               <Bike className="h-3 w-3" />
-              Motos & Odómetros
+              Motos & Mantenimiento Mensual
             </span>
           </div>
           <p className="text-xs text-slate-500 font-medium mt-0.5">
-            Control de kilometraje acumulado, alertas preventivas de cambio de aceite y bitácora de costos mecánicos.
+            Control integral por calendario mensual, odómetros, cambios de aceite y bitácora de repuestos.
           </p>
         </div>
 
@@ -217,7 +222,9 @@ export default function FleetPage() {
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-2xl font-black text-slate-900 font-mono">{stats.total}</span>
-            <span className="text-2xs text-slate-500">motos ({stats.activeRiders} asignadas)</span>
+            <span className="text-2xs text-slate-500">
+              motos ({stats.brokenOdometerCount > 0 ? `${stats.brokenOdometerCount} sin odómetro` : `${stats.activeRiders} asignadas`})
+            </span>
           </div>
         </Card>
 
@@ -228,18 +235,18 @@ export default function FleetPage() {
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-2xl font-black text-emerald-950 font-mono">{stats.okCount}</span>
-            <span className="text-2xs text-emerald-800">motos con aceite OK</span>
+            <span className="text-2xs text-emerald-800">mantenimiento al día</span>
           </div>
         </Card>
 
         <Card className="p-4 bg-amber-50/80 border-amber-200 shadow-2xs space-y-1">
           <div className="flex items-center justify-between text-2xs font-bold text-amber-900 uppercase tracking-wider">
-            <span>Próximas a Cambio</span>
+            <span>Próximas al Mes / Km</span>
             <AlertTriangle className="h-4 w-4 text-amber-600" />
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-2xl font-black text-amber-950 font-mono">{stats.warningCount}</span>
-            <span className="text-2xs text-amber-800">a &lt;200 km del cambio</span>
+            <span className="text-2xs text-amber-800">a &le;5 días o &lt;200 km</span>
           </div>
         </Card>
 
@@ -280,7 +287,7 @@ export default function FleetPage() {
             }`}
           >
             <History className="h-4 w-4" />
-            <span>Bitácora de Servicios & Gastos ({records.length})</span>
+            <span>Bitácora de Servicios & Repuestos ({records.length})</span>
           </button>
         </div>
 
@@ -345,9 +352,9 @@ export default function FleetPage() {
           {/* Estado de Carga */}
           {isLoadingVehicles && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Skeleton className="h-56 rounded-3xl" />
-              <Skeleton className="h-56 rounded-3xl" />
-              <Skeleton className="h-56 rounded-3xl" />
+              <Skeleton className="h-64 rounded-3xl" />
+              <Skeleton className="h-64 rounded-3xl" />
+              <Skeleton className="h-64 rounded-3xl" />
             </div>
           )}
 
@@ -361,7 +368,7 @@ export default function FleetPage() {
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 {searchQuery
                   ? 'No se encontraron resultados para los filtros seleccionados.'
-                  : 'Comienza agregando las motocicletas de tu flota para llevar el control automático de odómetros y cambios de aceite.'}
+                  : 'Comienza agregando las motocicletas de tu flota para llevar el control por calendario mensual y kilometraje.'}
               </p>
               {!searchQuery && (
                 <Button
@@ -381,11 +388,12 @@ export default function FleetPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {filteredVehicles.map((v) => {
                 const health = calculateVehicleHealth(v)
+                const isOdometerBroken = v.has_working_odometer === false
 
                 return (
                   <Card
                     key={v.id}
-                    className={`p-5 rounded-3xl border transition-all duration-200 space-y-4 shadow-2xs hover:shadow-md bg-white ${
+                    className={`p-5 rounded-3xl border transition-all duration-200 space-y-3.5 shadow-2xs hover:shadow-md bg-white ${
                       health.overall_status === 'urgent'
                         ? 'border-rose-300 ring-2 ring-rose-200/50'
                         : health.overall_status === 'warning'
@@ -396,7 +404,7 @@ export default function FleetPage() {
                     {/* Header de Tarjeta */}
                     <div className="flex items-start justify-between gap-2 border-b border-slate-100 pb-3">
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-1.5">
                           <span className="text-lg font-black font-mono tracking-tight text-slate-900 bg-slate-100 px-2.5 py-0.5 rounded-lg border border-slate-200">
                             {v.plate}
                           </span>
@@ -416,6 +424,15 @@ export default function FleetPage() {
                               ? 'En Taller'
                               : 'Inactiva'}
                           </Badge>
+                          {isOdometerBroken ? (
+                            <span className="text-3xs font-extrabold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                              🗓️ Control Mensual
+                            </span>
+                          ) : (
+                            <span className="text-3xs font-extrabold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              ⚙️ Odómetro OK
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-slate-600 font-bold mt-1">
                           {v.brand} {v.model} {v.year ? `(${v.year})` : ''} &bull; {v.color || 'Color N/D'}
@@ -445,65 +462,133 @@ export default function FleetPage() {
                     {/* Odómetro Actual y Motorizado */}
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
-                        <span className="text-3xs font-extrabold uppercase tracking-wider text-slate-400 block">
-                          Odómetro Actual
+                        <span className="text-3xs font-extrabold uppercase tracking-wider text-slate-400 block flex items-center gap-1">
+                          <Gauge className="h-3 w-3" />
+                          Odómetro
                         </span>
-                        <span className="text-base font-black font-mono text-slate-900">
-                          {v.current_odometer.toLocaleString()} km
-                        </span>
+                        {isOdometerBroken ? (
+                          <span className="text-xs font-black text-amber-700 block mt-0.5">
+                            ⚠️ Averiado (Por Mes)
+                          </span>
+                        ) : (
+                          <span className="text-base font-black font-mono text-slate-900 block">
+                            {v.current_odometer.toLocaleString()} km
+                          </span>
+                        )}
                       </div>
 
                       <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
                         <span className="text-3xs font-extrabold uppercase tracking-wider text-slate-400 block">
                           Repartidor Asignado
                         </span>
-                        <span className="text-xs font-bold text-slate-800 truncate block">
+                        <span className="text-xs font-bold text-slate-800 truncate block mt-0.5">
                           {v.assigned_courier_name || 'Sin asignar'}
                         </span>
                       </div>
                     </div>
 
-                    {/* Barra de Desgaste y Próximo Cambio de Aceite */}
-                    <div className="space-y-2 p-3.5 rounded-2xl bg-slate-50/80 border border-slate-200/70">
+                    {/* Notificación o Alerta Resumida */}
+                    {health.overall_status !== 'ok' && (
+                      <div
+                        className={`p-2.5 rounded-xl border text-xs flex items-center gap-2 font-bold ${
+                          health.overall_status === 'urgent'
+                            ? 'bg-rose-50 border-rose-200 text-rose-900'
+                            : 'bg-amber-50 border-amber-200 text-amber-900'
+                        }`}
+                      >
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-current" />
+                        <span className="text-2xs">{health.primary_alert_reason}</span>
+                      </div>
+                    )}
+
+                    {/* SECCIÓN 1: CONTROL DE MANTENIMIENTO POR CALENDARIO (MENSUAL) */}
+                    <div className="space-y-2 p-3 rounded-2xl bg-indigo-50/40 border border-indigo-100">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-700 flex items-center gap-1.5">
-                          <Fuel className="h-3.5 w-3.5 text-indigo-600" />
-                          Vida del Aceite
+                        <span className="font-bold text-slate-800 flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5 text-indigo-600" />
+                          Mantenimiento Mensual
                         </span>
                         <span
-                          className={`font-black font-mono text-xs ${
-                            health.oil_status === 'urgent'
-                              ? 'text-rose-600'
-                              : health.oil_status === 'warning'
-                              ? 'text-amber-600'
-                              : 'text-emerald-600'
+                          className={`font-black text-2xs font-mono px-2 py-0.5 rounded-md ${
+                            health.time_status === 'urgent'
+                              ? 'bg-rose-100 text-rose-800'
+                              : health.time_status === 'warning'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-emerald-100 text-emerald-800'
                           }`}
                         >
-                          {health.oil_km_remaining > 0
-                            ? `Restan ${health.oil_km_remaining} km`
-                            : `¡Vencido por ${Math.abs(health.oil_km_remaining)} km!`}
+                          {health.days_remaining < 0
+                            ? `¡Vencido hace ${Math.abs(health.days_remaining)}d!`
+                            : `Faltan ${health.days_remaining} días`}
                         </span>
                       </div>
 
-                      {/* Barra de Progreso */}
-                      <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                      {/* Barra de Progreso del Mes */}
+                      <div className="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
                         <div
                           className={`h-full transition-all duration-500 rounded-full ${
-                            health.oil_status === 'urgent'
+                            health.time_status === 'urgent'
                               ? 'bg-rose-500'
-                              : health.oil_status === 'warning'
+                              : health.time_status === 'warning'
                               ? 'bg-amber-500'
-                              : 'bg-emerald-500'
+                              : 'bg-indigo-600'
                           }`}
-                          style={{ width: `${health.oil_percentage}%` }}
+                          style={{ width: `${health.time_percentage}%` }}
                         />
                       </div>
 
                       <div className="flex items-center justify-between text-3xs text-slate-500 font-medium">
-                        <span>Último: {v.last_oil_change_km.toLocaleString()} km</span>
-                        <span>Intervalo: cada {v.oil_change_interval_km.toLocaleString()} km</span>
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-2.5 w-2.5" />
+                          Último: {formatDate(health.last_maintenance_date)} ({health.days_since_last_maintenance}d)
+                        </span>
+                        <span>Frecuencia: cada {v.maintenance_interval_days || 30} días</span>
                       </div>
                     </div>
+
+                    {/* SECCIÓN 2: VIDA DEL ACEITE POR KM (Si el odómetro funciona) */}
+                    {!isOdometerBroken && (
+                      <div className="space-y-2 p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                            <Fuel className="h-3.5 w-3.5 text-indigo-600" />
+                            Vida del Aceite
+                          </span>
+                          <span
+                            className={`font-black font-mono text-2xs ${
+                              health.oil_status === 'urgent'
+                                ? 'text-rose-600'
+                                : health.oil_status === 'warning'
+                                ? 'text-amber-600'
+                                : 'text-emerald-600'
+                            }`}
+                          >
+                            {health.oil_km_remaining > 0
+                              ? `Restan ${health.oil_km_remaining} km`
+                              : `¡Vencido por ${Math.abs(health.oil_km_remaining)} km!`}
+                          </span>
+                        </div>
+
+                        {/* Barra de Progreso de Aceite */}
+                        <div className="w-full bg-slate-200 h-2 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full transition-all duration-500 rounded-full ${
+                              health.oil_status === 'urgent'
+                                ? 'bg-rose-500'
+                                : health.oil_status === 'warning'
+                                ? 'bg-amber-500'
+                                : 'bg-emerald-500'
+                            }`}
+                            style={{ width: `${health.oil_percentage}%` }}
+                          />
+                        </div>
+
+                        <div className="flex items-center justify-between text-3xs text-slate-500 font-medium">
+                          <span>Último: {v.last_oil_change_km.toLocaleString()} km</span>
+                          <span>Intervalo: cada {v.oil_change_interval_km.toLocaleString()} km</span>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Botón de Acción Rápida: Registrar Servicio */}
                     <Button
@@ -514,7 +599,7 @@ export default function FleetPage() {
                       leftIcon={<Wrench className="h-3.5 w-3.5" />}
                       className="w-full justify-center font-bold text-xs shadow-2xs"
                     >
-                      Registrar Cambio de Aceite / Servicio
+                      Registrar Mantenimiento / Servicio
                     </Button>
                   </Card>
                 )
@@ -530,10 +615,10 @@ export default function FleetPage() {
           <div className="p-4 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-black text-slate-900">
-                Historial de Servicios Mecánicos & Mantenimientos
+                Historial de Servicios Mecánicos & Repuestos
               </h3>
               <p className="text-xs text-slate-500 font-medium">
-                Registro detallado de cambios de aceite, repuestos cambiados y costos por vehículo.
+                Registro detallado de mantenimientos mensuales, cambios de aceite, repuestos comprados y reparaciones menores.
               </p>
             </div>
           </div>
@@ -560,9 +645,9 @@ export default function FleetPage() {
                     <th className="py-3 px-4">Placa Moto</th>
                     <th className="py-3 px-4">Tipo de Servicio</th>
                     <th className="py-3 px-4">Odómetro</th>
-                    <th className="py-3 px-4">Repuestos / Insumos</th>
+                    <th className="py-3 px-4">Repuestos / Detalle</th>
                     <th className="py-3 px-4">Taller / Mecánico</th>
-                    <th className="py-3 px-4 text-right">Costo</th>
+                    <th className="py-3 px-4 text-right">Costo Total</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium text-slate-800">
@@ -582,10 +667,10 @@ export default function FleetPage() {
                         </span>
                       </td>
                       <td className="py-3 px-4 font-mono font-bold text-slate-700">
-                        {r.odometer_at_service.toLocaleString()} km
+                        {r.odometer_at_service > 0 ? `${r.odometer_at_service.toLocaleString()} km` : 'N/A (Odóm. averiado)'}
                       </td>
                       <td className="py-3 px-4 text-slate-600">
-                        {r.parts_replaced || 'N/D'}
+                        {r.parts_replaced || r.notes || 'Mantenimiento preventivo'}
                       </td>
                       <td className="py-3 px-4 text-slate-500">
                         {r.mechanic_or_workshop || 'Taller General'}
@@ -670,3 +755,4 @@ export default function FleetPage() {
     </div>
   )
 }
+
