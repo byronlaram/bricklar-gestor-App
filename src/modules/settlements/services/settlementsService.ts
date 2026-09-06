@@ -316,10 +316,31 @@ export async function approveSettlement(payload: ApproveSettlementPayload): Prom
   const courierId = currentStl.courier_id
   const settlementDate = currentStl.settlement_date
 
-  // Recalcular saldo esperado en tiempo real para asegurar exactitud financiera
+// 1. Recalcular saldo esperado obligatoriamente en el servidor mediante RPC PostgreSQL compute_settlement
   let expectedCash = currentStl.expected_cash
   let totalExpenses = 0
-  if (workdayId && courierId && settlementDate) {
+  let serverValidated = false
+
+  if (workdayId) {
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('compute_settlement' as any, {
+        p_workday_id: workdayId,
+      })
+      if (!rpcErr && rpcRes) {
+        const computed = typeof rpcRes === 'string' ? JSON.parse(rpcRes) : rpcRes
+        if (typeof computed.net_expected_nio === 'number') {
+          expectedCash = Math.max(0, computed.net_expected_nio)
+          totalExpenses = computed.expenses_nio || 0
+          serverValidated = true
+        }
+      }
+    } catch (rpcEx) {
+      console.warn('[Settlements] RPC compute_settlement fallback:', rpcEx)
+    }
+  }
+
+  // Fallback en caso de cliente offline o función no cargada
+  if (!serverValidated && workdayId && courierId && settlementDate) {
     const { data: wd } = await supabase.from('workdays').select('initial_cash').eq('id', workdayId).single()
     const { data: tasks } = await supabase
       .from('tasks')
@@ -576,28 +597,60 @@ export async function adminForceSettlement(payload: AdminForceSettlementPayload)
 
   if (wdErr || !workday) throw new Error('Jornada no encontrada.')
 
-  // 2. Obtener tareas y movimientos en tiempo real
-  const { data: tasks } = await supabase
+// 2. Obtener cálculo financiero oficial desde PostgreSQL mediante compute_settlement
+  let expectedCashNet = 0
+  let totalExpenses = 0
+  let serverValidated = false
+
+  try {
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc('compute_settlement' as any, {
+      p_workday_id: workday.id,
+    })
+    if (!rpcErr && rpcRes) {
+      const computed = typeof rpcRes === 'string' ? JSON.parse(rpcRes) : rpcRes
+      if (typeof computed.net_expected_nio === 'number') {
+        expectedCashNet = Math.max(0, computed.net_expected_nio)
+        totalExpenses = computed.expenses_nio || 0
+        serverValidated = true
+      }
+    }
+  } catch (rpcEx) {
+    console.warn('[Settlements] RPC compute_settlement warning in force settlement:', rpcEx)
+  }
+
+  // Fallback de recálculo local si la RPC no estuviese disponible
+  let totalExpectedTransfers = 0
+  if (!serverValidated) {
+    const { data: tasks } = await supabase
+      .from('tasks')
+      .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
+      .eq('assigned_courier_id', workday.courier_id)
+      .eq('scheduled_date', workday.work_date)
+      .eq('status', 'completed')
+
+    const { data: movements } = await supabase
+      .from('cash_movements')
+      .select('amount, currency, direction, movement_type, description')
+      .eq('workday_id', workday.id)
+
+    const cashSummary = calculateWorkdayCashSummary(
+      workday.initial_cash ?? 0,
+      tasks || [],
+      movements || []
+    )
+
+    expectedCashNet = Math.max(0, cashSummary.cashInHandNIO)
+    totalExpenses = cashSummary.expensesNIO
+  }
+
+  const { data: allWdTasks } = await supabase
     .from('tasks')
-    .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
+    .select('expected_collection_amount, expected_payment_method, requires_collection, metadata')
     .eq('assigned_courier_id', workday.courier_id)
     .eq('scheduled_date', workday.work_date)
     .eq('status', 'completed')
 
-  const { data: movements } = await supabase
-    .from('cash_movements')
-    .select('amount, currency, direction, movement_type, description')
-    .eq('workday_id', workday.id)
-
-  const cashSummary = calculateWorkdayCashSummary(
-    workday.initial_cash ?? 0,
-    tasks || [],
-    movements || []
-  )
-
-  const expectedCashNet = Math.max(0, cashSummary.cashInHandNIO)
-  const totalExpenses = cashSummary.expensesNIO
-  const totalExpectedTransfers = (tasks || []).reduce((acc, t) => {
+  totalExpectedTransfers = (allWdTasks || []).reduce((acc, t) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const pb = (t as any).metadata?.payment_breakdown
     if (pb?.transfer_amount && pb.transfer_amount > 0) return acc + pb.transfer_amount

@@ -20,6 +20,7 @@ import type { SettlementFilters, Settlement } from '@/modules/settlements/types/
 import { SETTLEMENT_STATUS_LABELS } from '@/shared/types'
 import { ApproveSettlementModal } from '@/modules/settlements/components/ApproveSettlementModal'
 import { AdminForceSettlementModal } from '@/modules/settlements/components/AdminForceSettlementModal'
+import { OfflineConflictsBanner } from '@/modules/settlements/components/OfflineConflictsBanner'
 import { printSettlementReceipt } from '@/shared/utils/pdfReceiptService'
 import {
   Card,
@@ -120,6 +121,9 @@ export default function AdminSettlementsPage() {
           </p>
         </div>
       </div>
+
+      {/* ⚠️ ALERTA PROACTIVA DE CONFLICTOS DE SINCRONIZACIÓN OFFLINE */}
+      <OfflineConflictsBanner />
 
       {/* ⚠️ ALERTA DE MOTORIZADOS CON SALDOS O CIERRES PENDIENTES DE DÍAS ANTERIORES */}
       {allPendingBalances && allPendingBalances.length > 0 && (

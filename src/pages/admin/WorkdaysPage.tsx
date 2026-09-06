@@ -39,6 +39,7 @@ import { AdminForceSettlementModal } from '@/modules/settlements/components/Admi
 import { WorkdayMovementsModal } from '@/modules/workdays/components/WorkdayMovementsModal'
 import { VoidMovementModal } from '@/modules/workdays/components/VoidMovementModal'
 import { FinancialSummaryDetailModal, type FinancialCardType } from '@/modules/workdays/components/FinancialSummaryDetailModal'
+import { OfflineConflictsBanner } from '@/modules/settlements/components/OfflineConflictsBanner'
 import type { DetailedCashMovement } from '@/modules/workdays/services/workdaysService'
 import {
   Card,
@@ -291,6 +292,9 @@ export default function AdminWorkdaysPage() {
           + Entregar Efectivo
         </Button>
       </div>
+
+      {/* ⚠️ Alerta proactiva de conflictos de sincronización offline */}
+      <OfflineConflictsBanner />
 
       {/* 🔮/⚡ Selector de Perspectiva Financiera: Proyección vs Real en Mano */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-3.5 rounded-2xl border border-slate-200 shadow-2xs">
