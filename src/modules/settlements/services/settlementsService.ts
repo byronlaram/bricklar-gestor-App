@@ -313,48 +313,42 @@ export async function approveSettlement(payload: ApproveSettlementPayload): Prom
 
   const currentStl = current as { expected_cash: number; workday_id?: string; courier_id?: string; settlement_date?: string }
   const workdayId = currentStl.workday_id
-  const courierId = currentStl.courier_id
-  const settlementDate = currentStl.settlement_date
 
-// 1. Recalcular saldo esperado obligatoriamente en el servidor mediante RPC PostgreSQL compute_settlement
-  let expectedCash = currentStl.expected_cash
-  let totalExpenses = 0
-  let serverValidated = false
-
-  if (workdayId) {
-    try {
-      const { data: rpcRes, error: rpcErr } = await supabase.rpc('compute_settlement' as any, {
-        p_workday_id: workdayId,
-      })
-      if (!rpcErr && rpcRes) {
-        const computed = typeof rpcRes === 'string' ? JSON.parse(rpcRes) : rpcRes
-        if (typeof computed.net_expected_nio === 'number') {
-          expectedCash = Math.max(0, computed.net_expected_nio)
-          totalExpenses = computed.expenses_nio || 0
-          serverValidated = true
-        }
-      }
-    } catch (rpcEx) {
-      console.warn('[Settlements] RPC compute_settlement fallback:', rpcEx)
-    }
+  // 1. Recalcular saldo esperado obligatoriamente en el servidor mediante RPC PostgreSQL compute_settlement
+  if (!workdayId) {
+    throw new Error(
+      'Validación del servidor fallida: la liquidación no tiene una jornada laboral asociada. Por seguridad, la aprobación ha sido cancelada. Contacta a soporte técnico.'
+    )
   }
 
-  // Fallback en caso de cliente offline o función no cargada
-  if (!serverValidated && workdayId && courierId && settlementDate) {
-    const { data: wd } = await supabase.from('workdays').select('initial_cash').eq('id', workdayId).single()
-    const { data: tasks } = await supabase
-      .from('tasks')
-      .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
-      .eq('assigned_courier_id', courierId)
-      .eq('scheduled_date', settlementDate)
-      .eq('status', 'completed')
-    const { data: movements } = await supabase
-      .from('cash_movements')
-      .select('amount, currency, direction, movement_type, description')
-      .eq('workday_id', workdayId)
-    const summary = calculateWorkdayCashSummary(wd?.initial_cash || 0, tasks || [], movements || [])
-    expectedCash = Math.max(0, summary.cashInHandNIO)
-    totalExpenses = summary.expensesNIO
+  let expectedCash = 0
+  let totalExpenses = 0
+  let serverValidated = false
+  let rpcErrorMessage = ''
+
+  try {
+    const { data: rpcRes, error: rpcErr } = await supabase.rpc('compute_settlement' as any, {
+      p_workday_id: workdayId,
+    })
+    if (rpcErr) {
+      rpcErrorMessage = rpcErr.message
+    } else if (rpcRes) {
+      const computed = typeof rpcRes === 'string' ? JSON.parse(rpcRes) : rpcRes
+      if (typeof computed.net_expected_nio === 'number') {
+        expectedCash = Math.max(0, computed.net_expected_nio)
+        totalExpenses = computed.expenses_nio || 0
+        serverValidated = true
+      }
+    }
+  } catch (rpcEx) {
+    rpcErrorMessage = (rpcEx as Error)?.message || 'Error de conexión con el servidor RPC'
+  }
+
+  // Bloqueo estricto: cancela la transacción si el cálculo server-side no pudo ser certificado
+  if (!serverValidated) {
+    throw new Error(
+      `Validación del servidor fallida: no se pudo certificar el cálculo financiero en el servidor mediante compute_settlement (${rpcErrorMessage || 'Respuesta inválida del cálculo'}). Por seguridad, la aprobación ha sido cancelada. Por favor reintenta en unos segundos. Si el problema persiste, contacta a soporte técnico antes de intentar aprobar por otra vía.`
+    )
   }
 
   const difference = payload.actual_cash - expectedCash
@@ -597,16 +591,19 @@ export async function adminForceSettlement(payload: AdminForceSettlementPayload)
 
   if (wdErr || !workday) throw new Error('Jornada no encontrada.')
 
-// 2. Obtener cálculo financiero oficial desde PostgreSQL mediante compute_settlement
+  // 2. Obtener cálculo financiero oficial desde PostgreSQL mediante compute_settlement
   let expectedCashNet = 0
   let totalExpenses = 0
   let serverValidated = false
+  let rpcErrorMessage = ''
 
   try {
     const { data: rpcRes, error: rpcErr } = await supabase.rpc('compute_settlement' as any, {
       p_workday_id: workday.id,
     })
-    if (!rpcErr && rpcRes) {
+    if (rpcErr) {
+      rpcErrorMessage = rpcErr.message
+    } else if (rpcRes) {
       const computed = typeof rpcRes === 'string' ? JSON.parse(rpcRes) : rpcRes
       if (typeof computed.net_expected_nio === 'number') {
         expectedCashNet = Math.max(0, computed.net_expected_nio)
@@ -615,34 +612,17 @@ export async function adminForceSettlement(payload: AdminForceSettlementPayload)
       }
     }
   } catch (rpcEx) {
-    console.warn('[Settlements] RPC compute_settlement warning in force settlement:', rpcEx)
+    rpcErrorMessage = (rpcEx as Error)?.message || 'Error de conexión con el servidor RPC'
   }
 
-  // Fallback de recálculo local si la RPC no estuviese disponible
-  let totalExpectedTransfers = 0
+  // Bloqueo estricto: cancela el cierre por contingencia si el cálculo server-side no pudo ser certificado
   if (!serverValidated) {
-    const { data: tasks } = await supabase
-      .from('tasks')
-      .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
-      .eq('assigned_courier_id', workday.courier_id)
-      .eq('scheduled_date', workday.work_date)
-      .eq('status', 'completed')
-
-    const { data: movements } = await supabase
-      .from('cash_movements')
-      .select('amount, currency, direction, movement_type, description')
-      .eq('workday_id', workday.id)
-
-    const cashSummary = calculateWorkdayCashSummary(
-      workday.initial_cash ?? 0,
-      tasks || [],
-      movements || []
+    throw new Error(
+      `Validación del servidor fallida: no se pudo certificar el cálculo financiero en el servidor mediante compute_settlement (${rpcErrorMessage || 'Respuesta inválida del cálculo'}). Por seguridad, el cierre por contingencia ha sido cancelado. Por favor reintenta en unos segundos. Si el problema persiste, contacta a soporte técnico antes de intentar forzar el cierre por otra vía.`
     )
-
-    expectedCashNet = Math.max(0, cashSummary.cashInHandNIO)
-    totalExpenses = cashSummary.expensesNIO
   }
 
+  let totalExpectedTransfers = 0
   const { data: allWdTasks } = await supabase
     .from('tasks')
     .select('expected_collection_amount, expected_payment_method, requires_collection, metadata')
