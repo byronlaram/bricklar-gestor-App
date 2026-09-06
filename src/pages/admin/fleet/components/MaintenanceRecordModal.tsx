@@ -73,19 +73,23 @@ export function MaintenanceRecordModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    await onSave({
-      vehicle_id: vehicle.id,
-      vehicle_plate: vehicle.plate,
-      service_type: serviceType,
-      odometer_at_service: odometer,
-      cost,
-      currency,
-      service_date: serviceDate,
-      mechanic_or_workshop: workshop,
-      parts_replaced: parts,
-      notes,
-    })
-    onClose()
+    try {
+      await onSave({
+        vehicle_id: vehicle.id,
+        vehicle_plate: vehicle.plate,
+        service_type: serviceType,
+        odometer_at_service: odometer,
+        cost,
+        currency,
+        service_date: serviceDate,
+        mechanic_or_workshop: workshop,
+        parts_replaced: parts,
+        notes,
+      })
+      onClose()
+    } catch {
+      // Dejar modal abierto si ocurre error
+    }
   }
 
   return (

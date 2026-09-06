@@ -77,12 +77,27 @@ export async function getVehicles(branchId?: string): Promise<Vehicle[]> {
     } else {
       const local = localStorage.getItem(FLEET_STORAGE_KEY)
       if (local) {
-        list = JSON.parse(local) as Vehicle[]
+        try {
+          list = JSON.parse(local) as Vehicle[]
+        } catch {
+          list = []
+        }
       }
     }
 
+    // Normalizar vehículos
+    list = list.map((v) => ({
+      ...v,
+      current_odometer: Number(v.current_odometer) || 0,
+      oil_change_interval_km: Number(v.oil_change_interval_km) || 2500,
+      last_oil_change_km: Number(v.last_oil_change_km) || 0,
+      general_service_interval_km: Number(v.general_service_interval_km) || 5000,
+      last_general_service_km: Number(v.last_general_service_km) || 0,
+      status: v.status || 'active',
+    }))
+
     if (branchId && branchId !== 'all') {
-      return list.filter((v) => v.branch_id === branchId)
+      return list.filter((v) => !v.branch_id || v.branch_id === branchId)
     }
 
     return list
@@ -90,11 +105,24 @@ export async function getVehicles(branchId?: string): Promise<Vehicle[]> {
     console.warn('[Fleet] Error fetching vehicles:', err)
     const local = localStorage.getItem(FLEET_STORAGE_KEY)
     if (local) {
-      const list = JSON.parse(local) as Vehicle[]
-      if (branchId && branchId !== 'all') {
-        return list.filter((v) => v.branch_id === branchId)
+      try {
+        let list = JSON.parse(local) as Vehicle[]
+        list = list.map((v) => ({
+          ...v,
+          current_odometer: Number(v.current_odometer) || 0,
+          oil_change_interval_km: Number(v.oil_change_interval_km) || 2500,
+          last_oil_change_km: Number(v.last_oil_change_km) || 0,
+          general_service_interval_km: Number(v.general_service_interval_km) || 5000,
+          last_general_service_km: Number(v.last_general_service_km) || 0,
+          status: v.status || 'active',
+        }))
+        if (branchId && branchId !== 'all') {
+          return list.filter((v) => !v.branch_id || v.branch_id === branchId)
+        }
+        return list
+      } catch {
+        return []
       }
-      return list
     }
     return []
   }
@@ -102,22 +130,30 @@ export async function getVehicles(branchId?: string): Promise<Vehicle[]> {
 
 async function saveFleetSettingToDb(key: string, value: any, description: string): Promise<void> {
   try {
-    const { data: existing } = await supabase
+    const { data: existing, error: selectError } = await supabase
       .from('app_settings')
       .select('id')
       .eq('key', key)
       .maybeSingle()
 
+    if (selectError) {
+      console.warn('[Fleet] DB select error for key:', key, selectError)
+    }
+
     if (existing) {
-      await supabase
+      const { error: updateError } = await supabase
         .from('app_settings')
         .update({
           value_json: value as any,
           updated_at: new Date().toISOString(),
         })
         .eq('id', existing.id)
+
+      if (updateError) {
+        console.warn('[Fleet] DB update error for key:', key, updateError)
+      }
     } else {
-      await supabase
+      const { error: insertError } = await supabase
         .from('app_settings')
         .insert({
           key,
@@ -125,6 +161,10 @@ async function saveFleetSettingToDb(key: string, value: any, description: string
           description,
           updated_at: new Date().toISOString(),
         })
+
+      if (insertError) {
+        console.warn('[Fleet] DB insert error for key:', key, insertError)
+      }
     }
   } catch (err) {
     console.warn('[Fleet] DB save error for key:', key, err)
@@ -148,6 +188,21 @@ export async function saveVehicle(payload: Partial<Vehicle>): Promise<Vehicle> {
     savedVehicle = {
       ...allVehicles[index],
       ...payload,
+      plate: payload.plate ? payload.plate.toUpperCase().trim() : allVehicles[index].plate,
+      brand: payload.brand !== undefined ? payload.brand.trim() : allVehicles[index].brand,
+      model: payload.model !== undefined ? payload.model.trim() : allVehicles[index].model,
+      year: payload.year !== undefined ? (payload.year ? Number(payload.year) : null) : allVehicles[index].year,
+      color: payload.color !== undefined ? payload.color : allVehicles[index].color,
+      branch_id: payload.branch_id !== undefined ? payload.branch_id : allVehicles[index].branch_id,
+      assigned_courier_id: payload.assigned_courier_id !== undefined ? payload.assigned_courier_id : allVehicles[index].assigned_courier_id,
+      assigned_courier_name: payload.assigned_courier_name !== undefined ? payload.assigned_courier_name : allVehicles[index].assigned_courier_name,
+      current_odometer: payload.current_odometer !== undefined ? Number(payload.current_odometer) : allVehicles[index].current_odometer,
+      oil_change_interval_km: payload.oil_change_interval_km !== undefined ? Number(payload.oil_change_interval_km) : allVehicles[index].oil_change_interval_km,
+      last_oil_change_km: payload.last_oil_change_km !== undefined ? Number(payload.last_oil_change_km) : allVehicles[index].last_oil_change_km,
+      general_service_interval_km: payload.general_service_interval_km !== undefined ? Number(payload.general_service_interval_km) : allVehicles[index].general_service_interval_km,
+      last_general_service_km: payload.last_general_service_km !== undefined ? Number(payload.last_general_service_km) : allVehicles[index].last_general_service_km,
+      status: payload.status || allVehicles[index].status || 'active',
+      notes: payload.notes !== undefined ? payload.notes : allVehicles[index].notes,
       updated_at: now,
     } as Vehicle
     allVehicles[index] = savedVehicle
@@ -156,8 +211,22 @@ export async function saveVehicle(payload: Partial<Vehicle>): Promise<Vehicle> {
     savedVehicle = {
       id: crypto.randomUUID(),
       plate: payload.plate?.toUpperCase().trim() || 'M-000000',
-      brand: payload.brand?.trim() || 'Desconocida',
-      model: payload.model?.trim() || 'Moped',
+      brand: payload.brand?.trim() || 'Yamaha',
+      model: payload.model?.trim() || 'YBR 125',
+      year: payload.year ? Number(payload.year) : new Date().getFullYear(),
+      color: payload.color?.trim() || 'Negro',
+      branch_id: payload.branch_id || '',
+      assigned_courier_id: payload.assigned_courier_id || null,
+      assigned_courier_name: payload.assigned_courier_name || null,
+      current_odometer: Number(payload.current_odometer) || 0,
+      oil_change_interval_km: Number(payload.oil_change_interval_km) || 2500,
+      last_oil_change_km: Number(payload.last_oil_change_km) || 0,
+      last_oil_change_date: payload.last_oil_change_date || new Date().toISOString().split('T')[0],
+      general_service_interval_km: Number(payload.general_service_interval_km) || 5000,
+      last_general_service_km: Number(payload.last_general_service_km) || 0,
+      last_general_service_date: payload.last_general_service_date || new Date().toISOString().split('T')[0],
+      status: payload.status || 'active',
+      notes: payload.notes || '',
       created_at: now,
       updated_at: now,
     } as Vehicle

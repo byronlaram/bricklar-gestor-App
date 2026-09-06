@@ -9,6 +9,7 @@ interface VehicleModalProps {
   isOpen: boolean
   onClose: () => void
   vehicleToEdit?: Vehicle | null
+  defaultBranchId?: string
   onSave: (data: Partial<Vehicle>) => Promise<void>
   isLoading?: boolean
 }
@@ -17,6 +18,7 @@ export function VehicleModal({
   isOpen,
   onClose,
   vehicleToEdit,
+  defaultBranchId,
   onSave,
   isLoading = false,
 }: VehicleModalProps) {
@@ -47,14 +49,19 @@ export function VehicleModal({
       setFormData({
         ...vehicleToEdit,
       })
-    } else {
+    } else if (isOpen) {
+      const initialBranchId =
+        (defaultBranchId && defaultBranchId !== 'all' ? defaultBranchId : '') ||
+        branches[0]?.id ||
+        ''
+
       setFormData({
         plate: '',
         brand: 'Yamaha',
         model: 'YBR 125',
         year: new Date().getFullYear(),
         color: 'Negro',
-        branch_id: branches[0]?.id || '',
+        branch_id: initialBranchId,
         assigned_courier_id: '',
         assigned_courier_name: '',
         current_odometer: 0,
@@ -66,7 +73,7 @@ export function VehicleModal({
         notes: '',
       })
     }
-  }, [vehicleToEdit, branches, isOpen])
+  }, [vehicleToEdit, branches, isOpen, defaultBranchId])
 
   if (!isOpen) return null
 
@@ -92,8 +99,12 @@ export function VehicleModal({
     e.preventDefault()
     if (!formData.plate?.trim()) return
 
-    await onSave(formData)
-    onClose()
+    try {
+      await onSave(formData)
+      onClose()
+    } catch {
+      // Dejar modal abierto si ocurre error para no perder datos
+    }
   }
 
   return (
