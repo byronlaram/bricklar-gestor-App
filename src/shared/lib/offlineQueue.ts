@@ -11,11 +11,14 @@ const DB_NAME = 'bricklar_offline_store'
 const DB_VERSION = 1
 const STORE_NAME = 'offline_actions'
 
+export const MAX_OFFLINE_RETRIES = 5
+
 export type OfflineActionType =
   | 'CHANGE_TASK_STATUS'
   | 'UPLOAD_POD_EVIDENCE'
   | 'RECORD_CASH_MOVEMENT'
   | 'COURIER_CREATE_TASK'
+  | 'SUBMIT_SETTLEMENT'
 
 export interface OfflineAction {
   id: string
@@ -24,7 +27,7 @@ export interface OfflineAction {
   payload: any
   timestamp: string
   retryCount: number
-  status: 'pending' | 'syncing' | 'failed'
+  status: 'pending' | 'syncing' | 'failed' | 'permanently_failed'
   errorMessage?: string
 }
 
@@ -258,17 +261,50 @@ export async function processOfflineQueue(): Promise<{ total: number; synced: nu
         })
         if (movErr) throw new Error(movErr.message)
         broadcastSyncEvent('cash_movements', 'create')
+      } else if (item.actionType === 'SUBMIT_SETTLEMENT') {
+        const { settlementData } = item.payload
+        const { error: setErr } = await supabase.from('settlements').insert(settlementData)
+        if (setErr) throw new Error(setErr.message)
+        broadcastSyncEvent('settlements', 'create')
       }
 
       await removeOfflineAction(item.id)
       synced++
     } catch (err) {
       console.warn(`[OfflineQueue] Error syncing action ${item.id}:`, err)
+      const errorMsg = (err as Error).message || 'Error de sincronización'
+      const nextRetry = item.retryCount + 1
+      const isPermanent = nextRetry >= MAX_OFFLINE_RETRIES || errorMsg.includes('23505') || errorMsg.includes('duplicate key') || errorMsg.includes('unique')
+
       await updateOfflineAction(item.id, {
-        status: 'failed',
-        retryCount: item.retryCount + 1,
-        errorMessage: (err as Error).message,
+        status: isPermanent ? 'permanently_failed' : 'failed',
+        retryCount: nextRetry,
+        errorMessage: errorMsg,
       })
+
+      // Si falla permanentemente o por conflicto de jornada/liquidación ya cerrada, registrar en audit_logs para alertar al administrador
+      if (isPermanent) {
+        try {
+          const { data: authData } = await supabase.auth.getSession()
+          const userId = authData?.session?.user?.id || null
+          await supabase.from('audit_logs').insert({
+            action: 'offline_sync_conflict',
+            entity_type: item.actionType === 'SUBMIT_SETTLEMENT' ? 'settlement' : 'workday',
+            entity_id: item.payload?.workdayId || item.payload?.settlementData?.workday_id || null,
+            actor_user_id: userId,
+            changes: {
+              error: errorMsg,
+              action_type: item.actionType,
+              payload: item.payload,
+              reason: 'Esta jornada se cerró y podría tener una liquidación o movimiento del motorizado sin sincronizar. Revisar manualmente.',
+              failed_at: new Date().toISOString(),
+            },
+          })
+        } catch (auditErr) {
+          console.warn('[OfflineQueue] No se pudo registrar alerta de conflicto en auditoría:', auditErr)
+        }
+      }
+
       failed++
     }
   }

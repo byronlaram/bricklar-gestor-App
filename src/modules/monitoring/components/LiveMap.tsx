@@ -72,7 +72,7 @@ export function LiveMap({
   const markersLayerRef = useRef<L.LayerGroup | null>(null)
   const routesLayerRef = useRef<L.LayerGroup | null>(null)
 
-  const [activeTileKey, setActiveTileKey] = useState<keyof typeof TILE_LAYERS>('esri')
+  const [activeTileKey, setActiveTileKey] = useState<keyof typeof TILE_LAYERS>('osm')
   const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false)
   const [isStatusMenuOpen, setIsStatusMenuOpen] = useState(false)
   const [isFullscreen, setIsFullscreen] = useState(false)
