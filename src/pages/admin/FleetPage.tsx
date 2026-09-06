@@ -27,7 +27,7 @@ import type { Vehicle } from '@/modules/fleet/types/fleet.types'
 
 export default function FleetPage() {
   const { profile } = useAuth()
-  const { showToast } = useToast()
+  const toast = useToast()
   const { data: branches = [] } = useBranches()
 
   const defaultBranchId = profile?.primary_branch_id || profile?.branch_ids[0] || (branches[0]?.id ?? 'all')
@@ -129,18 +129,16 @@ export default function FleetPage() {
     try {
       await deleteVehicle(vehicleToDelete.id)
       await refetchVehicles()
-      showToast({
-        type: 'success',
-        title: 'Motocicleta eliminada',
-        message: `La moto ${vehicleToDelete.plate} ha sido eliminada de la flota.`,
-      })
+      toast.success(
+        'Motocicleta eliminada',
+        `La moto ${vehicleToDelete.plate} ha sido eliminada de la flota.`
+      )
       setVehicleToDelete(null)
     } catch (err: any) {
-      showToast({
-        type: 'error',
-        title: 'Error al eliminar',
-        message: err?.message || 'No se pudo eliminar la motocicleta.',
-      })
+      toast.error(
+        'Error al eliminar',
+        err?.message || 'No se pudo eliminar la motocicleta.'
+      )
     } finally {
       setIsDeleting(false)
     }
@@ -615,18 +613,16 @@ export default function FleetPage() {
           try {
             await saveVehicle(data)
             await refetchVehicles()
-            showToast({
-              type: 'success',
-              title: vehicleToEdit ? 'Motocicleta actualizada' : 'Motocicleta registrada',
-              message: `La motocicleta ${data.plate || ''} fue guardada correctamente en la flota.`,
-            })
+            toast.success(
+              vehicleToEdit ? 'Motocicleta actualizada' : 'Motocicleta registrada',
+              `La motocicleta ${data.plate || ''} fue guardada correctamente en la flota.`
+            )
             setIsVehicleModalOpen(false)
           } catch (err: any) {
-            showToast({
-              type: 'error',
-              title: 'Error al registrar motocicleta',
-              message: err?.message || 'Ocurrió un error al guardar la motocicleta.',
-            })
+            toast.error(
+              'Error al registrar motocicleta',
+              err?.message || 'Ocurrió un error al guardar la motocicleta.'
+            )
             throw err
           }
         }}
@@ -642,18 +638,16 @@ export default function FleetPage() {
             await addMaintenance(data)
             await refetchRecords()
             await refetchVehicles()
-            showToast({
-              type: 'success',
-              title: 'Servicio registrado',
-              message: 'El registro de mantenimiento fue agregado exitosamente.',
-            })
+            toast.success(
+              'Servicio registrado',
+              'El registro de mantenimiento fue agregado exitosamente.'
+            )
             setIsMaintenanceModalOpen(false)
           } catch (err: any) {
-            showToast({
-              type: 'error',
-              title: 'Error al registrar servicio',
-              message: err?.message || 'No se pudo guardar el registro de mantenimiento.',
-            })
+            toast.error(
+              'Error al registrar servicio',
+              err?.message || 'No se pudo guardar el registro de mantenimiento.'
+            )
             throw err
           }
         }}
