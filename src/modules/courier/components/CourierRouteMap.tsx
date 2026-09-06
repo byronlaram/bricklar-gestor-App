@@ -43,15 +43,15 @@ const DEFAULT_CENTER: [number, number] = [12.1364, -86.2514]
 const DEFAULT_ZOOM = 14
 
 const TILE_LAYERS = {
+  osm: {
+    name: 'OpenStreetMap Estándar',
+    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  },
   esri: {
     name: 'Esri Callejero (Limpio & Rápido)',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
     attribution: 'Tiles &copy; Esri &mdash; OpenStreetMap contributors',
-  },
-  osm: {
-    name: 'OpenStreetMap',
-    url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    attribution: '&copy; OpenStreetMap contributors',
   },
   hot: {
     name: 'OSM Humanitario (Detallado)',
@@ -83,7 +83,7 @@ export function CourierRouteMap({
   const routePolylineRef = useRef<L.Polyline | null>(null)
   const courierMarkerRef = useRef<L.Marker | null>(null)
 
-  const [activeTileKey, setActiveTileKey] = useState<keyof typeof TILE_LAYERS>('esri')
+  const [activeTileKey, setActiveTileKey] = useState<keyof typeof TILE_LAYERS>('osm')
   const [isLayerMenuOpen, setIsLayerMenuOpen] = useState(false)
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)

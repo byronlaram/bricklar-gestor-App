@@ -34,15 +34,15 @@ const DEFAULT_ZOOM = 13
 
 // Proveedores de Mapas Gratuitos y Libres de Marcas de Agua
 const TILE_LAYERS = {
-  esri: {
-    name: 'Esri Callejero (Limpio & Rápido)',
-    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-    attribution: 'Tiles &copy; Esri &mdash; OpenStreetMap contributors',
-  },
   osm: {
     name: 'OpenStreetMap Estándar',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  },
+  esri: {
+    name: 'Esri Callejero (Limpio & Rápido)',
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri &mdash; OpenStreetMap contributors',
   },
   hot: {
     name: 'OSM Humanitario (Detallado)',
