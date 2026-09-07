@@ -43,6 +43,7 @@ export function useWorkdaySettlement(workdayId?: string) {
     queryKey: ['workday-settlement', workdayId],
     queryFn: () => getSettlementByWorkday(workdayId!),
     enabled: !!workdayId,
+    staleTime: 1000 * 60,
   })
 }
 
@@ -51,6 +52,7 @@ export function useCashMovements(workdayId?: string) {
     queryKey: ['cash-movements', workdayId],
     queryFn: () => getCashMovements(workdayId!),
     enabled: !!workdayId,
+    staleTime: 1000 * 60,
   })
 }
 

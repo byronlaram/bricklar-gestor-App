@@ -61,6 +61,7 @@ export default function CourierFundsPage() {
       return data
     },
     enabled: !!profile?.id,
+    staleTime: 1000 * 60,
   })
 
   const effectiveWorkday = activeWorkday || todayWorkday

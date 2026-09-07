@@ -21,8 +21,7 @@ export function useCourierPendingBalances(courierId?: string, beforeDate?: strin
       return getCourierPendingBalances(courierId, beforeDate)
     },
     enabled: !!courierId,
-    staleTime: 1000 * 30, // 30 segundos
-    refetchInterval: 1000 * 60, // Refrescar cada minuto
+    staleTime: 1000 * 60 * 2, // 2 minutos
   })
 }
 

@@ -59,7 +59,7 @@ export default function CourierSettlementPage() {
 
   // Consultar también la jornada de hoy (incluso si ya fue cerrada o liquidada)
   const { data: todayWorkday, isLoading: isLoadingTodayWorkday } = useQuery({
-    queryKey: ['today-courier-workday-settlement', profile?.id, todayStr],
+    queryKey: ['today-courier-workday', profile?.id, todayStr],
     queryFn: async () => {
       if (!profile?.id) return null
       const { data } = await supabase
@@ -73,6 +73,7 @@ export default function CourierSettlementPage() {
       return data
     },
     enabled: !!profile?.id,
+    staleTime: 1000 * 60,
   })
 
   const effectiveWorkday = activeWorkday || todayWorkday

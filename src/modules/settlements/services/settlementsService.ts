@@ -1293,16 +1293,25 @@ export async function getCourierPendingBalances(
 ): Promise<CourierPendingBalancesSummary> {
   const currentDate = beforeDate || getLocalDateString()
 
-  // 1. Obtener jornadas pasadas del motorizado
-  const { data: pastWorkdays, error: workdaysErr } = await supabase
-    .from('workdays')
-    .select('id, work_date, status, initial_cash, branch_id')
-    .eq('courier_id', courierId)
-    .lt('work_date', currentDate)
-    .order('work_date', { ascending: true })
+  // 1. Obtener jornadas pasadas del motorizado en paralelo con sus liquidaciones pasadas
+  const [workdaysRes, settlementsRes] = await Promise.all([
+    supabase
+      .from('workdays')
+      .select('id, work_date, status, initial_cash, branch_id')
+      .eq('courier_id', courierId)
+      .lt('work_date', currentDate)
+      .order('work_date', { ascending: true }),
+    supabase
+      .from('settlements')
+      .select('id, workday_id, settlement_date, status, expected_cash, actual_cash, difference')
+      .eq('courier_id', courierId)
+      .lt('settlement_date', currentDate),
+  ])
 
-  if (workdaysErr) {
-    console.error('[Settlements] Error fetching past workdays:', workdaysErr)
+  const pastWorkdays = workdaysRes.data || []
+  const settlements = settlementsRes.data || []
+
+  if (pastWorkdays.length === 0) {
     return {
       courierId,
       totalPendingCash: 0,
@@ -1312,58 +1321,78 @@ export async function getCourierPendingBalances(
     }
   }
 
-  // 2. Obtener liquidaciones pasadas
-  const { data: settlements, error: settlementsErr } = await supabase
-    .from('settlements')
-    .select('id, workday_id, settlement_date, status, expected_cash, actual_cash, difference')
-    .eq('courier_id', courierId)
-    .lt('settlement_date', currentDate)
-
-  if (settlementsErr) {
-    console.error('[Settlements] Error fetching past settlements:', settlementsErr)
-  }
-
   const settlementsByWorkday = new Map<string, any>()
   const settlementsByDate = new Map<string, any>()
-  ;(settlements || []).forEach((s) => {
+  settlements.forEach((s) => {
     if (s.workday_id) settlementsByWorkday.set(s.workday_id, s)
     if (s.settlement_date) settlementsByDate.set(s.settlement_date, s)
+  })
+
+  // Identificar las jornadas pendientes/no aprobadas para hacer una sola consulta batch
+  const unapprovedWorkdays = pastWorkdays.filter((wd) => {
+    const settlement = settlementsByWorkday.get(wd.id) || settlementsByDate.get(wd.work_date)
+    return !settlement || settlement.status !== 'approved'
+  })
+
+  if (unapprovedWorkdays.length === 0) {
+    return {
+      courierId,
+      totalPendingCash: 0,
+      hasPendingBalances: false,
+      unclosedWorkdaysCount: 0,
+      breakdown: [],
+    }
+  }
+
+  const unapprovedDates = unapprovedWorkdays.map((w) => w.work_date)
+  const unapprovedIds = unapprovedWorkdays.map((w) => w.id)
+
+  // Consultar en batch todas las tareas completadas y movimientos de todas las fechas no aprobadas
+  const [batchTasksRes, batchMovementsRes] = await Promise.all([
+    supabase
+      .from('tasks')
+      .select('scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
+      .eq('assigned_courier_id', courierId)
+      .in('scheduled_date', unapprovedDates)
+      .eq('status', 'completed'),
+    supabase
+      .from('cash_movements')
+      .select('workday_id, amount, currency, direction, movement_type, description')
+      .in('workday_id', unapprovedIds),
+  ])
+
+  const tasksByDate = new Map<string, any[]>()
+  ;(batchTasksRes.data || []).forEach((t) => {
+    if (!tasksByDate.has(t.scheduled_date)) tasksByDate.set(t.scheduled_date, [])
+    tasksByDate.get(t.scheduled_date)!.push(t)
+  })
+
+  const movementsByWorkday = new Map<string, any[]>()
+  ;(batchMovementsRes.data || []).forEach((m) => {
+    if (m.workday_id) {
+      if (!movementsByWorkday.has(m.workday_id)) movementsByWorkday.set(m.workday_id, [])
+      movementsByWorkday.get(m.workday_id)!.push(m)
+    }
   })
 
   const breakdown: PendingBalanceBreakdown[] = []
   let totalPendingCash = 0
   let unclosedWorkdaysCount = 0
 
-  for (const wd of pastWorkdays || []) {
+  for (const wd of unapprovedWorkdays) {
     const settlement = settlementsByWorkday.get(wd.id) || settlementsByDate.get(wd.work_date)
-    const isApproved = settlement && settlement.status === 'approved'
 
-    // Si ya está aprobada por el administrador, este día quedó formalmente liquidado en caja
-    if (isApproved) continue
-
-    // Si la jornada nunca se cerró
     if (wd.status === 'open') {
       unclosedWorkdaysCount++
     }
 
-    // Calcular tareas y movimientos en tiempo real para este día
-    const { data: dayTasks } = await supabase
-      .from('tasks')
-      .select('expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
-      .eq('assigned_courier_id', courierId)
-      .eq('scheduled_date', wd.work_date)
-      .eq('status', 'completed')
+    const dayTasks = tasksByDate.get(wd.work_date) || []
+    const dayMovements = movementsByWorkday.get(wd.id) || []
 
-    const { data: dayMovements } = await supabase
-      .from('cash_movements')
-      .select('amount, currency, direction, movement_type, description')
-      .eq('workday_id', wd.id)
-
-    // Usar la función centralizada de cálculo en tiempo real
     const cashSummary = calculateWorkdayCashSummary(
       wd.initial_cash || 0,
-      dayTasks || [],
-      dayMovements || []
+      dayTasks,
+      dayMovements
     )
 
     const dayPendingAmount = Math.max(0, cashSummary.cashInHandNIO)
@@ -1420,15 +1449,17 @@ export async function getAllCouriersPendingBalances(
   const { data: couriers, error } = await query
   if (error || !couriers) return []
 
-  const results: CourierPendingBalancesSummary[] = []
-  for (const c of couriers) {
-    const summary = await getCourierPendingBalances(c.id, cutoffDate)
-    if (summary.hasPendingBalances) {
-      summary.courierName = c.display_name || c.full_name
-      results.push(summary)
-    }
-  }
+  const summaries = await Promise.all(
+    couriers.map(async (c) => {
+      const summary = await getCourierPendingBalances(c.id, cutoffDate)
+      if (summary.hasPendingBalances) {
+        summary.courierName = c.display_name || c.full_name
+        return summary
+      }
+      return null
+    })
+  )
 
-  return results
+  return summaries.filter(Boolean) as CourierPendingBalancesSummary[]
 }
 

@@ -58,7 +58,8 @@ export default function CourierLayout() {
       return data ?? []
     },
     enabled: !!profile?.id,
-    refetchInterval: 1000 * 30,
+    staleTime: 1000 * 60,
+    refetchInterval: 1000 * 60,
   })
 
   const unreadCount = unreadNotifications.length
