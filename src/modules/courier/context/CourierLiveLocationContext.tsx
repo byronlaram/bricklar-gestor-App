@@ -45,23 +45,44 @@ export function CourierLiveLocationProvider({ children }: { children: React.Reac
   const isWorkdayOpen = workday?.status === 'open'
   const userId = profile?.id
 
-  // Transmitir posición actual por Supabase Realtime
-  const broadcastLocation = useCallback(async (coords: GeolocationCoordinates) => {
+  const lastBroadcastRef = useRef<{ lat: number; lng: number; time: number }>({ lat: 0, lng: 0, time: 0 })
+  const batteryLevelRef = useRef<number | null>(null)
+
+  // Transmitir posición actual por Supabase Realtime con Throttling inteligente
+  const broadcastLocation = useCallback(async (coords: GeolocationCoordinates, force = false) => {
     const curProfile = profileRef.current
     const curWorkday = workdayRef.current
     const branchId = curProfile?.primary_branch_id || curProfile?.branch_ids?.[0] || ''
 
     if (!curProfile?.id || !channelRef.current) return
 
-    let batteryLevel: number | null = null
-    try {
-      if ('getBattery' in navigator) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const battery = await (navigator as any).getBattery()
-        batteryLevel = Math.round(battery.level * 100)
+    const now = Date.now()
+    const last = lastBroadcastRef.current
+    const distanceDelta = Math.hypot(coords.latitude - last.lat, coords.longitude - last.lng)
+    const timeDelta = now - last.time
+
+    // Throttling: Si no es forzado y han pasado menos de 20s y el movimiento es menor a ~8 metros, no saturar Realtime
+    if (!force && timeDelta < 20_000 && distanceDelta < 0.00008) {
+      return
+    }
+
+    lastBroadcastRef.current = {
+      lat: coords.latitude,
+      lng: coords.longitude,
+      time: now,
+    }
+
+    // Consultar nivel de batería con caché
+    if (batteryLevelRef.current === null || timeDelta > 60_000) {
+      try {
+        if ('getBattery' in navigator) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const battery = await (navigator as any).getBattery()
+          batteryLevelRef.current = Math.round(battery.level * 100)
+        }
+      } catch {
+        // Battery API no disponible o bloqueada
       }
-    } catch {
-      // Battery API no disponible o bloqueada
     }
 
     const positionData: CourierLivePosition = {
@@ -76,7 +97,7 @@ export function CourierLiveLocationProvider({ children }: { children: React.Reac
       heading: coords.heading ?? null,
       speed: coords.speed != null ? Math.round(coords.speed * 3.6) : null, // Convertir m/s a km/h
       accuracy: coords.accuracy != null ? Math.round(coords.accuracy) : null,
-      battery_level: batteryLevel,
+      battery_level: batteryLevelRef.current,
       timestamp: new Date().toISOString(),
     }
 
@@ -101,7 +122,7 @@ export function CourierLiveLocationProvider({ children }: { children: React.Reac
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           latestCoordsRef.current = pos.coords
-          broadcastLocation(pos.coords)
+          broadcastLocation(pos.coords, true)
           setGpsError(null)
           resolve()
         },

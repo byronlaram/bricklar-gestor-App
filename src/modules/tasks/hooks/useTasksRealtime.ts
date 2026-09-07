@@ -4,7 +4,6 @@ import { useAuth } from '@/modules/auth/useAuth'
 import { useToast } from '@/shared/components/ui'
 import {
   getGlobalRealtimeChannel,
-  resetGlobalRealtimeChannel,
   onLocalBroadcast,
   type RealtimeSyncPayload,
 } from '@/shared/lib/realtimeSync'
@@ -45,10 +44,23 @@ export function useTasksRealtime() {
     toastRef.current = toast
   }, [toast])
 
-  const refetchAllActiveQueries = useCallback(() => {
+  const refetchAllActiveQueries = useCallback((specificTaskId?: string) => {
     // 1. Tareas y Asignaciones
     queryClient.invalidateQueries({ queryKey: ['tasks'] })
     queryClient.refetchQueries({ queryKey: ['tasks'], type: 'active' })
+
+    queryClient.invalidateQueries({ queryKey: ['task'] })
+    queryClient.refetchQueries({ queryKey: ['task'], type: 'active' })
+
+    if (specificTaskId) {
+      queryClient.invalidateQueries({ queryKey: ['task', specificTaskId] })
+      queryClient.refetchQueries({ queryKey: ['task', specificTaskId], type: 'active' })
+      queryClient.invalidateQueries({ queryKey: ['task-history', specificTaskId] })
+      queryClient.invalidateQueries({ queryKey: ['task-assignments', specificTaskId] })
+    }
+
+    queryClient.invalidateQueries({ queryKey: ['task-history'] })
+    queryClient.invalidateQueries({ queryKey: ['task-assignments'] })
 
     // 2. Motorizados y Jornadas
     queryClient.invalidateQueries({ queryKey: ['couriers'] })
@@ -98,7 +110,7 @@ export function useTasksRealtime() {
         console.log(`[Realtime Broadcast Received: ${payload.domain}:${payload.action}]`, payload)
       }
 
-      refetchAllActiveQueries()
+      refetchAllActiveQueries(payload.entityId)
 
       // Notificaciones Toasts específicas para motorizados
       if (isCourier) {
@@ -161,8 +173,6 @@ export function useTasksRealtime() {
     const unsubscribeLocal = onLocalBroadcast(handleBroadcastEvent)
 
     // ─── 2. Conectar al Canal Compartido de Supabase ─────────────────────────
-    // Resetear canal previo si existía para garantizar que añadimos callbacks antes de subscribe
-    resetGlobalRealtimeChannel()
     const globalChannel = getGlobalRealtimeChannel()
 
     // Listener Broadcast WebSocket
@@ -178,6 +188,7 @@ export function useTasksRealtime() {
         const newRow = payload.new as TaskPayloadRow | undefined
         const oldRow = payload.old as TaskPayloadRow | undefined
         const eventType = payload.eventType
+        const targetTaskId = newRow?.id || oldRow?.id
 
         if (isDev) {
           console.log(`[Realtime CDC Tasks Event: ${eventType}]`, {
@@ -188,7 +199,7 @@ export function useTasksRealtime() {
           })
         }
 
-        refetchAllActiveQueries()
+        refetchAllActiveQueries(targetTaskId)
 
         // Toasts contextuales de respaldo por CDC
         if (isCourier) {
@@ -222,7 +233,7 @@ export function useTasksRealtime() {
         if (isDev) {
           console.log(`[Realtime CDC Assignment Event: ${payload.eventType}]`, row)
         }
-        refetchAllActiveQueries()
+        refetchAllActiveQueries(row?.task_id)
       }
     )
 
@@ -279,27 +290,27 @@ export function useTasksRealtime() {
     window.addEventListener('focus', handleSync)
     window.addEventListener('online', handleOnline)
 
-    // Suscribir al canal global
-    globalChannel.subscribe((status, err) => {
-      if (isDev) {
-        console.log(`[Realtime Hub Status] ${status}`)
-        if (err) {
-          console.error('[Realtime Hub Error]', err)
+    // Asegurar suscripción al canal global
+    if (globalChannel.state !== 'joined' && globalChannel.state !== 'joining') {
+      globalChannel.subscribe((status, err) => {
+        if (isDev) {
+          console.log(`[Realtime Hub Status] ${status}`)
+          if (err) {
+            console.error('[Realtime Hub Error]', err)
+          }
         }
-      }
 
-      if (status === 'SUBSCRIBED') {
-        refetchAllActiveQueries()
-      }
-    })
+        if (status === 'SUBSCRIBED') {
+          refetchAllActiveQueries()
+        }
+      })
+    }
 
     return () => {
       unsubscribeLocal()
       window.removeEventListener('visibilitychange', handleSync)
       window.removeEventListener('focus', handleSync)
       window.removeEventListener('online', handleOnline)
-      // Desuscribir y limpiar el canal global para evitar colisiones en logout/re-login
-      resetGlobalRealtimeChannel()
     }
   }, [profile?.id, profile?.role, profile?.full_name, refetchAllActiveQueries])
 }

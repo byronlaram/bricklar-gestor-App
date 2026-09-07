@@ -6,18 +6,24 @@ export function useTask(id?: string) {
     queryKey: ['task', id],
     queryFn: () => getTaskById(id!),
     enabled: !!id,
+    staleTime: 1000 * 10, // 10 segundos
+    refetchOnMount: true, // Siempre consultar al abrir detalle para asegurar estado verídico
   })
 
   const historyQuery = useQuery({
     queryKey: ['task-history', id],
     queryFn: () => getTaskStatusHistory(id!),
     enabled: !!id,
+    staleTime: 1000 * 10,
+    refetchOnMount: true,
   })
 
   const assignmentsQuery = useQuery({
     queryKey: ['task-assignments', id],
     queryFn: () => getTaskAssignments(id!),
     enabled: !!id,
+    staleTime: 1000 * 10,
+    refetchOnMount: true,
   })
 
   return {

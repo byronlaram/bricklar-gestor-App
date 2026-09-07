@@ -410,13 +410,20 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
     }
   }
 
+  const isSubmittingRef = useRef(false)
+
   const onError = (formErrors: FieldErrors<TaskBaseInput>) => {
     const firstError = Object.values(formErrors)[0]
     toast.error(firstError?.message || 'Por favor revisa los campos requeridos en el formulario.')
   }
 
   const onSubmit = async (data: TaskBaseInput) => {
+    // Bloqueo síncrono para evitar doble clic o reintentos rápidos accidentales
+    if (isSubmittingRef.current) return
+    isSubmittingRef.current = true
+
     if (!isEditing && !effectiveBranchId) {
+      isSubmittingRef.current = false
       toast.error('No se pudo identificar la sucursal activa. Selecciona una sucursal.')
       return
     }
@@ -477,6 +484,8 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
     } catch (err: any) {
       console.error('Error in TaskFormModal submission:', err)
       toast.error(err?.message || 'Error al guardar la tarea. Inténtalo nuevamente.')
+    } finally {
+      isSubmittingRef.current = false
     }
   }
 

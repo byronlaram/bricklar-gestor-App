@@ -14,11 +14,11 @@ export function useTasks(
     queryKey: ['tasks', filters],
     queryFn: () => getTasks(filters),
     enabled: isQueryEnabled,
-    staleTime: 1000 * 60 * 2, // 2 minutos fresco en memoria para navegación instantánea
+    staleTime: 1000 * 30, // 30 segundos fresco en memoria
     gcTime: 1000 * 60 * 10, // 10 minutos en memoria caché
     placeholderData: keepPreviousData, // Reutiliza datos previos de inmediato evitando parpadeos de skeletons
     refetchInterval: options.refetchInterval ?? false, // Sin polling innecesario; los WebSockets se encargan de sincronizar
-    refetchOnMount: false, // Usa la caché instantánea de inmediato sin bloquear la interfaz
+    refetchOnMount: true, // Refresca en segundo plano al montar sin bloquear la interfaz
     refetchOnWindowFocus: false, // No recarga bruscamente al desbloquear el móvil o cambiar de app
     refetchOnReconnect: true,
   })

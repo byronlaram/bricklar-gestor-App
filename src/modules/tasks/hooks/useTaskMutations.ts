@@ -54,6 +54,20 @@ export function useTaskMutations() {
   const createTaskMutation = useMutation({
     mutationFn: (payload: CreateTaskPayload) => createTask(payload),
     onSuccess: (data) => {
+      // Inserción inmediata en todas las consultas de tareas cacheadas para respuesta instantánea (0ms)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      queryClient.setQueriesData({ queryKey: ['tasks'] }, (oldData: any) => {
+        if (!oldData || !oldData.data) return oldData
+        const alreadyExists = oldData.data.some((t: any) => t.id === data.id)
+        if (alreadyExists) return oldData
+
+        return {
+          ...oldData,
+          data: [data, ...oldData.data],
+          count: (oldData.count || 0) + 1,
+        }
+      })
+
       invalidateTaskQueries(data.id)
       broadcastSyncEvent('tasks', 'create', {
         entityId: data.id,
@@ -68,6 +82,18 @@ export function useTaskMutations() {
     mutationFn: ({ id, payload }: { id: string; payload: UpdateTaskPayload }) =>
       updateTask(id, payload),
     onSuccess: (data) => {
+      // Actualizar inmediatamente la caché local
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      queryClient.setQueriesData({ queryKey: ['tasks'] }, (oldData: any) => {
+        if (!oldData || !oldData.data) return oldData
+        return {
+          ...oldData,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data: oldData.data.map((t: any) => (t.id === data.id ? { ...t, ...data } : t)),
+        }
+      })
+      queryClient.setQueryData(['task', data.id], data)
+
       invalidateTaskQueries(data.id)
       broadcastSyncEvent('tasks', 'update', {
         entityId: data.id,
@@ -81,6 +107,17 @@ export function useTaskMutations() {
   const deleteTaskMutation = useMutation({
     mutationFn: (id: string) => deleteTask(id),
     onSuccess: (_, id) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      queryClient.setQueriesData({ queryKey: ['tasks'] }, (oldData: any) => {
+        if (!oldData || !oldData.data) return oldData
+        return {
+          ...oldData,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data: oldData.data.filter((t: any) => t.id !== id),
+          count: Math.max(0, (oldData.count || 1) - 1),
+        }
+      })
+
       invalidateTaskQueries(id)
       broadcastSyncEvent('tasks', 'delete', {
         entityId: id,
@@ -91,6 +128,17 @@ export function useTaskMutations() {
   const assignTaskMutation = useMutation({
     mutationFn: (payload: AssignCourierPayload) => assignTask(payload),
     onSuccess: (data) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      queryClient.setQueriesData({ queryKey: ['tasks'] }, (oldData: any) => {
+        if (!oldData || !oldData.data) return oldData
+        return {
+          ...oldData,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data: oldData.data.map((t: any) => (t.id === data.id ? { ...t, ...data } : t)),
+        }
+      })
+      queryClient.setQueryData(['task', data.id], data)
+
       invalidateTaskQueries(data.id)
       broadcastSyncEvent('tasks', 'assign', {
         entityId: data.id,
@@ -104,6 +152,17 @@ export function useTaskMutations() {
   const changeStatusMutation = useMutation({
     mutationFn: (payload: ChangeStatusPayload) => changeTaskStatus(payload),
     onSuccess: (data) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      queryClient.setQueriesData({ queryKey: ['tasks'] }, (oldData: any) => {
+        if (!oldData || !oldData.data) return oldData
+        return {
+          ...oldData,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          data: oldData.data.map((t: any) => (t.id === data.id ? { ...t, ...data } : t)),
+        }
+      })
+      queryClient.setQueryData(['task', data.id], data)
+
       invalidateTaskQueries(data.id)
       broadcastSyncEvent('tasks', 'status_change', {
         entityId: data.id,

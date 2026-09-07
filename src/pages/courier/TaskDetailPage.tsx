@@ -662,6 +662,16 @@ export default function CourierTaskDetailPage() {
               Esta tarea ya fue finalizada ({task.status === 'completed' ? 'Completada' : 'No Completada'}).
             </Badge>
           )}
+
+          {task.status === 'cancelled' && (
+            <Badge
+              variant="urgent"
+              size="md"
+              className="w-full justify-center text-xs font-bold py-2.5 bg-rose-50 text-rose-800 border-rose-200"
+            >
+              Esta tarea figura como Cancelada {task.cancellation_reason ? `(${task.cancellation_reason})` : ''}.
+            </Badge>
+          )}
         </div>
       </div>
 

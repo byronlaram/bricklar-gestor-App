@@ -186,25 +186,6 @@ export async function getTasks(filters: TaskFilters = {}): Promise<PaginatedTask
     }
   }
 
-  // Post-procesamiento: normalizar tareas rechazadas para que su estado siempre sea 'cancelled'
-  const legacyRejectedIds: string[] = []
-  rawTasks.forEach((t) => {
-    if (t.approval_status === 'rejected' && t.status !== 'cancelled') {
-      t.status = 'cancelled'
-      legacyRejectedIds.push(t.id)
-    }
-  })
-
-  // Autocorrección asíncrona no bloqueante en base de datos para tareas legadas
-  if (legacyRejectedIds.length > 0) {
-    Promise.resolve(
-      supabase
-        .from('tasks')
-        .update({ status: 'cancelled' })
-        .in('id', legacyRejectedIds)
-    ).catch((err: unknown) => console.warn('[Tasks] Non-blocking status auto-fix failed:', err))
-  }
-
   const total = count ?? 0
   return {
     data: rawTasks as unknown as TaskWithCourier[],
@@ -240,16 +221,6 @@ export async function getTaskById(id: string): Promise<TaskWithCourier> {
     if (p) {
       task.courier = p
     }
-  }
-
-  if (task && task.approval_status === 'rejected' && task.status !== 'cancelled') {
-    task.status = 'cancelled'
-    Promise.resolve(
-      supabase
-        .from('tasks')
-        .update({ status: 'cancelled' })
-        .eq('id', task.id)
-    ).catch(() => {})
   }
 
   return task as unknown as TaskWithCourier

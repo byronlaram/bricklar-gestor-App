@@ -180,13 +180,23 @@ export function LiveMap({
     }
   }, [couriers, tasks, statusFilter])
 
-  // Reajustar vista automáticamente cuando cambia el filtro de estado o las tareas
+  // Reajustar vista automáticamente cuando cambia el filtro de estado o se cargan tareas por primera vez
+  const initialFitDoneRef = useRef(false)
   useEffect(() => {
-    const timer = setTimeout(() => {
+    if (!initialFitDoneRef.current && tasks.length > 0) {
+      initialFitDoneRef.current = true
       handleFitAllBounds()
-    }, 100)
-    return () => clearTimeout(timer)
-  }, [statusFilter, tasks.length, handleFitAllBounds])
+    }
+  }, [tasks.length, handleFitAllBounds])
+
+  useEffect(() => {
+    if (statusFilter) {
+      const timer = setTimeout(() => {
+        handleFitAllBounds()
+      }, 100)
+      return () => clearTimeout(timer)
+    }
+  }, [statusFilter, handleFitAllBounds])
 
   // 4. Centrar en el motorizado seleccionado
   useEffect(() => {
