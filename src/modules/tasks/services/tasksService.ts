@@ -798,62 +798,154 @@ export async function getCouriersForBranch(branch_id?: string) {
     const branchNameMap = new Map<string, string>()
     allBranches?.forEach((b) => branchNameMap.set(b.id, b.name))
 
-    // 2. Obtener perfiles de la base de datos de forma directa y limpia
-    const { data: profiles, error: profilesErr } = await supabase
-      .from('profiles')
-      .select('id, full_name, display_name, phone, avatar_url, role, is_active, primary_branch_id')
+    // Estructura para consolidar perfiles de motorizados desde múltiples fuentes
+    const unifiedCouriersMap = new Map<string, {
+      id: string
+      full_name: string
+      display_name: string | null
+      phone: string | null
+      avatar_url: string | null
+      role?: string
+      is_active?: boolean
+      primary_branch_id?: string | null
+      branch_ids: Set<string>
+    }>()
 
-    if (profilesErr) {
-      console.warn('[Tasks] Warning querying profiles for couriers:', profilesErr)
+    const registerProfile = (p: any, branchId?: string | null) => {
+      if (!p || !p.id) return
+      const id = String(p.id)
+      const existing = unifiedCouriersMap.get(id) || {
+        id,
+        full_name: p.full_name || p.display_name || 'Motorizado',
+        display_name: p.display_name ?? null,
+        phone: p.phone ?? null,
+        avatar_url: p.avatar_url ?? null,
+        role: p.role,
+        is_active: p.is_active,
+        primary_branch_id: p.primary_branch_id ?? null,
+        branch_ids: new Set<string>(),
+      }
+
+      if (p.full_name && !existing.full_name) existing.full_name = p.full_name
+      if (p.display_name) existing.display_name = p.display_name
+      if (p.phone) existing.phone = p.phone
+      if (p.avatar_url) existing.avatar_url = p.avatar_url
+      if (p.role) existing.role = p.role
+      if (p.is_active !== undefined) existing.is_active = p.is_active
+      if (p.primary_branch_id) {
+        existing.primary_branch_id = p.primary_branch_id
+        existing.branch_ids.add(p.primary_branch_id)
+      }
+      if (branchId) {
+        existing.branch_ids.add(branchId)
+      }
+
+      unifiedCouriersMap.set(id, existing)
     }
 
-    // 3. Filtrar perfiles activos que correspondan a motorizados / repartidores
-    const activeProfiles = (profiles ?? []).filter((p: any) => p.is_active !== false)
-    let courierProfiles = activeProfiles.filter((p: any) => {
-      const role = (p.role || '').toLowerCase()
-      return (
-        role === 'courier' ||
-        role === 'motorizado' ||
-        role === 'delivery' ||
-        role === 'repartidor'
-      )
+    // 2. Fuente A: Consulta directa a public.profiles
+    try {
+      const { data: directProfiles, error: profilesErr } = await supabase
+        .from('profiles')
+        .select('id, full_name, display_name, phone, avatar_url, role, is_active, primary_branch_id')
+
+      if (!profilesErr && Array.isArray(directProfiles)) {
+        directProfiles.forEach((p) => registerProfile(p, p.primary_branch_id))
+      }
+    } catch (err) {
+      console.warn('[Tasks] profiles query error:', err)
+    }
+
+    // 3. Fuente B: Consulta a public.user_branches con join a profiles
+    try {
+      const { data: userBranches, error: ubErr } = await supabase
+        .from('user_branches')
+        .select('user_id, branch_id, profile:profiles(id, full_name, display_name, phone, avatar_url, role, is_active, primary_branch_id)')
+
+      if (!ubErr && Array.isArray(userBranches)) {
+        userBranches.forEach((ub: any) => {
+          if (ub.profile) {
+            registerProfile(ub.profile, ub.branch_id)
+          } else if (ub.user_id) {
+            registerProfile({ id: ub.user_id }, ub.branch_id)
+          }
+        })
+      }
+    } catch (err) {
+      console.warn('[Tasks] user_branches query error:', err)
+    }
+
+    // 4. Fuente C: Consulta a public.workdays recientes con motorizados asociados
+    try {
+      const { data: workdayCouriers } = await supabase
+        .from('workdays')
+        .select('courier_id, branch_id, courier:profiles!workdays_courier_id_fkey(id, full_name, display_name, phone, avatar_url, role, is_active, primary_branch_id)')
+        .not('courier_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(30)
+
+      if (Array.isArray(workdayCouriers)) {
+        workdayCouriers.forEach((w: any) => {
+          if (w.courier) {
+            registerProfile(w.courier, w.branch_id)
+          }
+        })
+      }
+    } catch (err) {
+      console.warn('[Tasks] workdays couriers query error:', err)
+    }
+
+    // 5. Fuente D: Consulta a public.tasks recientes con motorizado asignado
+    try {
+      const { data: taskCouriers } = await supabase
+        .from('tasks')
+        .select('assigned_courier_id, branch_id, courier:profiles!tasks_assigned_courier_id_fkey(id, full_name, display_name, phone, avatar_url, role, is_active, primary_branch_id)')
+        .not('assigned_courier_id', 'is', null)
+        .order('created_at', { ascending: false })
+        .limit(30)
+
+      if (Array.isArray(taskCouriers)) {
+        taskCouriers.forEach((t: any) => {
+          if (t.courier) {
+            registerProfile(t.courier, t.branch_id)
+          }
+        })
+      }
+    } catch (err) {
+      console.warn('[Tasks] tasks couriers query error:', err)
+    }
+
+    // 6. Filtrar usuarios activos y excluir roles explícitamente administrativos
+    const allUnified = Array.from(unifiedCouriersMap.values())
+    const activeUnified = allUnified.filter((p) => p.is_active !== false)
+
+    let courierCandidates = activeUnified.filter((p) => {
+      const role = (p.role || '').toLowerCase().trim()
+      // Si tiene rol explícito de motorizado / repartidor
+      if (['courier', 'motorizado', 'delivery', 'repartidor', 'driver', 'chofer'].includes(role)) {
+        return true
+      }
+      // Si no es un administrador conocido y está en la lista de candidatos
+      return role !== 'general_admin' && role !== 'junior_admin' && role !== 'admin'
     })
 
-    // Fallback: Si no hay usuarios con rol explícito de courier, excluir administradores
-    if (courierProfiles.length === 0) {
-      courierProfiles = activeProfiles.filter((p: any) => {
-        const role = (p.role || '').toLowerCase()
+    // Si aún está vacío, permitir candidatos activos
+    if (courierCandidates.length === 0 && activeUnified.length > 0) {
+      courierCandidates = activeUnified.filter((p) => {
+        const role = (p.role || '').toLowerCase().trim()
         return role !== 'general_admin' && role !== 'junior_admin' && role !== 'admin'
       })
     }
 
-    // 4. Obtener asignaciones de sucursales desde user_branches
-    const { data: userBranches } = await supabase
-      .from('user_branches')
-      .select('user_id, branch_id')
-
-    const userBranchesMap = new Map<string, Set<string>>()
-    userBranches?.forEach((ub: { user_id: string; branch_id: string }) => {
-      if (!userBranchesMap.has(ub.user_id)) {
-        userBranchesMap.set(ub.user_id, new Set())
-      }
-      userBranchesMap.get(ub.user_id)!.add(ub.branch_id)
-    })
-
-    const couriersList = courierProfiles.map((p: any) => {
-      const userBranchesSet = userBranchesMap.get(p.id)
+    // Mapear a la estructura final de Courier
+    const couriersList = courierCandidates.map((p) => {
+      const branchIdsArr = Array.from(p.branch_ids)
       const primaryBranch = p.primary_branch_id
       const bName = primaryBranch
         ? branchNameMap.get(primaryBranch)
-        : userBranchesSet && userBranchesSet.size > 0
-        ? branchNameMap.get(Array.from(userBranchesSet)[0])
+        : branchIdsArr.length > 0
+        ? branchNameMap.get(branchIdsArr[0])
         : undefined
-
-      const branchIds = userBranchesSet && userBranchesSet.size > 0
-        ? Array.from(userBranchesSet)
-        : primaryBranch
-        ? [primaryBranch]
-        : []
 
       return {
         id: p.id,
@@ -864,22 +956,20 @@ export async function getCouriersForBranch(branch_id?: string) {
         role: p.role,
         is_active: p.is_active,
         branch_name: bName,
-        branch_ids: branchIds,
+        branch_ids: branchIdsArr,
       }
     })
 
-    // 5. Si se especificó una sucursal, filtrar por ella
+    // 7. Filtrar por sucursal si se proporcionó, con fallback automático a todos los motorizados
     if (branch_id && branch_id !== 'all') {
       const branchMatches = couriersList.filter(
         (c) => c.branch_ids.includes(branch_id) || c.branch_ids.length === 0
       )
-      // Si hay coincidencias para la sucursal o motorizados comodín, devolverlos
       if (branchMatches.length > 0) {
         return branchMatches
       }
     }
 
-    // Si no se filtró o no hubo coincidencias exclusivas, retornar todos los motorizados disponibles
     return couriersList
   } catch (err) {
     console.error('[Tasks] Error in getCouriersForBranch:', err)
