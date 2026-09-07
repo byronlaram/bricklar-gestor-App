@@ -1,7 +1,8 @@
 -- ==============================================================================
--- FIX RLS & RPC: Ejecutar en el SQL Editor de Supabase si se requiere
+-- MIGRATION: 20260907000000_get_couriers_rpc_and_rls.sql
 -- Asegura acceso irrestricto de lectura a perfiles y asignaciones de sucursal
--- para administradores generales, administradores junior y motorizados.
+-- para administradores generales, administradores junior y motorizados,
+-- además de proveer una función RPC (SECURITY DEFINER) para el catálogo de repartidores.
 -- ==============================================================================
 
 -- 1. Políticas RLS para lectura en PROFILES y USER_BRANCHES

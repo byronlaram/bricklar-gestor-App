@@ -793,7 +793,29 @@ export async function getTaskStatusHistory(task_id: string): Promise<TaskStatusH
 
 export async function getCouriersForBranch(branch_id?: string) {
   try {
-    // 1. Obtener sucursales para mapear nombres
+    // 1. Intentar llamar a la RPC segura con SECURITY DEFINER si existe
+    try {
+      const { data: rpcData, error: rpcErr } = await (supabase.rpc as any)('get_couriers_for_branch', {
+        p_branch_id: branch_id || null,
+      })
+
+      if (!rpcErr && Array.isArray(rpcData) && rpcData.length > 0) {
+        if (branch_id && branch_id !== 'all') {
+          const filtered = rpcData.filter(
+            (c: any) =>
+              (Array.isArray(c.branch_ids) && c.branch_ids.includes(branch_id)) ||
+              !c.branch_ids ||
+              c.branch_ids.length === 0
+          )
+          if (filtered.length > 0) return filtered
+        }
+        return rpcData
+      }
+    } catch {
+      // Si la RPC aún no está creada en BD, continuar con el fallback multi-fuente
+    }
+
+    // 2. Obtener sucursales para mapear nombres
     const { data: allBranches } = await supabase.from('branches').select('id, name, code')
     const branchNameMap = new Map<string, string>()
     allBranches?.forEach((b) => branchNameMap.set(b.id, b.name))
@@ -843,7 +865,7 @@ export async function getCouriersForBranch(branch_id?: string) {
       unifiedCouriersMap.set(id, existing)
     }
 
-    // 2. Fuente A: Consulta directa a public.profiles
+    // 3. Fuente A: Consulta directa a public.profiles
     try {
       const { data: directProfiles, error: profilesErr } = await supabase
         .from('profiles')
@@ -856,11 +878,11 @@ export async function getCouriersForBranch(branch_id?: string) {
       console.warn('[Tasks] profiles query error:', err)
     }
 
-    // 3. Fuente B: Consulta a public.user_branches con join a profiles
+    // 4. Fuente B: Consulta a public.user_branches con FK explícita a profiles
     try {
       const { data: userBranches, error: ubErr } = await supabase
         .from('user_branches')
-        .select('user_id, branch_id, profile:profiles(id, full_name, display_name, phone, avatar_url, role, is_active, primary_branch_id)')
+        .select('user_id, branch_id, profile:profiles!user_branches_user_id_fkey(id, full_name, display_name, phone, avatar_url, role, is_active, primary_branch_id)')
 
       if (!ubErr && Array.isArray(userBranches)) {
         userBranches.forEach((ub: any) => {
@@ -875,14 +897,14 @@ export async function getCouriersForBranch(branch_id?: string) {
       console.warn('[Tasks] user_branches query error:', err)
     }
 
-    // 4. Fuente C: Consulta a public.workdays recientes con motorizados asociados
+    // 5. Fuente C: Consulta a public.workdays recientes con motorizados asociados
     try {
       const { data: workdayCouriers } = await supabase
         .from('workdays')
         .select('courier_id, branch_id, courier:profiles!workdays_courier_id_fkey(id, full_name, display_name, phone, avatar_url, role, is_active, primary_branch_id)')
         .not('courier_id', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(30)
+        .limit(50)
 
       if (Array.isArray(workdayCouriers)) {
         workdayCouriers.forEach((w: any) => {
@@ -895,14 +917,14 @@ export async function getCouriersForBranch(branch_id?: string) {
       console.warn('[Tasks] workdays couriers query error:', err)
     }
 
-    // 5. Fuente D: Consulta a public.tasks recientes con motorizado asignado
+    // 6. Fuente D: Consulta a public.tasks recientes con motorizado asignado
     try {
       const { data: taskCouriers } = await supabase
         .from('tasks')
         .select('assigned_courier_id, branch_id, courier:profiles!tasks_assigned_courier_id_fkey(id, full_name, display_name, phone, avatar_url, role, is_active, primary_branch_id)')
         .not('assigned_courier_id', 'is', null)
         .order('created_at', { ascending: false })
-        .limit(30)
+        .limit(50)
 
       if (Array.isArray(taskCouriers)) {
         taskCouriers.forEach((t: any) => {
@@ -915,7 +937,7 @@ export async function getCouriersForBranch(branch_id?: string) {
       console.warn('[Tasks] tasks couriers query error:', err)
     }
 
-    // 6. Filtrar usuarios activos y excluir roles explícitamente administrativos
+    // 7. Filtrar usuarios activos y excluir roles explícitamente administrativos
     const allUnified = Array.from(unifiedCouriersMap.values())
     const activeUnified = allUnified.filter((p) => p.is_active !== false)
 
@@ -960,7 +982,7 @@ export async function getCouriersForBranch(branch_id?: string) {
       }
     })
 
-    // 7. Filtrar por sucursal si se proporcionó, con fallback automático a todos los motorizados
+    // 8. Filtrar por sucursal si se proporcionó, con fallback automático a todos los motorizados
     if (branch_id && branch_id !== 'all') {
       const branchMatches = couriersList.filter(
         (c) => c.branch_ids.includes(branch_id) || c.branch_ids.length === 0
