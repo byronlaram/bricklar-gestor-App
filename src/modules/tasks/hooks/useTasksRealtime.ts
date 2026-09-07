@@ -4,6 +4,7 @@ import { useAuth } from '@/modules/auth/useAuth'
 import { useToast } from '@/shared/components/ui'
 import {
   getGlobalRealtimeChannel,
+  resetGlobalRealtimeChannel,
   onLocalBroadcast,
   type RealtimeSyncPayload,
 } from '@/shared/lib/realtimeSync'
@@ -173,6 +174,7 @@ export function useTasksRealtime() {
     const unsubscribeLocal = onLocalBroadcast(handleBroadcastEvent)
 
     // ─── 2. Conectar al Canal Compartido de Supabase ─────────────────────────
+    resetGlobalRealtimeChannel()
     const globalChannel = getGlobalRealtimeChannel()
 
     // Listener Broadcast WebSocket
@@ -311,6 +313,7 @@ export function useTasksRealtime() {
       window.removeEventListener('visibilitychange', handleSync)
       window.removeEventListener('focus', handleSync)
       window.removeEventListener('online', handleOnline)
+      resetGlobalRealtimeChannel()
     }
   }, [profile?.id, profile?.role, profile?.full_name, refetchAllActiveQueries])
 }

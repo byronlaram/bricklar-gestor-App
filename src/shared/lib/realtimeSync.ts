@@ -31,7 +31,6 @@ export interface RealtimeSyncPayload {
 
 // Canal compartido global de Supabase Realtime (singleton)
 let globalChannel: RealtimeChannel | null = null
-let isSubscribed = false
 
 // Instancia única del BroadcastChannel del navegador
 let localBroadcastChannel: BroadcastChannel | null = null
@@ -45,8 +44,8 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
 }
 
 /**
- * Resetea y destruye limpiamente el canal global de Supabase únicamente cuando sea estrictamente
- * necesario (por ejemplo, en cierre explícito de sesión / logout).
+ * Resetea y destruye limpiamente el canal global de Supabase para permitir
+ * que un nuevo suscriptor registre callbacks antes de suscribirse.
  */
 export function resetGlobalRealtimeChannel(): void {
   if (globalChannel) {
@@ -56,13 +55,12 @@ export function resetGlobalRealtimeChannel(): void {
       console.warn('[RealtimeSync] Error al remover canal global:', err)
     }
     globalChannel = null
-    isSubscribed = false
   }
 }
 
 /**
  * Obtiene o inicializa el canal global de Supabase con capacidades de Broadcast activadas.
- * Garantiza que el canal esté suscrito para poder enviar y recibir eventos sin perder mensajes.
+ * No invoca subscribe() automáticamente para permitir adjuntar callbacks .on() primero.
  */
 export function getGlobalRealtimeChannel(): RealtimeChannel {
   if (!globalChannel) {
@@ -71,20 +69,7 @@ export function getGlobalRealtimeChannel(): RealtimeChannel {
         broadcast: { self: false }, // No rebotar eventos al mismo socket emisor
       },
     })
-    isSubscribed = false
   }
-
-  // Asegurar que el canal pase a estado de suscripción si no lo estaba
-  if (!isSubscribed && globalChannel.state !== 'joined' && globalChannel.state !== 'joining') {
-    globalChannel.subscribe((status) => {
-      if (status === 'SUBSCRIBED') {
-        isSubscribed = true
-      } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
-        isSubscribed = false
-      }
-    })
-  }
-
   return globalChannel
 }
 
