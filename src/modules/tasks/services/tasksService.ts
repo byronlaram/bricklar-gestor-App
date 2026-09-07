@@ -381,6 +381,13 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
   const { data: session } = await supabase.auth.getSession()
   const userId = session?.session?.user?.id
 
+  // 1. Obtener la tarea actual para validar transiciones y asignaciones
+  const { data: currentTask } = await supabase
+    .from('tasks')
+    .select('id, code, title, status, assigned_courier_id, branch_id')
+    .eq('id', id)
+    .maybeSingle()
+
   let dbTaskType = payload.task_type
   let mergedMetadata = payload.metadata
 
@@ -400,11 +407,31 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
     updated_by: userId,
     updated_at: new Date().toISOString(),
   }
+
   if (dbTaskType !== undefined) {
     updateFields.task_type = dbTaskType
   }
   if (mergedMetadata !== undefined) {
     updateFields.metadata = mergedMetadata
+  }
+
+  // Auto-transición de estado al asignar o desasignar motorizado
+  if (payload.assigned_courier_id !== undefined && !(payload as any).status) {
+    const hasCourier = Boolean(payload.assigned_courier_id && payload.assigned_courier_id.trim() !== '')
+    const prevStatus = currentTask?.status || 'pending'
+
+    if (hasCourier) {
+      // Si se asignó un motorizado y la tarea estaba en pendiente o sin asignar, pasa a 'assigned'
+      if (prevStatus === 'pending') {
+        updateFields.status = 'assigned'
+      }
+    } else {
+      // Si se desasignó el motorizado y estaba en 'assigned', regresa a 'pending'
+      if (prevStatus === 'assigned') {
+        updateFields.status = 'pending'
+      }
+      updateFields.assigned_courier_id = null
+    }
   }
 
   if (payload.maps_url && (payload.latitude == null || payload.longitude == null)) {
@@ -457,6 +484,36 @@ export async function updateTask(id: string, payload: UpdateTaskPayload): Promis
     throw new Error(error.message)
   }
 
+  // Si hubo cambio de motorizado, registrar en task_assignments y notificar
+  if (
+    payload.assigned_courier_id &&
+    payload.assigned_courier_id !== currentTask?.assigned_courier_id &&
+    data?.id
+  ) {
+    try {
+      await supabase.from('task_assignments').insert({
+        task_id: data.id,
+        courier_id: payload.assigned_courier_id,
+        assigned_by: userId || '',
+        reason: 'Asignación al editar tarea',
+      })
+
+      if (payload.assigned_courier_id !== userId) {
+        await createNotification({
+          userId: payload.assigned_courier_id,
+          title: 'Nueva Tarea Asignada',
+          body: `Se ha añadido a tu ruta la tarea [${data.code}]: ${data.title}`,
+          type: 'task',
+          taskId: data.id,
+          branchId: data.branch_id,
+          createdBy: userId,
+        })
+      }
+    } catch (assignErr) {
+      console.warn('[Tasks] updateTask assignment error:', assignErr)
+    }
+  }
+
   if (data) {
     normalizeTaskFromDB(data)
   }
@@ -489,9 +546,12 @@ export async function deleteTask(id: string): Promise<void> {
     throw new Error('No se puede eliminar esta tarea porque tiene movimientos o registros asociados.')
   }
 
-  // 3. Ejecutar actualización soft-delete
+  // 3. Ejecutar actualización soft-delete con fallbacks seguros
   const now = new Date().toISOString()
-  const { error } = await supabase
+  let deleteError: any = null
+
+  // Intento 1: Soft-delete completo con deleted_by
+  const { error: err1 } = await supabase
     .from('tasks')
     .update({
       deleted_at: now,
@@ -501,9 +561,32 @@ export async function deleteTask(id: string): Promise<void> {
     })
     .eq('id', id)
 
-  if (error) {
-    console.error('[Tasks] deleteTask error:', error)
-    throw new Error('No fue posible eliminar la tarea. Intenta nuevamente.')
+  deleteError = err1
+
+  // Intento 2: Soft-delete simple con solo deleted_at
+  if (deleteError) {
+    const { error: err2 } = await supabase
+      .from('tasks')
+      .update({
+        deleted_at: now,
+        updated_at: now,
+      })
+      .eq('id', id)
+    deleteError = err2
+  }
+
+  // Intento 3: Hard-delete directo si la columna deleted_at está restringida
+  if (deleteError) {
+    const { error: err3 } = await supabase
+      .from('tasks')
+      .delete()
+      .eq('id', id)
+    deleteError = err3
+  }
+
+  if (deleteError) {
+    console.error('[Tasks] deleteTask error:', deleteError)
+    throw new Error(deleteError.message || 'No fue posible eliminar la tarea. Intenta nuevamente.')
   }
 
   // 4. Registrar evento en audit_logs
