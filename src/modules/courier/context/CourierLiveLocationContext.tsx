@@ -48,7 +48,7 @@ export function CourierLiveLocationProvider({ children }: { children: React.Reac
   const lastBroadcastRef = useRef<{ lat: number; lng: number; time: number }>({ lat: 0, lng: 0, time: 0 })
   const batteryLevelRef = useRef<number | null>(null)
 
-  // Transmitir posición actual por Supabase Realtime con Throttling inteligente
+  // Transmitir posición actual por Supabase Realtime con Throttling Inteligente y Adaptativo
   const broadcastLocation = useCallback(async (coords: GeolocationCoordinates, force = false) => {
     const curProfile = profileRef.current
     const curWorkday = workdayRef.current
@@ -61,8 +61,13 @@ export function CourierLiveLocationProvider({ children }: { children: React.Reac
     const distanceDelta = Math.hypot(coords.latitude - last.lat, coords.longitude - last.lng)
     const timeDelta = now - last.time
 
-    // Throttling: Si no es forzado y han pasado menos de 20s y el movimiento es menor a ~8 metros, no saturar Realtime
-    if (!force && timeDelta < 20_000 && distanceDelta < 0.00008) {
+    // Throttling Adaptativo:
+    // - Si el movimiento es significativo (>= ~15 metros / delta > 0.00014): permitir cada 25s
+    // - Si está detenido/estático (< 15 metros): espaciar a mínimo 120s (2 min) para evitar Egress innecesario
+    const isSignificantMove = distanceDelta >= 0.00014
+    const minIntervalMs = isSignificantMove ? 25_000 : 120_000
+
+    if (!force && timeDelta < minIntervalMs) {
       return
     }
 
@@ -72,8 +77,8 @@ export function CourierLiveLocationProvider({ children }: { children: React.Reac
       time: now,
     }
 
-    // Consultar nivel de batería con caché
-    if (batteryLevelRef.current === null || timeDelta > 60_000) {
+    // Consultar nivel de batería con caché (máx 1 vez cada 2 minutos)
+    if (batteryLevelRef.current === null || timeDelta > 120_000) {
       try {
         if ('getBattery' in navigator) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -85,16 +90,15 @@ export function CourierLiveLocationProvider({ children }: { children: React.Reac
       }
     }
 
+    // Payload compacto: Omitir avatar_url y teléfono repetitivos en cada ping (el panel ya los tiene en caché)
     const positionData: CourierLivePosition = {
       courier_id: curProfile.id,
-      courier_name: curProfile.full_name || curProfile.display_name || 'Motorizado',
-      courier_phone: curProfile.phone || null,
-      avatar_url: curProfile.avatar_url || null,
+      courier_name: curProfile.display_name || curProfile.full_name || 'Motorizado',
       branch_id: branchId,
       workday_id: curWorkday?.id || null,
       latitude: coords.latitude,
       longitude: coords.longitude,
-      heading: coords.heading ?? null,
+      heading: coords.heading != null ? Math.round(coords.heading) : null,
       speed: coords.speed != null ? Math.round(coords.speed * 3.6) : null, // Convertir m/s a km/h
       accuracy: coords.accuracy != null ? Math.round(coords.accuracy) : null,
       battery_level: batteryLevelRef.current,

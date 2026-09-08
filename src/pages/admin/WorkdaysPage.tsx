@@ -101,7 +101,7 @@ export default function AdminWorkdaysPage() {
     date: filters.date,
     date_from: filters.date_from,
     date_to: filters.date_to,
-    page_size: 1000,
+    page_size: filters.date ? 150 : 50,
   })
 
   const allTasks = tasksData?.data || []

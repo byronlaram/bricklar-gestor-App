@@ -70,8 +70,8 @@ export default function CourierLayout() {
       return data ?? []
     },
     enabled: !!profile?.id,
-    staleTime: 1000 * 60,
-    refetchInterval: 1000 * 60,
+    staleTime: 1000 * 60 * 2, // 2 minutos
+    refetchInterval: false, // Sincronizado por Realtime Broadcast
   })
 
   const unreadCount = unreadNotifications.length

@@ -72,9 +72,13 @@ export default function PublicTrackingPage() {
   } = useQuery<PublicTaskTrackingData | null>({
     queryKey: ['public-task-tracking', taskCodeOrId],
     queryFn: () => getPublicTaskTracking(taskCodeOrId || ''),
-    enabled: !!taskCodeOrId,
-    refetchInterval: 1000 * 20, // Refresca cada 20 segundos
-    staleTime: 1000 * 10,
+    refetchInterval: (query) => {
+      const data = query.state.data as PublicTaskTrackingData | null | undefined
+      // Si la tarea ya se completó o canceló, no hacer más polling
+      if (data?.status === 'completed' || data?.status === 'cancelled') return false
+      return 1000 * 60 // 60 segundos de respaldo (la ubicación va por broadcast)
+    },
+    staleTime: 1000 * 30,
   })
 
   // 2. Escuchar ubicación en tiempo real del motorizado asignado via Supabase Broadcast

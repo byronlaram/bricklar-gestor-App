@@ -54,11 +54,13 @@ export function useTasksRealtime() {
       queryClient.invalidateQueries({ queryKey: ['task-assignments', specificTaskId] })
     }
     queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
   }, [queryClient])
 
   const invalidateWorkdays = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['workdays'] })
     queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+    queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
   }, [queryClient])
 
   const invalidateSettlements = useCallback(() => {
@@ -70,6 +72,7 @@ export function useTasksRealtime() {
   const invalidateCashMovements = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
     queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+    queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
   }, [queryClient])
 
   const invalidateNotifications = useCallback(() => {

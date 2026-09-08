@@ -3,8 +3,8 @@ import type { TaskWithCourier } from '@/modules/tasks/types/task.types'
 export interface CourierLivePosition {
   courier_id: string
   courier_name: string
-  courier_phone: string | null
-  avatar_url: string | null
+  courier_phone?: string | null
+  avatar_url?: string | null
   branch_id: string
   workday_id?: string | null
   latitude: number

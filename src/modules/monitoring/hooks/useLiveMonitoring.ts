@@ -13,7 +13,7 @@ import type {
 import type { Workday } from '@/modules/workdays/types/workdays.types'
 
 const CHANNEL_NAME = 'courier-tracking'
-const ONLINE_TIMEOUT_MS = 90_000 // 90 segundos sin ping se considera inactivo
+const ONLINE_TIMEOUT_MS = 180_000 // 180 segundos (3 minutos) para acomodar heartbeat de 120s en reposo
 
 export function useLiveMonitoring(filters: MonitoringFilters) {
   const todayStr = getLocalDateString()

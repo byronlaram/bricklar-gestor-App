@@ -1339,7 +1339,7 @@ function validateFile(file: File, allowedTypes: string[], maxSizeBytes = MAX_UPL
 export async function uploadTaskEvidence(file: File): Promise<string> {
   validateFile(file, ALLOWED_EVIDENCE_MIME_TYPES)
 
-  const optimizedFile = await compressImage(file, 1280, 1280, 0.82)
+  const optimizedFile = await compressImage(file, 1080, 1080, 0.72)
   const rawExt = (optimizedFile.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
   const validExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif', 'pdf']
   const fileExt = validExtensions.includes(rawExt) ? rawExt : 'jpg'
@@ -1348,7 +1348,7 @@ export async function uploadTaskEvidence(file: File): Promise<string> {
 
   const { error: uploadError } = await supabase.storage
     .from('task-evidences')
-    .upload(filePath, optimizedFile, { cacheControl: '3600', upsert: true })
+    .upload(filePath, optimizedFile, { cacheControl: '31536000, public, immutable', upsert: true })
 
   if (uploadError) {
     console.warn('[Tasks] uploadTaskEvidence storage upload warning (using fallback):', uploadError.message || uploadError)
@@ -1368,7 +1368,7 @@ export async function uploadTaskEvidence(file: File): Promise<string> {
 export async function uploadTaskReferenceImage(file: File): Promise<string> {
   validateFile(file, ALLOWED_REFERENCE_MIME_TYPES)
 
-  const optimizedFile = await compressImage(file, 1400, 1400, 0.85)
+  const optimizedFile = await compressImage(file, 1080, 1080, 0.75)
   const rawExt = (optimizedFile.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g, '')
   const validExtensions = ['jpg', 'jpeg', 'png', 'webp']
   const fileExt = validExtensions.includes(rawExt) ? rawExt : 'jpg'
@@ -1377,7 +1377,7 @@ export async function uploadTaskReferenceImage(file: File): Promise<string> {
 
   const { error: uploadError } = await supabase.storage
     .from('task-evidences')
-    .upload(filePath, optimizedFile, { cacheControl: '86400', upsert: true })
+    .upload(filePath, optimizedFile, { cacheControl: '31536000, public, immutable', upsert: true })
 
   if (uploadError) {
     console.warn('[Tasks] uploadTaskReferenceImage storage warning (using fallback):', uploadError.message || uploadError)

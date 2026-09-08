@@ -136,6 +136,9 @@ export interface SettlementFilters {
   date_from?: string
   date_to?: string
   status?: SettlementStatus
+  page?: number
+  page_size?: number
+  limit?: number
 }
 
 export interface DailyClosureRecord {

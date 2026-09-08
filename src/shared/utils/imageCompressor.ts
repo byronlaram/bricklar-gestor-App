@@ -1,12 +1,12 @@
 /**
  * Utilidad ligera para compresión y optimización de imágenes en el cliente
- * Reduce el tamaño de fotos de cámaras móviles (5-15 MB -> 100-300 KB) sin perder legibilidad.
+ * Reduce el tamaño de fotos de cámaras móviles (5-15 MB -> 60-90 KB) sin perder legibilidad ni consumir Egress excesivo.
  */
 export async function compressImage(
   file: File,
-  maxWidth = 1280,
-  maxHeight = 1280,
-  quality = 0.82
+  maxWidth = 1080,
+  maxHeight = 1080,
+  quality = 0.72
 ): Promise<File> {
   // Si no es imagen procesable por canvas, devolver original
   if (!file.type.startsWith('image/') || file.type.includes('svg') || file.type.includes('gif')) {

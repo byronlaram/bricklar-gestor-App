@@ -31,7 +31,7 @@ const SETTLEMENT_SELECT = `
 `
 
 export async function getSettlements(filters: SettlementFilters = {}): Promise<Settlement[]> {
-  const { branch_id, courier_id, date, date_from, date_to, status } = filters
+  const { branch_id, courier_id, date, date_from, date_to, status, page, page_size, limit } = filters
 
   let query = supabase
     .from('settlements')
@@ -49,6 +49,18 @@ export async function getSettlements(filters: SettlementFilters = {}): Promise<S
   }
   if (status) query = query.eq('status', status)
 
+  // Aplicar paginación o límite de seguridad para evitar desbordamiento de Egress
+  if (page && page_size) {
+    const from = (page - 1) * page_size
+    const to = from + page_size - 1
+    query = query.range(from, to)
+  } else if (limit) {
+    query = query.limit(limit)
+  } else if (!date && !date_from && !date_to) {
+    // Si es "Todo el Historial" sin rango, limitar a los últimos 50 registros
+    query = query.limit(50)
+  }
+
   const { data, error } = await query
 
   if (error) {
@@ -63,7 +75,7 @@ export async function getSettlements(filters: SettlementFilters = {}): Promise<S
   const courierIds = Array.from(new Set(list.map((s) => s.courier_id).filter(Boolean)))
   const workDates = Array.from(new Set(list.map((s) => s.settlement_date).filter(Boolean)))
 
-  // 1. Obtener jornadas para fondo inicial
+  // 1. Obtener jornadas para fondo inicial solo de las liquidaciones de la página actual
   const { data: workdays } = await supabase
     .from('workdays')
     .select('id, initial_cash')
@@ -72,15 +84,15 @@ export async function getSettlements(filters: SettlementFilters = {}): Promise<S
   const workdayMap = new Map<string, number>()
   ;(workdays || []).forEach((w) => workdayMap.set(w.id, w.initial_cash || 0))
 
-  // 2. Carga en lote de tareas completadas
+  // 2. Carga en lote de tareas completadas (solo columnas estrictamente necesarias para el cuadre)
   const { data: batchTasks } = await supabase
     .from('tasks')
-    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
     .in('assigned_courier_id', courierIds.length > 0 ? courierIds : ['00000000-0000-0000-0000-000000000000'])
     .in('scheduled_date', workDates.length > 0 ? workDates : ['1970-01-01'])
     .eq('status', 'completed')
 
-  // 3. Carga en lote de movimientos de caja
+  // 3. Carga en lote de movimientos de caja solo para las jornadas de la página actual
   const { data: batchMovements } = await supabase
     .from('cash_movements')
     .select('workday_id, amount, currency, direction, movement_type, description')

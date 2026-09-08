@@ -234,7 +234,7 @@ export async function processOfflineQueue(): Promise<{ total: number; synced: nu
 
           const { error: upErr } = await supabase.storage
             .from('task-evidences')
-            .upload(filePath, blob, { contentType: blob.type || 'image/jpeg', upsert: true })
+            .upload(filePath, blob, { contentType: blob.type || 'image/jpeg', cacheControl: '31536000, public, immutable', upsert: true })
 
           if (!upErr) {
             const { data: urlData } = supabase.storage.from('task-evidences').getPublicUrl(filePath)

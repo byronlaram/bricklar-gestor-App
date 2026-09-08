@@ -29,7 +29,7 @@ export function useAllCouriersPendingBalances(branchId?: string, beforeDate?: st
   return useQuery<CourierPendingBalancesSummary[]>({
     queryKey: ['all_couriers_pending_balances', branchId, beforeDate],
     queryFn: () => getAllCouriersPendingBalances(branchId, beforeDate),
-    staleTime: 1000 * 30,
-    refetchInterval: 1000 * 60,
+    staleTime: 1000 * 60 * 2, // 2 minutos (sincronizado por eventos realtime)
+    refetchInterval: false, // Sin polling continuo que consuma Egress
   })
 }

@@ -335,7 +335,8 @@ export default function AdminLayout() {
       return data ?? []
     },
     enabled: !!profile?.id,
-    refetchInterval: 1000 * 30,
+    staleTime: 1000 * 60 * 2, // 2 minutos
+    refetchInterval: false, // Sincronizado por Realtime Broadcast
   })
 
   const unreadCount = unreadNotifications.length
