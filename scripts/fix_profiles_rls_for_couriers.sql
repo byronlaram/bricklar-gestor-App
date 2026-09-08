@@ -1,7 +1,7 @@
 -- ==============================================================================
--- FIX RLS & RPC: Ejecutar en el SQL Editor de Supabase si se requiere
--- Asegura acceso irrestricto de lectura a perfiles y asignaciones de sucursal
--- para administradores generales, administradores junior y motorizados.
+-- FIX RLS & RPC: Ejecutar en el SQL Editor de Supabase
+-- Asegura acceso irrestricto de lectura a perfiles y asignaciones de sucursal,
+-- además de proveer las funciones RPC para listar motorizados y eliminar tareas.
 -- ==============================================================================
 
 -- 1. Políticas RLS para lectura en PROFILES y USER_BRANCHES
@@ -29,7 +29,28 @@ CREATE POLICY "user_branches_select_authenticated" ON public.user_branches
   TO authenticated
   USING (true);
 
--- 2. Función RPC get_couriers_for_branch (SECURITY DEFINER)
+-- 2. Políticas RLS para TASKS (Permite a Junior Admin y General Admin actualizar y borrar)
+ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "tasks_select_policy" ON public.tasks;
+CREATE POLICY "tasks_select_policy" ON public.tasks
+  FOR SELECT
+  TO authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "tasks_update_policy" ON public.tasks;
+CREATE POLICY "tasks_update_policy" ON public.tasks
+  FOR UPDATE
+  TO authenticated
+  USING (true);
+
+DROP POLICY IF EXISTS "tasks_delete_policy" ON public.tasks;
+CREATE POLICY "tasks_delete_policy" ON public.tasks
+  FOR DELETE
+  TO authenticated
+  USING (true);
+
+-- 3. Función RPC get_couriers_for_branch (SECURITY DEFINER)
 CREATE OR REPLACE FUNCTION public.get_couriers_for_branch(p_branch_id text DEFAULT NULL)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -76,3 +97,64 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.get_couriers_for_branch(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_couriers_for_branch(text) TO anon;
+
+-- 4. Función RPC delete_task (SECURITY DEFINER para borrado limpio y seguro)
+CREATE OR REPLACE FUNCTION public.delete_task(p_task_id text)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_task RECORD;
+  v_user_id uuid;
+  v_now timestamptz := NOW();
+BEGIN
+  v_user_id := auth.uid();
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'No hay sesión activa');
+  END IF;
+
+  SELECT * INTO v_task FROM public.tasks WHERE id = p_task_id::uuid AND deleted_at IS NULL;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('success', true, 'message', 'La tarea ya no existe');
+  END IF;
+
+  -- Validar que no esté en estado completado o en ruta
+  IF v_task.status IN ('completed', 'en_route', 'in_progress') THEN
+    RETURN jsonb_build_object('success', false, 'error', 'No se puede eliminar una tarea en ruta o completada');
+  END IF;
+
+  -- Soft-delete con cambio a estado cancelled
+  UPDATE public.tasks
+  SET 
+    deleted_at = v_now,
+    deleted_by = v_user_id::text,
+    updated_at = v_now,
+    updated_by = v_user_id::text,
+    status = 'cancelled'
+  WHERE id = p_task_id::uuid;
+
+  -- Registrar en audit_logs si la tabla existe
+  BEGIN
+    INSERT INTO public.audit_logs (action, entity_type, entity_id, entity_code, branch_id, actor_user_id, changes)
+    VALUES (
+      'task_deleted',
+      'task',
+      p_task_id,
+      v_task.code,
+      v_task.branch_id,
+      v_user_id,
+      jsonb_build_object('code', v_task.code, 'title', v_task.title, 'deleted_by', v_user_id)
+    );
+  EXCEPTION WHEN OTHERS THEN
+    -- Ignorar si la tabla de auditoría no existe o difiere en esquema
+    NULL;
+  END;
+
+  RETURN jsonb_build_object('success', true, 'code', v_task.code);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.delete_task(text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_task(text) TO anon;

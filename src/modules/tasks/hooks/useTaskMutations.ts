@@ -118,7 +118,9 @@ export function useTaskMutations() {
         }
       })
 
+      queryClient.removeQueries({ queryKey: ['task', id] })
       invalidateTaskQueries(id)
+      queryClient.refetchQueries({ queryKey: ['tasks'], type: 'active' })
       broadcastSyncEvent('tasks', 'delete', {
         entityId: id,
       })

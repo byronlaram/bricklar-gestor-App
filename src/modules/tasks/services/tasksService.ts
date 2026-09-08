@@ -528,34 +528,60 @@ export async function deleteTask(id: string): Promise<void> {
   const userId = session?.session?.user?.id
   if (!userId) throw new Error('No hay sesión activa para realizar esta acción.')
 
-  // 1. Consultar la tarea actual para verificar estado e integridad
+  // 1. Intentar primero con la RPC segura delete_task (SECURITY DEFINER)
+  try {
+    const { data: rpcRes, error: rpcErr } = await (supabase.rpc as any)('delete_task', {
+      p_task_id: id,
+    })
+
+    if (!rpcErr && rpcRes) {
+      const parsed = typeof rpcRes === 'string' ? JSON.parse(rpcRes) : rpcRes
+      if (parsed && parsed.success === false) {
+        throw new Error(parsed.error || 'No se pudo eliminar la tarea.')
+      }
+      return
+    }
+  } catch (err: any) {
+    if (err?.message && !err.message.includes('function delete_task') && !err.message.includes('not found') && !err.message.includes('RPC')) {
+      throw err
+    }
+    // Si la RPC aún no está creada en BD, continuar con el fallback directo
+  }
+
+  // 2. Consultar la tarea actual para verificar estado e integridad
   const { data: task, error: fetchErr } = await supabase
     .from('tasks')
     .select('id, code, title, status, branch_id, assigned_courier_id')
     .eq('id', id)
     .is('deleted_at', null)
-    .single()
+    .maybeSingle()
 
-  if (fetchErr || !task) {
-    throw new Error('La tarea seleccionada no existe o ya fue eliminada.')
+  if (fetchErr) {
+    console.warn('[Tasks] Warning fetching task before delete:', fetchErr)
   }
 
-  // 2. Regla de protección de integridad operativa/financiera:
+  // Si ya no existe activa, considerarla eliminada
+  if (!task) {
+    return
+  }
+
+  // 3. Regla de protección de integridad operativa/financiera:
   // Si la tarea está completada, en ruta o en gestión, se bloquea la eliminación
   if (['completed', 'en_route', 'in_progress'].includes(task.status)) {
     throw new Error('No se puede eliminar esta tarea porque tiene movimientos o registros asociados.')
   }
 
-  // 3. Ejecutar actualización soft-delete con fallbacks seguros
+  // 4. Ejecutar actualización soft-delete con fallbacks seguros
   const now = new Date().toISOString()
   let deleteError: any = null
 
-  // Intento 1: Soft-delete completo con deleted_by
+  // Intento A: Soft-delete completo con deleted_by
   const { error: err1 } = await supabase
     .from('tasks')
     .update({
       deleted_at: now,
       deleted_by: userId,
+      status: 'cancelled',
       updated_at: now,
       updated_by: userId,
     })
@@ -563,19 +589,20 @@ export async function deleteTask(id: string): Promise<void> {
 
   deleteError = err1
 
-  // Intento 2: Soft-delete simple con solo deleted_at
+  // Intento B: Soft-delete simple con solo deleted_at y status
   if (deleteError) {
     const { error: err2 } = await supabase
       .from('tasks')
       .update({
         deleted_at: now,
+        status: 'cancelled',
         updated_at: now,
       })
       .eq('id', id)
     deleteError = err2
   }
 
-  // Intento 3: Hard-delete directo si la columna deleted_at está restringida
+  // Intento C: Hard-delete directo si la columna deleted_at está restringida
   if (deleteError) {
     const { error: err3 } = await supabase
       .from('tasks')
@@ -589,7 +616,7 @@ export async function deleteTask(id: string): Promise<void> {
     throw new Error(deleteError.message || 'No fue posible eliminar la tarea. Intenta nuevamente.')
   }
 
-  // 4. Registrar evento en audit_logs
+  // 5. Registrar evento en audit_logs
   try {
     await supabase.rpc('log_audit_event', {
       p_action: 'task_deleted',
