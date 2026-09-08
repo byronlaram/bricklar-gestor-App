@@ -3,8 +3,8 @@ import { QueryClient } from '@tanstack/react-query'
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 2,        // 2 minutos — datos frescos para operaciones financieras
-      gcTime: 1000 * 60 * 10,          // 10 minutos de caché en memoria
+      staleTime: 1000 * 60 * 3,        // 3 minutos — navegación instantánea entre pantallas sin bloqueos
+      gcTime: 1000 * 60 * 15,         // 15 minutos de caché en memoria
       retry: (failureCount, error) => {
         // No reintentar errores de autorización (401, 403)
         if (
@@ -18,12 +18,13 @@ export const queryClient = new QueryClient({
         }
         return failureCount < 2
       },
-      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 15000),
-      refetchOnWindowFocus: true,
-      refetchOnReconnect: 'always',
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+      refetchOnWindowFocus: false,     // Evita ráfagas de peticiones al tocar pantallas o cambiar pestañas en móviles
+      refetchOnReconnect: 'always',    // Solo recargar si realmente se perdió y recuperó la conexión a internet
     },
     mutations: {
       retry: false,
     },
   },
 })
+

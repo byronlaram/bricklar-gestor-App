@@ -45,52 +45,36 @@ export function useTasksRealtime() {
     toastRef.current = toast
   }, [toast])
 
-  const refetchAllActiveQueries = useCallback((specificTaskId?: string) => {
-    // 1. Tareas y Asignaciones
+  // ─── Funciones Granulares de Invalidación (Rendimiento Extremo) ───────────
+  const invalidateTasks = useCallback((specificTaskId?: string) => {
     queryClient.invalidateQueries({ queryKey: ['tasks'] })
-    queryClient.refetchQueries({ queryKey: ['tasks'], type: 'active' })
-
-    queryClient.invalidateQueries({ queryKey: ['task'] })
-    queryClient.refetchQueries({ queryKey: ['task'], type: 'active' })
-
     if (specificTaskId) {
       queryClient.invalidateQueries({ queryKey: ['task', specificTaskId] })
-      queryClient.refetchQueries({ queryKey: ['task', specificTaskId], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['task-history', specificTaskId] })
       queryClient.invalidateQueries({ queryKey: ['task-assignments', specificTaskId] })
     }
-
-    queryClient.invalidateQueries({ queryKey: ['task-history'] })
-    queryClient.invalidateQueries({ queryKey: ['task-assignments'] })
-
-    // 2. Motorizados y Jornadas
-    queryClient.invalidateQueries({ queryKey: ['couriers'] })
-    queryClient.refetchQueries({ queryKey: ['couriers'], type: 'active' })
-
-    queryClient.invalidateQueries({ queryKey: ['workdays'] })
-    queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
-
-    // 3. Saldos, Movimientos y Liquidaciones
-    queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
-    queryClient.refetchQueries({ queryKey: ['cash_movements'], type: 'active' })
-
-    queryClient.invalidateQueries({ queryKey: ['settlements'] })
-    queryClient.refetchQueries({ queryKey: ['settlements'], type: 'active' })
-
-    queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
-    queryClient.refetchQueries({ queryKey: ['courier_pending_balances'], type: 'active' })
-
-    queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
-    queryClient.refetchQueries({ queryKey: ['all_couriers_pending_balances'], type: 'active' })
-
-    // 4. Panel Dashboard (Admin)
     queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-    queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
+  }, [queryClient])
 
-    // 5. Notificaciones de usuario
+  const invalidateWorkdays = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['workdays'] })
+    queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+  }, [queryClient])
+
+  const invalidateSettlements = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['settlements'] })
+    queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+    queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+  }, [queryClient])
+
+  const invalidateCashMovements = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
+    queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+  }, [queryClient])
+
+  const invalidateNotifications = useCallback(() => {
     if (profile?.id) {
       queryClient.invalidateQueries({ queryKey: ['notifications', profile.id] })
-      queryClient.refetchQueries({ queryKey: ['notifications', profile.id], type: 'active' })
     }
   }, [queryClient, profile?.id])
 
@@ -111,7 +95,17 @@ export function useTasksRealtime() {
         console.log(`[Realtime Broadcast Received: ${payload.domain}:${payload.action}]`, payload)
       }
 
-      refetchAllActiveQueries(payload.entityId)
+      if (payload.domain === 'workdays') {
+        invalidateWorkdays()
+      } else if (payload.domain === 'settlements') {
+        invalidateSettlements()
+      } else if (payload.domain === 'cash_movements') {
+        invalidateCashMovements()
+      } else if (payload.domain === 'notifications') {
+        invalidateNotifications()
+      } else {
+        invalidateTasks(payload.entityId)
+      }
 
       // Notificaciones Toasts específicas para motorizados
       if (isCourier) {
@@ -201,7 +195,7 @@ export function useTasksRealtime() {
           })
         }
 
-        refetchAllActiveQueries(targetTaskId)
+        invalidateTasks(targetTaskId)
 
         // Toasts contextuales de respaldo por CDC
         if (isCourier) {
@@ -235,7 +229,7 @@ export function useTasksRealtime() {
         if (isDev) {
           console.log(`[Realtime CDC Assignment Event: ${payload.eventType}]`, row)
         }
-        refetchAllActiveQueries(row?.task_id)
+        invalidateTasks(row?.task_id)
       }
     )
 
@@ -244,7 +238,7 @@ export function useTasksRealtime() {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'workdays' },
       () => {
-        refetchAllActiveQueries()
+        invalidateWorkdays()
       }
     )
 
@@ -253,7 +247,7 @@ export function useTasksRealtime() {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'settlements' },
       () => {
-        refetchAllActiveQueries()
+        invalidateSettlements()
       }
     )
 
@@ -262,7 +256,7 @@ export function useTasksRealtime() {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'cash_movements' },
       () => {
-        refetchAllActiveQueries()
+        invalidateCashMovements()
       }
     )
 
@@ -271,25 +265,17 @@ export function useTasksRealtime() {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'notifications' },
       () => {
-        refetchAllActiveQueries()
+        invalidateNotifications()
       }
     )
 
-    // ─── 3. Resiliencia: Listener de visibilidad, foco y red ────────────────
-    const handleSync = () => {
-      if (document.visibilityState === 'visible') {
-        if (isDev) console.log('[Realtime Resilience] App visible/foco. Ejecutando refetch activo.')
-        refetchAllActiveQueries()
-      }
-    }
-
+    // ─── 3. Resiliencia: Solo reconectar al recuperar red ────────────────
     const handleOnline = () => {
-      if (isDev) console.log('[Realtime Resilience] Red restablecida. Ejecutando refetch activo.')
-      refetchAllActiveQueries()
+      if (isDev) console.log('[Realtime Resilience] Red restablecida.')
+      invalidateTasks()
+      invalidateWorkdays()
     }
 
-    window.addEventListener('visibilitychange', handleSync)
-    window.addEventListener('focus', handleSync)
     window.addEventListener('online', handleOnline)
 
     // Asegurar suscripción al canal global
@@ -301,20 +287,23 @@ export function useTasksRealtime() {
             console.error('[Realtime Hub Error]', err)
           }
         }
-
-        if (status === 'SUBSCRIBED') {
-          refetchAllActiveQueries()
-        }
       })
     }
 
     return () => {
       unsubscribeLocal()
-      window.removeEventListener('visibilitychange', handleSync)
-      window.removeEventListener('focus', handleSync)
       window.removeEventListener('online', handleOnline)
       resetGlobalRealtimeChannel()
     }
-  }, [profile?.id, profile?.role, profile?.full_name, refetchAllActiveQueries])
+  }, [
+    profile?.id,
+    profile?.role,
+    profile?.full_name,
+    invalidateTasks,
+    invalidateWorkdays,
+    invalidateSettlements,
+    invalidateCashMovements,
+    invalidateNotifications,
+  ])
 }
 

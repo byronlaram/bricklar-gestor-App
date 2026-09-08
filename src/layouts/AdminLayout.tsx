@@ -268,6 +268,19 @@ export default function AdminLayout() {
   const { settings: company } = useCompanySettings()
   const toast = useToast()
 
+  // Precarga predictiva de rutas operativas en segundo plano
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      import('@/pages/admin/TasksPage')
+      import('@/pages/admin/MonitoringPage')
+      import('@/pages/admin/WorkdaysPage')
+      import('@/pages/admin/SettlementsPage')
+      import('@/pages/admin/UsersPage')
+      import('@/pages/admin/DailyClosurePage')
+    }, 200)
+    return () => clearTimeout(timeout)
+  }, [])
+
   const roleLabel = role === 'general_admin'
     ? 'Administrador General'
     : role === 'junior_admin'

@@ -40,6 +40,18 @@ export default function CourierLayout() {
 
   const dropdownRef = useRef<HTMLDivElement>(null)
 
+  // Precarga predictiva en segundo plano para navegación instantánea (0ms) entre pestañas
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      import('@/pages/courier/TasksPage')
+      import('@/pages/courier/FundsPage')
+      import('@/pages/courier/SettlementPage')
+      import('@/pages/courier/BusesPage')
+      import('@/pages/courier/NotificationsPage')
+    }, 150)
+    return () => clearTimeout(timeout)
+  }, [])
+
   // Consulta en tiempo real de notificaciones no leídas
   const { data: unreadNotifications = [] } = useQuery({
     queryKey: ['notifications', profile?.id],
