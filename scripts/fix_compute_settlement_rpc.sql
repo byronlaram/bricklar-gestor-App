@@ -1,7 +1,6 @@
 -- ==============================================================================
--- MIGRATION: 20260905000001_compute_settlement_rpc.sql
--- Implementación oficial y segura en PostgreSQL de la RPC `compute_settlement`
--- para validación y recálculo financiero server-side de liquidaciones de jornadas.
+-- FIX DEFINITIVO: RPC compute_settlement (Certificación Financiera Server-Side)
+-- Ejecutar en el SQL Editor de Supabase.
 -- ==============================================================================
 
 CREATE OR REPLACE FUNCTION public.compute_settlement(p_workday_id UUID)
@@ -197,4 +196,3 @@ $$;
 GRANT EXECUTE ON FUNCTION public.compute_settlement(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.compute_settlement(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.compute_settlement(UUID) TO anon;
-
