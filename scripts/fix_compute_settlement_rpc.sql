@@ -3,6 +3,12 @@
 -- Ejecutar en el SQL Editor de Supabase.
 -- ==============================================================================
 
+-- 1. Eliminar versiones previas con diferentes tipos de retorno
+DROP FUNCTION IF EXISTS public.compute_settlement(UUID);
+DROP FUNCTION IF EXISTS public.compute_settlement(TEXT);
+DROP FUNCTION IF EXISTS public.compute_settlement;
+
+-- 2. Crear la función canónica
 CREATE OR REPLACE FUNCTION public.compute_settlement(p_workday_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql

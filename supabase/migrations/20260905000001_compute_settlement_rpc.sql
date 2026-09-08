@@ -4,6 +4,10 @@
 -- para validación y recálculo financiero server-side de liquidaciones de jornadas.
 -- ==============================================================================
 
+DROP FUNCTION IF EXISTS public.compute_settlement(UUID);
+DROP FUNCTION IF EXISTS public.compute_settlement(TEXT);
+DROP FUNCTION IF EXISTS public.compute_settlement;
+
 CREATE OR REPLACE FUNCTION public.compute_settlement(p_workday_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql
