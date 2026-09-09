@@ -14,12 +14,12 @@ export function useTasks(
     queryKey: ['tasks', filters],
     queryFn: () => getTasks(filters),
     enabled: isQueryEnabled,
-    staleTime: 1000 * 30, // 30 segundos fresco en memoria
+    staleTime: 1000 * 5, // 5 segundos de frescura
     gcTime: 1000 * 60 * 10, // 10 minutos en memoria caché
     placeholderData: keepPreviousData, // Reutiliza datos previos de inmediato evitando parpadeos de skeletons
-    refetchInterval: options.refetchInterval ?? false, // Sin polling innecesario; los WebSockets se encargan de sincronizar
+    refetchInterval: options.refetchInterval !== undefined ? options.refetchInterval : 15000, // Respaldo inteligente cada 15s para garantizar sincronización continua
     refetchOnMount: true, // Refresca en segundo plano al montar sin bloquear la interfaz
-    refetchOnWindowFocus: false, // No recarga bruscamente al desbloquear el móvil o cambiar de app
+    refetchOnWindowFocus: true, // Sincroniza inmediatamente al volver a enfocar la pestaña
     refetchOnReconnect: true,
   })
 }

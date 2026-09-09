@@ -600,6 +600,18 @@ export default function CourierTaskDetailPage() {
         </Card>
       )}
 
+      {task.requires_payment && (
+        <Card className="p-5 bg-rose-50/80 border border-rose-200 rounded-2xl space-y-1 shadow-xs">
+          <span className="text-xs font-bold text-rose-800 block">
+            {task.status === 'completed' ? 'Pago Realizado' : 'Pago Requerido en Gestión'}
+          </span>
+          <p className="text-3xl font-black text-rose-900 font-tabular">
+            {task.expected_payment_currency === 'USD' ? 'US$' : 'C$'}
+            {task.expected_payment_amount?.toFixed(2)}
+          </p>
+        </Card>
+      )}
+
       {/* Barra Fija Inferior de Acción Móvil */}
       <div className="fixed bottom-16 left-0 right-0 p-3.5 bg-white/95 backdrop-blur-md border-t border-slate-200/80 z-30 shadow-lg">
         <div className="max-w-2xl mx-auto">

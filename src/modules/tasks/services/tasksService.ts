@@ -1408,6 +1408,12 @@ export async function rescheduleTask(
   const original = await getTaskById(original_task_id)
   if (!original) throw new Error('No se encontró la tarea original a reprogramar.')
 
+  if (original.status === 'completed' || original.status === 'cancelled') {
+    throw new Error(
+      `No es posible reprogramar una tarea que se encuentra en estado "${original.status === 'completed' ? 'Completada' : 'Cancelada'}". Las tareas finalizadas o canceladas están protegidas.`
+    )
+  }
+
   // 2. Determinar motorizado para la nueva tarea
   const courierToAssign =
     assigned_courier_id !== undefined ? assigned_courier_id : original.assigned_courier_id

@@ -688,9 +688,9 @@ export function CourierRouteMap({
               )}
 
               {selectedTask.requires_payment && (
-                <div className="flex items-center justify-between text-xs bg-amber-50 text-amber-800 px-3 py-1.5 rounded-xl border border-amber-200">
+                <div className="flex items-center justify-between text-xs bg-rose-50 text-rose-800 px-3 py-1.5 rounded-xl border border-rose-200">
                   <span className="font-semibold flex items-center gap-1">
-                    <Receipt className="w-3.5 h-3.5 text-amber-600" />
+                    <Receipt className="w-3.5 h-3.5 text-rose-600" />
                     Pago / Compra:
                   </span>
                   <span className="font-extrabold font-mono">

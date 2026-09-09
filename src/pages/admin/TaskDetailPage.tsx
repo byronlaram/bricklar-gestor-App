@@ -201,55 +201,81 @@ export default function TaskDetailPage() {
 
         {/* Acciones Rápidas */}
         <div className="flex flex-wrap items-center gap-2 border-t md:border-t-0 pt-4 md:pt-0 border-slate-100 shrink-0">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsRescheduleOpen(true)}
-            leftIcon={<CalendarClock className="h-4 w-4 text-orange-600" />}
-            className="border-orange-200 text-orange-700 hover:bg-orange-50 font-bold"
-          >
-            Reprogramar Tarea
-          </Button>
+          {task.status === 'completed' ? (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold shadow-2xs">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+              <span>Tarea Completada (Solo Lectura)</span>
+            </div>
+          ) : task.status === 'cancelled' ? (
+            <>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold shadow-2xs">
+                <AlertCircle className="h-4 w-4 text-slate-500" />
+                <span>Tarea Cancelada</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsConfirmDeleteOpen(true)}
+                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                title="Eliminar Tarea"
+                aria-label="Eliminar Tarea"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsRescheduleOpen(true)}
+                leftIcon={<CalendarClock className="h-4 w-4 text-orange-600" />}
+                className="border-orange-200 text-orange-700 hover:bg-orange-50 font-bold"
+              >
+                Reprogramar Tarea
+              </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsAssignOpen(true)}
-            leftIcon={<UserPlus className="h-4 w-4 text-sky-600" />}
-            className="border-sky-200 text-sky-700 hover:bg-sky-50"
-          >
-            Asignar Motorizado
-          </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsAssignOpen(true)}
+                leftIcon={<UserPlus className="h-4 w-4 text-sky-600" />}
+                className="border-sky-200 text-sky-700 hover:bg-sky-50"
+              >
+                Asignar Motorizado
+              </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsStatusOpen(true)}
-            leftIcon={<RefreshCw className="h-4 w-4 text-purple-600" />}
-            className="border-purple-200 text-purple-700 hover:bg-purple-50"
-          >
-            Cambiar Estado
-          </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsStatusOpen(true)}
+                leftIcon={<RefreshCw className="h-4 w-4 text-purple-600" />}
+                className="border-purple-200 text-purple-700 hover:bg-purple-50"
+              >
+                Cambiar Estado
+              </Button>
 
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsEditOpen(true)}
-            leftIcon={<Edit3 className="h-4 w-4 text-slate-600" />}
-          >
-            Editar
-          </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsEditOpen(true)}
+                leftIcon={<Edit3 className="h-4 w-4 text-slate-600" />}
+              >
+                Editar
+              </Button>
 
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsConfirmDeleteOpen(true)}
-            className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
-            title="Eliminar Tarea"
-            aria-label="Eliminar Tarea"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setIsConfirmDeleteOpen(true)}
+                className="text-rose-600 hover:bg-rose-50 hover:text-rose-700"
+                title="Eliminar Tarea"
+                aria-label="Eliminar Tarea"
+              >
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </>
+          )}
         </div>
       </Card>
 
@@ -591,20 +617,20 @@ export default function TaskDetailPage() {
                   </div>
 
                   {/* Pago / Compra */}
-                  <div className="p-4 bg-amber-50/60 border border-amber-200 rounded-xl space-y-2">
+                  <div className={`p-4 ${task.status === 'completed' ? 'bg-rose-50/80 border-rose-200' : 'bg-amber-50/60 border-amber-200'} border rounded-xl space-y-2`}>
                     <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-amber-800">
+                      <span className={`text-xs font-bold ${task.status === 'completed' ? 'text-rose-800' : 'text-amber-800'}`}>
                         {task.status === 'completed' ? 'Pago / Compra Ejecutado' : 'Pago / Viático Previsto'}
                       </span>
                       {fin.isActualPaid && (
-                        <span className="text-2xs font-extrabold px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                        <span className="text-2xs font-extrabold px-2 py-0.5 rounded-full bg-rose-100 text-rose-900 border border-rose-300">
                           Pagado en Gestión
                         </span>
                       )}
                     </div>
                     {fin.requiresPayment ? (
                       <div>
-                        <span className="text-2xl font-black text-amber-900 font-mono block">
+                        <span className={`text-2xl font-black ${task.status === 'completed' ? 'text-rose-900' : 'text-amber-900'} font-mono block`}>
                           {fin.currencySymbol}
                           {fin.displayPaymentAmount.toFixed(2)}
                         </span>
@@ -614,12 +640,12 @@ export default function TaskDetailPage() {
                           </span>
                         )}
                         {fin.invoiceNumber && (
-                          <span className="text-2xs font-mono font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded border border-amber-200 inline-block mt-1">
+                          <span className="text-2xs font-mono font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded border border-rose-200 inline-block mt-1">
                             Factura/Recibo: {fin.invoiceNumber}
                           </span>
                         )}
                         {fin.paymentDiscrepancyReason && (
-                          <p className="text-xs text-amber-900 bg-amber-100/70 p-2 rounded-lg border border-amber-200 mt-1.5 font-medium">
+                          <p className="text-xs text-rose-900 bg-rose-100/70 p-2 rounded-lg border border-rose-200 mt-1.5 font-medium">
                             <strong>Motivo diferencia:</strong> {fin.paymentDiscrepancyReason}
                           </p>
                         )}

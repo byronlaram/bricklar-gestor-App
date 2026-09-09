@@ -4,7 +4,7 @@ import { useAuth } from '@/modules/auth/useAuth'
 import { useToast } from '@/shared/components/ui'
 import {
   getGlobalRealtimeChannel,
-  resetGlobalRealtimeChannel,
+  ensureGlobalChannelSubscribed,
   onLocalBroadcast,
   type RealtimeSyncPayload,
 } from '@/shared/lib/realtimeSync'
@@ -29,11 +29,12 @@ interface AssignmentPayloadRow {
 }
 
 /**
- * Hook de sincronización en tiempo real multicapa:
- * 1. WebSocket Broadcast Global (Supabase): Latencia <50ms entre cualquier dispositivo.
- * 2. Web BroadcastChannel (Pestañas locales): Sincronización 0ms sin tráfico de red.
- * 3. PostgreSQL Changes CDC (Supabase): Captura de eventos INSERT, UPDATE, DELETE a nivel de base de datos.
- * 4. Invalida y re-consulta de forma activa TanStack Query para tareas, dashboard, liquidaciones y jornadas.
+ * Hook de sincronización en tiempo real multicapa y ultra-resiliente:
+ * 1. WebSocket Broadcast Global (Supabase): Latencia <50ms entre cualquier usuario/dispositivo.
+ * 2. Web BroadcastChannel (Pestañas locales): Sincronización instantánea de 0ms sin latencia ni tráfico externo.
+ * 3. PostgreSQL Changes CDC (Supabase): Captura directa de eventos INSERT, UPDATE, DELETE a nivel de BD.
+ * 4. Reactividad Activa: Invalida y re-consulta inmediatamente consultas activas de tareas, dashboard, liquidaciones y jornadas.
+ * 5. Resiliencia de Enfoque: Al cambiar de pestaña/aplicación o regresar de suspensión, sincroniza automáticamente los datos.
  */
 export function useTasksRealtime() {
   const queryClient = useQueryClient()
@@ -45,32 +46,40 @@ export function useTasksRealtime() {
     toastRef.current = toast
   }, [toast])
 
-  // ─── Funciones Granulares de Invalidación (Rendimiento Extremo) ───────────
+  // ─── Funciones Granulares de Invalidación y Re-consulta Activa ───────────
   const invalidateTasks = useCallback((specificTaskId?: string) => {
     queryClient.invalidateQueries({ queryKey: ['tasks'] })
+    queryClient.refetchQueries({ queryKey: ['tasks'], type: 'active' })
+
     if (specificTaskId) {
       queryClient.invalidateQueries({ queryKey: ['task', specificTaskId] })
+      queryClient.refetchQueries({ queryKey: ['task', specificTaskId], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['task-history', specificTaskId] })
       queryClient.invalidateQueries({ queryKey: ['task-assignments', specificTaskId] })
     }
     queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
     queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+    queryClient.refetchQueries({ queryKey: ['all_couriers_pending_balances'], type: 'active' })
   }, [queryClient])
 
   const invalidateWorkdays = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['workdays'] })
+    queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
     queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
     queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
   }, [queryClient])
 
   const invalidateSettlements = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['settlements'] })
+    queryClient.refetchQueries({ queryKey: ['settlements'], type: 'active' })
     queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
     queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
   }, [queryClient])
 
   const invalidateCashMovements = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
+    queryClient.refetchQueries({ queryKey: ['cash_movements'], type: 'active' })
     queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
     queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
   }, [queryClient])
@@ -78,6 +87,7 @@ export function useTasksRealtime() {
   const invalidateNotifications = useCallback(() => {
     if (profile?.id) {
       queryClient.invalidateQueries({ queryKey: ['notifications', profile.id] })
+      queryClient.refetchQueries({ queryKey: ['notifications', profile.id], type: 'active' })
     }
   }, [queryClient, profile?.id])
 
@@ -170,8 +180,7 @@ export function useTasksRealtime() {
     // Escuchar mensajes del BroadcastChannel local entre pestañas
     const unsubscribeLocal = onLocalBroadcast(handleBroadcastEvent)
 
-    // ─── 2. Conectar al Canal Compartido de Supabase ─────────────────────────
-    resetGlobalRealtimeChannel()
+    // ─── 2. Conectar al Canal Compartido de Supabase Realtime ───────────────
     const globalChannel = getGlobalRealtimeChannel()
 
     // Listener Broadcast WebSocket
@@ -272,31 +281,46 @@ export function useTasksRealtime() {
       }
     )
 
-    // ─── 3. Resiliencia: Solo reconectar al recuperar red ────────────────
-    const handleOnline = () => {
-      if (isDev) console.log('[Realtime Resilience] Red restablecida.')
+    // Asegurar suscripción activa al canal global
+    ensureGlobalChannelSubscribed().catch((err) => {
+      if (isDev) console.error('[Realtime Hub Error]', err)
+    })
+
+    // ─── 3. Resiliencia de Enfoque, Red y Reconexión Automática ────────────
+    const handleRevalidateActiveState = () => {
       invalidateTasks()
       invalidateWorkdays()
+      invalidateSettlements()
+      invalidateCashMovements()
+      invalidateNotifications()
+      ensureGlobalChannelSubscribed().catch(() => {})
     }
 
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (isDev) console.log('[Realtime Resilience] Pestaña activa: sincronizando datos...')
+        handleRevalidateActiveState()
+      }
+    }
+
+    const handleWindowFocus = () => {
+      handleRevalidateActiveState()
+    }
+
+    const handleOnline = () => {
+      if (isDev) console.log('[Realtime Resilience] Red restablecida: sincronizando datos...')
+      handleRevalidateActiveState()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleWindowFocus)
     window.addEventListener('online', handleOnline)
-
-    // Asegurar suscripción al canal global
-    if (globalChannel.state !== 'joined' && globalChannel.state !== 'joining') {
-      globalChannel.subscribe((status, err) => {
-        if (isDev) {
-          console.log(`[Realtime Hub Status] ${status}`)
-          if (err) {
-            console.error('[Realtime Hub Error]', err)
-          }
-        }
-      })
-    }
 
     return () => {
       unsubscribeLocal()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleWindowFocus)
       window.removeEventListener('online', handleOnline)
-      resetGlobalRealtimeChannel()
     }
   }, [
     profile?.id,
@@ -309,4 +333,3 @@ export function useTasksRealtime() {
     invalidateNotifications,
   ])
 }
-

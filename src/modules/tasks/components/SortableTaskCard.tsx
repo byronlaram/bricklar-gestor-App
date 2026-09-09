@@ -205,7 +205,7 @@ export function SortableTaskCard({
               </span>
             )}
             {task.requires_payment && (
-              <span className="text-amber-700 font-mono">
+              <span className="text-rose-700 font-mono">
                 Pagar C${task.expected_payment_amount || 0}
               </span>
             )}

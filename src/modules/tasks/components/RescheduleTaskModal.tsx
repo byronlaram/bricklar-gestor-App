@@ -50,8 +50,15 @@ export function RescheduleTaskModal({
 
   if (!task) return null
 
+  const isCompletedOrCancelled = task.status === 'completed' || task.status === 'cancelled'
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (isCompletedOrCancelled) {
+      toast.error('Acción no permitida', `No es posible reprogramar una tarea ${task.status === 'completed' ? 'completada' : 'cancelada'}.`)
+      return
+    }
+
     if (!newDate) {
       toast.warning('Fecha requerida', 'Por favor selecciona la nueva fecha para la tarea.')
       return
@@ -146,13 +153,30 @@ export function RescheduleTaskModal({
               )}
             </div>
 
-            {/* Aviso Explicativo del Flujo */}
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 leading-relaxed">
-              <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <span>
-                La tarea original <strong>{task.code}</strong> quedará registrada en el histórico de {formatDate(task.scheduled_date)} como <strong>Reprogramada</strong>. Se creará automáticamente una <strong>nueva tarea activa</strong> para la fecha seleccionada con estado <strong>Asignada</strong>.
-              </span>
-            </div>
+            {/* Aviso de Bloqueo si la tarea ya está completada o cancelada */}
+            {isCompletedOrCancelled ? (
+              <div className="p-4 bg-rose-50 border border-rose-200 rounded-2xl flex items-start gap-3 text-xs text-rose-950 leading-relaxed shadow-2xs">
+                <Info className="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+                <div className="space-y-1">
+                  <p className="font-bold text-rose-900 text-sm">
+                    Tarea {task.status === 'completed' ? 'Completada' : 'Cancelada'} — Acción Bloqueada
+                  </p>
+                  <p className="text-rose-800">
+                    {task.status === 'completed'
+                      ? 'Esta tarea ya fue finalizada y registrada operativamente. No es posible reprogramar una tarea que ya ha sido entregada y cerrada en caja.'
+                      : 'Esta tarea se encuentra cancelada y su ciclo operativo está cerrado. No es posible reprogramarla.'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              /* Aviso Explicativo del Flujo Normal */
+              <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2.5 text-xs text-amber-900 leading-relaxed">
+                <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                <span>
+                  La tarea original <strong>{task.code}</strong> quedará registrada en el histórico de {formatDate(task.scheduled_date)} como <strong>Reprogramada</strong>. Se creará automáticamente una <strong>nueva tarea activa</strong> para la fecha seleccionada con estado <strong>Asignada</strong>.
+                </span>
+              </div>
+            )}
 
             {/* Selector de Nueva Fecha */}
             <div className="space-y-1.5">
@@ -163,10 +187,11 @@ export function RescheduleTaskModal({
               <input
                 type="date"
                 required
+                disabled={isCompletedOrCancelled}
                 value={newDate}
                 min={todayStr}
                 onChange={(e) => setNewDate(e.target.value)}
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-semibold"
+                className="w-full px-3 py-2 text-sm bg-white disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-semibold"
               />
             </div>
 
@@ -183,9 +208,10 @@ export function RescheduleTaskModal({
                 </div>
               ) : (
                 <select
+                  disabled={isCompletedOrCancelled}
                   value={selectedCourierId}
                   onChange={(e) => setSelectedCourierId(e.target.value)}
-                  className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
+                  className="w-full px-3 py-2 text-sm bg-white disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs font-medium"
                 >
                   <option value="">-- Sin asignar (Pendiente) --</option>
                   {couriers.map((c) => (
@@ -205,10 +231,11 @@ export function RescheduleTaskModal({
               <textarea
                 rows={2}
                 required
+                disabled={isCompletedOrCancelled}
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 placeholder="Ej: Cliente ausente ayer, se acordó nueva entrega hoy por la mañana..."
-                className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs resize-none"
+                className="w-full px-3 py-2 text-sm bg-white disabled:bg-slate-100 disabled:text-slate-400 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-accent/40 text-slate-900 shadow-2xs resize-none"
               />
             </div>
 
@@ -233,9 +260,10 @@ export function RescheduleTaskModal({
               variant="primary"
               size="sm"
               type="submit"
+              disabled={isCompletedOrCancelled || isRescheduling}
               isLoading={isRescheduling}
               leftIcon={<CalendarClock className="h-4 w-4" />}
-              className="bg-orange-600 hover:bg-orange-700 text-white font-bold"
+              className="bg-orange-600 hover:bg-orange-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold"
             >
               Confirmar Reprogramación
             </Button>

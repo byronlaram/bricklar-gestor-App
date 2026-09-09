@@ -505,10 +505,16 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
               </div>
               <div>
                 <h2 className="text-lg font-semibold text-foreground">
-                  {isEditing ? `Editar Tarea — ${taskToEdit?.code || ''}` : 'Nueva Tarea'}
+                  {isLocked
+                    ? `Ver Tarea — ${taskToEdit?.code || ''}`
+                    : isEditing
+                    ? `Editar Tarea — ${taskToEdit?.code || ''}`
+                    : 'Nueva Tarea'}
                 </h2>
                 <p className="text-xs text-foreground-muted">
-                  {isEditing
+                  {isLocked
+                    ? 'Consulta los datos registrados de la tarea finalizada (modo solo lectura).'
+                    : isEditing
                     ? 'Modifica los parámetros de la tarea seleccionada.'
                     : 'Crea una nueva gestión operativa y asígnala al equipo de reparto.'}
                 </p>
@@ -532,10 +538,12 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                 <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                 <div className="space-y-1">
                   <p className="font-bold">
-                    Tarea {taskToEdit?.status === 'completed' ? 'Completada' : 'Cancelada'} — Edición Protegida
+                    Tarea {taskToEdit?.status === 'completed' ? 'Completada' : 'Cancelada'} — Modo Solo Lectura
                   </p>
                   <p className="text-amber-800/90 dark:text-amber-300/90 leading-relaxed">
-                    La fecha, el motorizado y los movimientos de caja están bloqueados para proteger el arqueo y la auditoría. Si requieres mover una entrega a otra fecha, utiliza el botón <strong className="font-semibold">Reprogramar</strong>.
+                    {taskToEdit?.status === 'completed'
+                      ? 'Esta tarea ya ha sido finalizada y liquidada operativamente. No es posible modificar sus parámetros ni reprogramarla.'
+                      : 'Esta tarea se encuentra cancelada. Los datos se mantienen registrados con fines de auditoría y no pueden ser modificados.'}
                   </p>
                 </div>
               </div>
@@ -1282,29 +1290,41 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
 
             {/* Footer Actions */}
             <div className="flex items-center justify-end gap-2 pt-4 border-t border-border/50 shrink-0">
-              <button
-                type="button"
-                onClick={handleRequestClose}
-                className="px-4 py-2 text-xs font-medium text-foreground-muted hover:text-foreground border border-border rounded-lg transition cursor-pointer"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="inline-flex items-center justify-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-accent hover:bg-accent/90 disabled:opacity-50 rounded-lg shadow-sm transition cursor-pointer"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Guardando...
-                  </>
-                ) : isEditing ? (
-                  'Guardar Cambios'
-                ) : (
-                  'Crear Tarea'
-                )}
-              </button>
+              {isLocked ? (
+                <button
+                  type="button"
+                  onClick={handleRequestClose}
+                  className="px-5 py-2 text-xs font-semibold text-white bg-slate-700 hover:bg-slate-800 rounded-lg shadow-sm transition cursor-pointer"
+                >
+                  Cerrar
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleRequestClose}
+                    className="px-4 py-2 text-xs font-medium text-foreground-muted hover:text-foreground border border-border rounded-lg transition cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isLoading}
+                    className="inline-flex items-center justify-center gap-1.5 px-5 py-2 text-xs font-semibold text-white bg-accent hover:bg-accent/90 disabled:opacity-50 rounded-lg shadow-sm transition cursor-pointer"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Guardando...
+                      </>
+                    ) : isEditing ? (
+                      'Guardar Cambios'
+                    ) : (
+                      'Crear Tarea'
+                    )}
+                  </button>
+                </>
+              )}
             </div>
           </form>
         </div>

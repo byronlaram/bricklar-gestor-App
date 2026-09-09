@@ -503,7 +503,7 @@ export default function TasksPage() {
                                   )}
                                   {fin.requiresPayment && (
                                     <Badge
-                                      variant={task.status === 'completed' ? 'completed' : 'pending'}
+                                      variant={task.status === 'completed' ? 'urgent' : 'pending'}
                                       size="sm"
                                       title={
                                         fin.isActualPaid && fin.paymentDiscrepancy !== 0
@@ -530,15 +530,22 @@ export default function TasksPage() {
                                   <button type="button" onClick={() => handleApprove(task)} disabled={isApproving} className="h-8 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-2xs font-extrabold rounded-xl shadow-2xs flex items-center gap-1 transition cursor-pointer"><Check className="h-3.5 w-3.5" strokeWidth={3} /><span>Aprobar</span></button>
                                   <button type="button" onClick={() => setRejectTaskTarget(task)} disabled={isRejecting} className="h-8 px-2.5 bg-rose-600 hover:bg-rose-700 text-white text-2xs font-extrabold rounded-xl shadow-2xs flex items-center gap-1 transition cursor-pointer"><X className="h-3.5 w-3.5" strokeWidth={3} /><span>Rechazar</span></button>
                                 </>
+                              ) : task.status === 'completed' ? (
+                                <Button size="icon" variant="ghost" onClick={() => navigate(`/admin/tareas/${task.id}`)} className="h-8 w-8 text-slate-500 hover:text-accent hover:bg-slate-100" title="Ver detalle" aria-label="Ver detalle"><Eye className="h-4 w-4" /></Button>
+                              ) : task.status === 'cancelled' ? (
+                                <>
+                                  <Button size="icon" variant="ghost" onClick={() => navigate(`/admin/tareas/${task.id}`)} className="h-8 w-8 text-slate-500 hover:text-accent hover:bg-slate-100" title="Ver detalle" aria-label="Ver detalle"><Eye className="h-4 w-4" /></Button>
+                                  <Button size="icon" variant="ghost" onClick={() => setTaskToDelete({ id: task.id, code: task.code })} className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50" title="Eliminar tarea" aria-label="Eliminar tarea"><Trash2 className="h-4 w-4" /></Button>
+                                </>
                               ) : (
                                 <>
-                                  <Button size="icon" variant="ghost" onClick={() => navigate(`/admin/tareas/${task.id}`)} className="h-8 w-8 text-slate-500 hover:text-accent hover:bg-slate-100" title="Ver detalle"><Eye className="h-4 w-4" /></Button>
-                                  <Button size="icon" variant="ghost" onClick={() => setAssignTaskTarget(task)} className="h-8 w-8 text-slate-500 hover:text-sky-600 hover:bg-sky-50" title="Asignar motorizado"><UserPlus className="h-4 w-4" /></Button>
-                                  <Button size="icon" variant="ghost" onClick={() => setRescheduleTaskTarget(task)} className="h-8 w-8 text-slate-500 hover:text-orange-600 hover:bg-orange-50" title="Reprogramar tarea"><CalendarClock className="h-4 w-4 text-orange-600" /></Button>
+                                  <Button size="icon" variant="ghost" onClick={() => navigate(`/admin/tareas/${task.id}`)} className="h-8 w-8 text-slate-500 hover:text-accent hover:bg-slate-100" title="Ver detalle" aria-label="Ver detalle"><Eye className="h-4 w-4" /></Button>
+                                  <Button size="icon" variant="ghost" onClick={() => setAssignTaskTarget(task)} className="h-8 w-8 text-slate-500 hover:text-sky-600 hover:bg-sky-50" title="Asignar motorizado" aria-label="Asignar motorizado"><UserPlus className="h-4 w-4" /></Button>
+                                  <Button size="icon" variant="ghost" onClick={() => setRescheduleTaskTarget(task)} className="h-8 w-8 text-slate-500 hover:text-orange-600 hover:bg-orange-50" title="Reprogramar tarea" aria-label="Reprogramar tarea"><CalendarClock className="h-4 w-4 text-orange-600" /></Button>
+                                  <Button size="icon" variant="ghost" onClick={() => handleEdit(task)} className="h-8 w-8 text-slate-500 hover:text-slate-900 hover:bg-slate-100" title="Editar tarea" aria-label="Editar tarea"><Edit3 className="h-4 w-4" /></Button>
+                                  <Button size="icon" variant="ghost" onClick={() => setTaskToDelete({ id: task.id, code: task.code })} className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50" title="Eliminar tarea" aria-label="Eliminar tarea"><Trash2 className="h-4 w-4" /></Button>
                                 </>
                               )}
-                              <Button size="icon" variant="ghost" onClick={() => handleEdit(task)} className="h-8 w-8 text-slate-500 hover:text-slate-900 hover:bg-slate-100" title="Editar tarea"><Edit3 className="h-4 w-4" /></Button>
-                              <Button size="icon" variant="ghost" onClick={() => setTaskToDelete({ id: task.id, code: task.code })} className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50" title="Eliminar tarea"><Trash2 className="h-4 w-4" /></Button>
                             </div>
                           </td>
                         </AdminSortableTaskRow>
@@ -689,7 +696,7 @@ export default function TasksPage() {
                               )}
                               {fin.requiresPayment && (
                                 <Badge
-                                  variant={task.status === 'completed' ? 'completed' : 'pending'}
+                                  variant={task.status === 'completed' ? 'urgent' : 'pending'}
                                   size="sm"
                                   title={
                                     fin.isActualPaid && fin.paymentDiscrepancy !== 0
@@ -737,6 +744,40 @@ export default function TasksPage() {
                                 <span>Rechazar</span>
                               </button>
                             </>
+                          ) : task.status === 'completed' ? (
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => navigate(`/admin/tareas/${task.id}`)}
+                              className="h-8 w-8 text-slate-500 hover:text-accent hover:bg-slate-100"
+                              title="Ver detalle"
+                              aria-label="Ver detalle"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                          ) : task.status === 'cancelled' ? (
+                            <>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => navigate(`/admin/tareas/${task.id}`)}
+                                className="h-8 w-8 text-slate-500 hover:text-accent hover:bg-slate-100"
+                                title="Ver detalle"
+                                aria-label="Ver detalle"
+                              >
+                                <Eye className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => setTaskToDelete({ id: task.id, code: task.code })}
+                                className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                title="Eliminar tarea"
+                                aria-label="Eliminar tarea"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </>
                           ) : (
                             <>
                               <Button
@@ -771,30 +812,30 @@ export default function TasksPage() {
                               >
                                 <CalendarClock className="h-4 w-4 text-orange-600" />
                               </Button>
+
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleEdit(task)}
+                                className="h-8 w-8 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
+                                title="Editar tarea"
+                                aria-label="Editar tarea"
+                              >
+                                <Edit3 className="h-4 w-4" />
+                              </Button>
+
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => setTaskToDelete({ id: task.id, code: task.code })}
+                                className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
+                                title="Eliminar tarea"
+                                aria-label="Eliminar tarea"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </>
                           )}
-
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => handleEdit(task)}
-                            className="h-8 w-8 text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-                            title="Editar tarea"
-                            aria-label="Editar tarea"
-                          >
-                            <Edit3 className="h-4 w-4" />
-                          </Button>
-
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => setTaskToDelete({ id: task.id, code: task.code })}
-                            className="h-8 w-8 text-slate-400 hover:text-rose-600 hover:bg-rose-50"
-                            title="Eliminar tarea"
-                            aria-label="Eliminar tarea"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
                         </div>
                       </td>
                     </tr>

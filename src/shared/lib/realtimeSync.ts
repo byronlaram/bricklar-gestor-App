@@ -5,6 +5,7 @@
  *    conectados (latencia <50ms, sin depender de delays de PostgreSQL WAL ni RLS).
  * 2. Web BroadcastChannel API: Sincronización instantánea de 0ms entre todas las pestañas
  *    y ventanas del mismo navegador.
+ * 3. PostgreSQL CDC: Captura de eventos INSERT, UPDATE, DELETE a nivel de base de datos.
  */
 
 import { supabase } from './supabaseClient'
@@ -13,11 +14,26 @@ import type { RealtimeChannel } from '@supabase/supabase-js'
 export const GLOBAL_REALTIME_CHANNEL = 'bricklar_global_realtime'
 export const BROWSER_BROADCAST_CHANNEL = 'bricklar_tasks_sync'
 
-export type RealtimeSyncDomain = 'tasks' | 'workdays' | 'settlements' | 'cash_movements' | 'notifications' | 'audit_logs'
+export type RealtimeSyncDomain =
+  | 'tasks'
+  | 'workdays'
+  | 'settlements'
+  | 'cash_movements'
+  | 'notifications'
+  | 'audit_logs'
 
 export interface RealtimeSyncPayload {
   domain: RealtimeSyncDomain
-  action: 'create' | 'update' | 'delete' | 'assign' | 'status_change' | 'approve' | 'reject' | 'reorder' | 'general'
+  action:
+    | 'create'
+    | 'update'
+    | 'delete'
+    | 'assign'
+    | 'status_change'
+    | 'approve'
+    | 'reject'
+    | 'reorder'
+    | 'general'
   entityId?: string
   assignedCourierId?: string | null
   previousCourierId?: string | null
@@ -31,6 +47,8 @@ export interface RealtimeSyncPayload {
 
 // Canal compartido global de Supabase Realtime (singleton)
 let globalChannel: RealtimeChannel | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let isSubscribing = false
 
 // Instancia única del BroadcastChannel del navegador
 let localBroadcastChannel: BroadcastChannel | null = null
@@ -44,10 +62,14 @@ if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
 }
 
 /**
- * Resetea y destruye limpiamente el canal global de Supabase para permitir
- * que un nuevo suscriptor registre callbacks antes de suscribirse.
+ * Destruye el canal global de Supabase de forma segura (por ejemplo, al cerrar sesión).
  */
 export function resetGlobalRealtimeChannel(): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  isSubscribing = false
   if (globalChannel) {
     try {
       supabase.removeChannel(globalChannel)
@@ -59,18 +81,76 @@ export function resetGlobalRealtimeChannel(): void {
 }
 
 /**
- * Obtiene o inicializa el canal global de Supabase con capacidades de Broadcast activadas.
- * No invoca subscribe() automáticamente para permitir adjuntar callbacks .on() primero.
+ * Obtiene o inicializa el canal global de Supabase con capacidades de Broadcast y CDC activadas.
  */
 export function getGlobalRealtimeChannel(): RealtimeChannel {
   if (!globalChannel) {
     globalChannel = supabase.channel(GLOBAL_REALTIME_CHANNEL, {
       config: {
-        broadcast: { self: false }, // No rebotar eventos al mismo socket emisor
+        broadcast: { self: false },
       },
     })
   }
   return globalChannel
+}
+
+/**
+ * Asegura que el canal global de Supabase esté suscrito y conectado.
+ * Retorna una promesa que resuelve `true` si se unió exitosamente o ya estaba unido.
+ */
+export async function ensureGlobalChannelSubscribed(timeoutMs = 3000): Promise<boolean> {
+  const channel = getGlobalRealtimeChannel()
+
+  if (channel.state === 'joined') {
+    return true
+  }
+
+  return new Promise<boolean>((resolve) => {
+    let resolved = false
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        resolve(channel.state === 'joined')
+      }
+    }, timeoutMs)
+
+    if (channel.state !== 'joining' && !isSubscribing) {
+      isSubscribing = true
+      channel.subscribe((status, err) => {
+        isSubscribing = false
+        if (status === 'SUBSCRIBED') {
+          if (!resolved) {
+            resolved = true
+            clearTimeout(timeout)
+            resolve(true)
+          }
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          if (err) {
+            console.warn('[RealtimeSync] Canal con estado:', status, err)
+          }
+          if (!resolved) {
+            resolved = true
+            clearTimeout(timeout)
+            resolve(false)
+          }
+        }
+      })
+    } else {
+      // Si ya está en proceso de unirse, esperar a que complete o timeout
+      const checkInterval = setInterval(() => {
+        if (channel.state === 'joined') {
+          clearInterval(checkInterval)
+          if (!resolved) {
+            resolved = true
+            clearTimeout(timeout)
+            resolve(true)
+          }
+        }
+      }, 50)
+
+      setTimeout(() => clearInterval(checkInterval), timeoutMs)
+    }
+  })
 }
 
 /**
@@ -104,20 +184,20 @@ export async function broadcastSyncEvent(
 
   // 2. Difundir vía Supabase Realtime Broadcast a todos los usuarios/dispositivos conectados
   try {
+    const isJoined = await ensureGlobalChannelSubscribed(2000)
     const channel = getGlobalRealtimeChannel()
-    
-    // Si el canal aún se está conectando, esperar brevemente hasta que esté listo
-    if (channel.state !== 'joined') {
-      await new Promise((resolve) => setTimeout(resolve, 80))
-    }
 
-    await channel.send({
-      type: 'broadcast',
-      event: 'sync_event',
-      payload: fullPayload,
-    })
-    if (isDev) {
-      console.log(`[RealtimeSync Supabase WebSocket Broadcast] ${domain}:${action}`, fullPayload)
+    if (isJoined || channel.state === 'joined') {
+      const sendResult = await channel.send({
+        type: 'broadcast',
+        event: 'sync_event',
+        payload: fullPayload,
+      })
+      if (isDev) {
+        console.log(`[RealtimeSync Supabase WebSocket Broadcast] ${domain}:${action}`, sendResult, fullPayload)
+      }
+    } else {
+      console.warn('[RealtimeSync] No se pudo enviar broadcast porque el canal no está unido.')
     }
   } catch (err) {
     console.warn('[RealtimeSync] Error al enviar Supabase Realtime Broadcast:', err)
