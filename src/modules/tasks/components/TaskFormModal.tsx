@@ -42,6 +42,9 @@ import { uploadTaskReferenceImage } from '../services/tasksService'
 import { checkCourierShiftStatus, type CourierDailyShiftStatus } from '@/modules/workdays/services/workdaysService'
 import { parseCoordinatesFromMapsUrl } from '@/shared/utils/geoHelper'
 import { getLocalDateString } from '@/shared/utils/date'
+import { ContactAutosuggest } from '@/modules/directory/components/ContactAutosuggest'
+import { ContactFormModal as QuickContactModal } from '@/modules/directory/components/ContactFormModal'
+import type { DirectoryContact, DirectoryCategory } from '@/modules/directory/types/directory.types'
 
 interface TaskFormModalProps {
   taskToEdit?: TaskWithCourier | null
@@ -73,6 +76,56 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
   const toast = useToast()
 
   const [showDiscardConfirm, setShowDiscardConfirm] = useState(false)
+  const [isQuickContactModalOpen, setIsQuickContactModalOpen] = useState(false)
+  const [quickContactName, setQuickContactName] = useState('')
+  const [quickContactCategory, setQuickContactCategory] = useState<DirectoryCategory>('customer')
+
+  const handleSelectDirectoryContact = (contact: DirectoryContact) => {
+    // Fill specific name based on active task fields
+    if (config.entityLabel) {
+      setValue('provider_name', contact.name, { shouldDirty: true })
+    }
+    if (config.institutionLabel && selectedTaskType !== 'bus_shipment') {
+      setValue('institution_name', contact.name, { shouldDirty: true })
+    }
+    if (config.contactNameLabel) {
+      setValue('contact_name', contact.contact_person || contact.name, { shouldDirty: true })
+    }
+
+    // Fill address & references
+    if (contact.address) {
+      setValue('address', contact.address, { shouldDirty: true })
+    }
+    if (contact.address_reference) {
+      setValue('address_reference', contact.address_reference, { shouldDirty: true })
+    }
+    if (contact.maps_url) {
+      setValue('maps_url', contact.maps_url, { shouldDirty: true })
+    }
+    if (contact.phone) {
+      setValue('phone', contact.phone, { shouldDirty: true })
+    }
+    if (contact.whatsapp) {
+      setValue('whatsapp', contact.whatsapp, { shouldDirty: true })
+    }
+
+    // Financial behavior suggestion
+    if (contact.default_financial_type === 'collection') {
+      setValue('requires_collection', true, { shouldDirty: true })
+      setValue('requires_payment', false, { shouldDirty: true })
+      setValue('expected_collection_currency', contact.default_currency, { shouldDirty: true })
+    } else if (contact.default_financial_type === 'payment') {
+      setValue('requires_payment', true, { shouldDirty: true })
+      setValue('requires_collection', false, { shouldDirty: true })
+      setValue('expected_payment_currency', contact.default_currency, { shouldDirty: true })
+    }
+  }
+
+  const handleRequestAddNewContact = (name: string, category: DirectoryCategory) => {
+    setQuickContactName(name)
+    setQuickContactCategory(category)
+    setIsQuickContactModalOpen(true)
+  }
   const [showAllDetails, setShowAllDetails] = useState(false)
   const [referencePhotos, setReferencePhotos] = useState<string[]>([])
   const [isUploadingPhoto, setIsUploadingPhoto] = useState(false)
@@ -671,11 +724,13 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                     <label className="block text-xs font-medium text-foreground-muted mb-1">
                       {config.entityLabel}
                     </label>
-                    <input
-                      type="text"
-                      placeholder={config.entityPlaceholder}
-                      {...register('provider_name')}
-                      className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
+                    <ContactAutosuggest
+                      value={watch('provider_name') || ''}
+                      onChange={(val) => setValue('provider_name', val, { shouldDirty: true })}
+                      onSelectContact={handleSelectDirectoryContact}
+                      onAddNewContactRequest={(name) => handleRequestAddNewContact(name, 'provider')}
+                      placeholder={config.entityPlaceholder || 'Buscar o escribir proveedor...'}
+                      categoryFilter="provider"
                     />
                   </div>
                 )}
@@ -702,11 +757,13 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                         placeholder={config.institutionPlaceholder || 'Buscar destino o transporte...'}
                       />
                     ) : (
-                      <input
-                        type="text"
-                        placeholder={config.institutionPlaceholder}
-                        {...register('institution_name')}
-                        className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
+                      <ContactAutosuggest
+                        value={watch('institution_name') || ''}
+                        onChange={(val) => setValue('institution_name', val, { shouldDirty: true })}
+                        onSelectContact={handleSelectDirectoryContact}
+                        onAddNewContactRequest={(name) => handleRequestAddNewContact(name, 'institution_other')}
+                        placeholder={config.institutionPlaceholder || 'Buscar banco, colegio o entidad...'}
+                        categoryFilter="institution_other"
                       />
                     )}
                   </div>
@@ -731,11 +788,13 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                     <label className="block text-xs font-medium text-foreground-muted mb-1">
                       {config.contactNameLabel}
                     </label>
-                    <input
-                      type="text"
-                      placeholder={config.contactNamePlaceholder}
-                      {...register('contact_name')}
-                      className="w-full px-3 py-2 text-sm bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-accent/50 text-foreground"
+                    <ContactAutosuggest
+                      value={watch('contact_name') || ''}
+                      onChange={(val) => setValue('contact_name', val, { shouldDirty: true })}
+                      onSelectContact={handleSelectDirectoryContact}
+                      onAddNewContactRequest={(name) => handleRequestAddNewContact(name, 'customer')}
+                      placeholder={config.contactNamePlaceholder || 'Buscar o escribir cliente...'}
+                      categoryFilter="customer"
                     />
                   </div>
                 )}
@@ -1349,6 +1408,20 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
         isOpen={isViewerOpen}
         onClose={() => setIsViewerOpen(false)}
         title="Foto de Referencia del Producto"
+      />
+      {/* Modal Rápido para Registrar Contacto en Directorio */}
+      <QuickContactModal
+        isOpen={isQuickContactModalOpen}
+        onClose={() => setIsQuickContactModalOpen(false)}
+        initialName={quickContactName}
+        initialCategory={quickContactCategory}
+        initialData={{
+          address: watch('address') || '',
+          address_reference: watch('address_reference') || '',
+          phone: watch('phone') || '',
+          whatsapp: watch('whatsapp') || '',
+          maps_url: watch('maps_url') || '',
+        }}
       />
     </>
   )

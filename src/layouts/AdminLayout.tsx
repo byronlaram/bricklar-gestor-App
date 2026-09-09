@@ -29,6 +29,7 @@ import {
   UserCheck,
   Radio,
   Bike,
+  BookUser,
 } from 'lucide-react'
 
 // ─── Estructura de Navegación Organizada por Secciones ─────────────────────────
@@ -61,6 +62,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: 'Servicios',
     items: [
+      { to: '/admin/directorio', label: 'Directorio', icon: <BookUser size={18} />, roles: ['general_admin', 'junior_admin'] },
       { to: '/admin/flota', label: 'Flota & Mantenimiento', icon: <Bike size={18} />, roles: ['general_admin', 'junior_admin'] },
       { to: '/admin/buses', label: 'Directorio de Buses', icon: <Bus size={18} />, roles: ['general_admin', 'junior_admin'] },
       { to: '/admin/reportes', label: 'Reportes', icon: <BarChart3 size={18} />, roles: ['general_admin', 'junior_admin'] },
@@ -86,6 +88,7 @@ const ROUTE_NAME_MAP: Record<string, string> = {
   jornadas: 'Jornadas y Fondos',
   liquidaciones: 'Liquidaciones',
   'cierre-diario': 'Cierre Diario',
+  directorio: 'Directorio de Contactos',
   flota: 'Flota & Mantenimiento Preventivo',
   buses: 'Directorio de Buses',
   reportes: 'Reportes Ejecutivos',

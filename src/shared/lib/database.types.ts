@@ -14,6 +14,72 @@ export type Database = {
   }
   public: {
     Tables: {
+      directory_contacts: {
+        Row: {
+          id: string
+          name: string
+          category: string
+          contact_person: string | null
+          phone: string | null
+          whatsapp: string | null
+          email: string | null
+          address: string | null
+          address_reference: string | null
+          maps_url: string | null
+          latitude: number | null
+          longitude: number | null
+          default_task_type: string | null
+          default_financial_type: string | null
+          default_currency: string | null
+          notes: string | null
+          is_active: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          category: string
+          contact_person?: string | null
+          phone?: string | null
+          whatsapp?: string | null
+          email?: string | null
+          address?: string | null
+          address_reference?: string | null
+          maps_url?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          default_task_type?: string | null
+          default_financial_type?: string | null
+          default_currency?: string | null
+          notes?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          category?: string
+          contact_person?: string | null
+          phone?: string | null
+          whatsapp?: string | null
+          email?: string | null
+          address?: string | null
+          address_reference?: string | null
+          maps_url?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          default_task_type?: string | null
+          default_financial_type?: string | null
+          default_currency?: string | null
+          notes?: string | null
+          is_active?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       app_settings: {
         Row: {
           branch_id: string | null

@@ -23,6 +23,7 @@ const AdminWorkdaysPage = lazyWithRetry(() => import('@/pages/admin/WorkdaysPage
 const AdminSettlementsPage = lazyWithRetry(() => import('@/pages/admin/SettlementsPage'))
 const AdminDailyClosurePage = lazyWithRetry(() => import('@/pages/admin/DailyClosurePage'))
 const AdminBusDirectoryPage = lazyWithRetry(() => import('@/pages/admin/BusDirectoryPage'))
+const AdminDirectoryPage = lazyWithRetry(() => import('@/pages/admin/DirectoryPage'))
 const AdminReportsPage = lazyWithRetry(() => import('@/pages/admin/ReportsPage'))
 const AdminAuditPage = lazyWithRetry(() => import('@/pages/admin/AuditPage'))
 const AdminSettingsPage = lazyWithRetry(() => import('@/pages/admin/SettingsPage'))
@@ -121,6 +122,7 @@ export function AppRouter() {
             <Route path="jornadas" element={<AdminWorkdaysPage />} />
             <Route path="liquidaciones" element={<AdminSettlementsPage />} />
             <Route path="cierre-diario" element={<AdminDailyClosurePage />} />
+            <Route path="directorio" element={<AdminDirectoryPage />} />
             <Route path="buses" element={<AdminBusDirectoryPage />} />
             <Route path="reportes" element={<AdminReportsPage />} />
             <Route path="flota" element={<AdminFleetPage />} />
