@@ -218,13 +218,49 @@ export default function CourierSettlementPage() {
   const liveTaskPayments = useMemo(
     () =>
       completedTasks
-        .filter((t) => t.requires_payment && (t.expected_payment_amount || 0) > 0)
-        .reduce((acc, t) => acc + (t.expected_payment_amount || 0), 0),
+        .filter((t) => t.requires_payment)
+        .reduce((acc, t) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const pb = (t as any).metadata?.payment_breakdown
+          const isCash = !pb?.paid_method || pb?.paid_method === 'cash'
+          if (isCash) {
+            const paidAmt =
+              typeof pb?.actual_paid_amount === 'number'
+                ? pb.actual_paid_amount
+                : typeof pb?.cash_amount === 'number'
+                ? pb.cash_amount
+                : !t.expected_payment_method || t.expected_payment_method === 'cash'
+                ? t.expected_payment_amount || 0
+                : 0
+            return acc + paidAmt
+          }
+          return acc
+        }, 0),
     [completedTasks]
   )
 
   const liveCombinedExpenses = cashSummary.expensesNIO
-  const liveManualExpenses = cashSummary.expensesNIO - liveTaskPayments
+  const liveManualExpenses = useMemo(() => {
+    return movements
+      .filter((m) => {
+        const desc = (m.description || '').toLowerCase()
+        const mType = (m.movement_type || '') as string
+        if (desc.includes('[anulado]') || mType === 'void_adjustment') return false
+        const isPartialDelivery =
+          ['cash_return', 'deposit', 'adjustment', 'reception', 'partial_delivery'].includes(mType) ||
+          desc.includes('recepción de efectivo') ||
+          desc.includes('entrega parcial') ||
+          desc.includes('entrega previa') ||
+          desc.includes('devolución de efectivo')
+        const isInitialCash = mType === 'initial_cash' || desc.includes('fondo inicial')
+        const isAdvance =
+          ['cash_advance', 'advance', 'additional_fund'].includes(mType) ||
+          desc.includes('adelanto') ||
+          desc.includes('fondo adicional')
+        return m.direction === 'expense' && !isPartialDelivery && !isInitialCash && !isAdvance
+      })
+      .reduce((acc, m) => acc + (m.amount || 0), 0)
+  }, [movements])
   const initialCash = cashSummary.initialCashNIO
   const totalAdvances = cashSummary.advancesNIO
   const totalFundsReceived = initialCash + totalAdvances

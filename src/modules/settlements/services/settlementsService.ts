@@ -87,7 +87,7 @@ export async function getSettlements(filters: SettlementFilters = {}): Promise<S
   // 2. Carga en lote de tareas completadas (solo columnas estrictamente necesarias para el cuadre)
   const { data: batchTasks } = await supabase
     .from('tasks')
-    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status')
+    .select('assigned_courier_id, scheduled_date, expected_collection_amount, expected_collection_currency, expected_payment_method, requires_collection, requires_payment, expected_payment_amount, expected_payment_currency, status, metadata')
     .in('assigned_courier_id', courierIds.length > 0 ? courierIds : ['00000000-0000-0000-0000-000000000000'])
     .in('scheduled_date', workDates.length > 0 ? workDates : ['1970-01-01'])
     .eq('status', 'completed')
