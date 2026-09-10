@@ -92,21 +92,27 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
       setValue('contact_name', contact.contact_person || contact.name, { shouldDirty: true })
     }
 
-    // Fill address & references
+    // Fill address & references (visible fields — always set)
     if (contact.address) {
       setValue('address', contact.address, { shouldDirty: true })
     }
     if (contact.address_reference) {
       setValue('address_reference', contact.address_reference, { shouldDirty: true })
     }
-    if (contact.maps_url) {
-      setValue('maps_url', contact.maps_url, { shouldDirty: true })
-    }
+
+    // Fill hidden-section fields and auto-expand if any have data
+    const hasHiddenData = !!(contact.phone || contact.whatsapp || contact.maps_url)
     if (contact.phone) {
       setValue('phone', contact.phone, { shouldDirty: true })
     }
     if (contact.whatsapp) {
       setValue('whatsapp', contact.whatsapp, { shouldDirty: true })
+    }
+    if (contact.maps_url) {
+      setValue('maps_url', contact.maps_url, { shouldDirty: true })
+    }
+    if (hasHiddenData) {
+      setShowAllDetails(true)
     }
 
     // Financial behavior suggestion
@@ -120,6 +126,7 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
       setValue('expected_payment_currency', contact.default_currency, { shouldDirty: true })
     }
   }
+
 
   const handleRequestAddNewContact = (name: string, category: DirectoryCategory) => {
     setQuickContactName(name)
