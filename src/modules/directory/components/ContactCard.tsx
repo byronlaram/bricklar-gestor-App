@@ -13,6 +13,7 @@ import {
   User,
   DollarSign,
   FileText,
+  Eye,
 } from 'lucide-react'
 import { Card } from '@/shared/components/ui/Card'
 import { Button } from '@/shared/components/ui/Button'
@@ -22,12 +23,13 @@ import { CATEGORY_COLORS, CATEGORY_SINGULAR_LABELS } from '../types/directory.ty
 
 interface ContactCardProps {
   contact: DirectoryContact
+  onView: (contact: DirectoryContact) => void
   onEdit: (contact: DirectoryContact) => void
   onDelete: (id: string) => void
   isDeleting?: boolean
 }
 
-export function ContactCard({ contact, onEdit, onDelete, isDeleting = false }: ContactCardProps) {
+export function ContactCard({ contact, onView, onEdit, onDelete, isDeleting = false }: ContactCardProps) {
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false)
   const colorConfig = CATEGORY_COLORS[contact.category]
 
@@ -70,8 +72,17 @@ export function ContactCard({ contact, onEdit, onDelete, isDeleting = false }: C
               </div>
             </div>
 
-            {/* Acciones de Edición/Eliminación */}
+            {/* Acciones: Ver / Editar / Eliminar */}
             <div className="flex items-center gap-1 shrink-0">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onView(contact)}
+                className="h-7 w-7 text-slate-400 hover:text-[#004594] hover:bg-slate-100 rounded-lg"
+                title="Ver detalle"
+              >
+                <Eye className="h-3.5 w-3.5" />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"

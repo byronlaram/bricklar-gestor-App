@@ -18,7 +18,7 @@ export function useDirectoryContacts(filters?: DirectoryFilters) {
   return useQuery({
     queryKey: [...DIRECTORY_QUERY_KEY, filters],
     queryFn: () => getDirectoryContacts(filters),
-    staleTime: 1000 * 60 * 5, // 5 minutes
+    staleTime: 0, // Always revalidate so autosuggest sees newly created contacts
   })
 }
 

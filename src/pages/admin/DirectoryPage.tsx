@@ -20,6 +20,7 @@ import {
 } from '@/modules/directory/hooks/useDirectoryContacts'
 import { ContactCard } from '@/modules/directory/components/ContactCard'
 import { ContactFormModal } from '@/modules/directory/components/ContactFormModal'
+import { ContactDetailModal } from '@/modules/directory/components/ContactDetailModal'
 import type {
   DirectoryContact,
   DirectoryCategory,
@@ -31,6 +32,7 @@ export default function DirectoryPage() {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingContact, setEditingContact] = useState<DirectoryContact | null>(null)
   const [defaultCategoryForNew, setDefaultCategoryForNew] = useState<DirectoryCategory>('customer')
+  const [viewingContact, setViewingContact] = useState<DirectoryContact | null>(null)
 
   const { data: contacts = [], isLoading } = useDirectoryContacts({
     category: selectedCategory,
@@ -61,6 +63,10 @@ export default function DirectoryPage() {
   const handleEdit = (contact: DirectoryContact) => {
     setEditingContact(contact)
     setIsModalOpen(true)
+  }
+
+  const handleView = (contact: DirectoryContact) => {
+    setViewingContact(contact)
   }
 
   const handleDelete = async (id: string) => {
@@ -333,6 +339,7 @@ export default function DirectoryPage() {
             <ContactCard
               key={contact.id}
               contact={contact}
+              onView={handleView}
               onEdit={handleEdit}
               onDelete={handleDelete}
               isDeleting={deleteMutation.isPending}
@@ -367,6 +374,17 @@ export default function DirectoryPage() {
           }
         />
       )}
+
+      {/* Modal de Vista de Detalle */}
+      <ContactDetailModal
+        isOpen={viewingContact !== null}
+        contact={viewingContact}
+        onClose={() => setViewingContact(null)}
+        onEdit={(contact) => {
+          setViewingContact(null)
+          handleEdit(contact)
+        }}
+      />
 
       {/* Modal de Creación / Edición */}
       <ContactFormModal
