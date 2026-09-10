@@ -792,9 +792,14 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                       value={watch('contact_name') || ''}
                       onChange={(val) => setValue('contact_name', val, { shouldDirty: true })}
                       onSelectContact={handleSelectDirectoryContact}
-                      onAddNewContactRequest={(name) => handleRequestAddNewContact(name, 'customer')}
-                      placeholder={config.contactNamePlaceholder || 'Buscar o escribir cliente...'}
-                      categoryFilter="customer"
+                      onAddNewContactRequest={(name) =>
+                        handleRequestAddNewContact(
+                          name,
+                          selectedTaskType === 'other_errand' ? 'institution_other' : 'customer'
+                        )
+                      }
+                      placeholder={config.contactNamePlaceholder || 'Buscar o escribir contacto...'}
+                      categoryFilter={selectedTaskType === 'other_errand' ? undefined : 'customer'}
                     />
                   </div>
                 )}
