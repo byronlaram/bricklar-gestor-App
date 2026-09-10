@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import {
   Building2,
@@ -93,8 +93,12 @@ export function ContactFormModal({
 
   const selectedCategory = watch('category')
 
+  // Track open→close transition to avoid resetting while user is typing
+  const wasOpenRef = useRef(false)
+
   useEffect(() => {
-    if (isOpen) {
+    // Only reset when the modal transitions from closed to open
+    if (isOpen && !wasOpenRef.current) {
       if (contactToEdit) {
         reset({
           name: contactToEdit.name,
@@ -129,7 +133,10 @@ export function ContactFormModal({
         })
       }
     }
-  }, [isOpen, contactToEdit, initialCategory, initialName, initialData, reset])
+    wasOpenRef.current = isOpen
+  }, [isOpen]) // eslint-disable-line react-hooks/exhaustive-deps
+  // ↑ Intentionally only re-run when isOpen changes to avoid clearing
+  //   in-progress edits when parent re-renders with new prop values.
 
   const onSubmit = async (data: FormValues) => {
     try {
@@ -174,7 +181,12 @@ export function ContactFormModal({
   const isSubmitting = createMutation.isPending || updateMutation.isPending
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      closeOnBackdropClick={false}
+      closeOnEscape={false}
+    >
       <ModalContent size="lg" className="p-0 overflow-hidden">
         <ModalHeader onClose={onClose} className="px-6 pt-6 pb-3 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-2.5">
