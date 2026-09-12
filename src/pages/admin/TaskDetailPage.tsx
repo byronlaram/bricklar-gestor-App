@@ -57,7 +57,12 @@ export default function TaskDetailPage() {
 
   // Scroll al tope siempre que se abre el detalle de una tarea
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'instant' })
+    const mainContent = document.getElementById('main-content')
+    if (mainContent) {
+      mainContent.scrollTo({ top: 0, behavior: 'instant' })
+    } else {
+      window.scrollTo({ top: 0, behavior: 'instant' })
+    }
   }, [id])
 
   const { task, isLoading, isError, error, history, assignments } = useTask(id)
