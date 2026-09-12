@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -54,6 +54,11 @@ export default function CourierTaskDetailPage() {
   const branchId = profile?.primary_branch_id || profile?.branch_ids?.[0] || ''
   const toast = useToast()
   const todayStr = getLocalDateString()
+
+  // Scroll al tope siempre que se abre el detalle de una tarea
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [id])
 
   const { data: activeWorkday } = useActiveWorkday(profile?.id)
   const { task, isLoading, isError } = useTask(id)

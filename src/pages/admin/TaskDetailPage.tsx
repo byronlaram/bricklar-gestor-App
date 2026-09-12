@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   ArrowLeft,
@@ -54,6 +54,11 @@ export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const toast = useToast()
+
+  // Scroll al tope siempre que se abre el detalle de una tarea
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+  }, [id])
 
   const { task, isLoading, isError, error, history, assignments } = useTask(id)
   const { deleteTask, isDeleting } = useTaskMutations()
