@@ -4,6 +4,7 @@ import { useAuth } from '@/modules/auth/useAuth'
 import { useToast } from '@/shared/components/ui'
 import {
   getGlobalRealtimeChannel,
+  resetGlobalRealtimeChannel,
   ensureGlobalChannelSubscribed,
   onLocalBroadcast,
   type RealtimeSyncPayload,
@@ -181,6 +182,10 @@ export function useTasksRealtime() {
     const unsubscribeLocal = onLocalBroadcast(handleBroadcastEvent)
 
     // ─── 2. Conectar al Canal Compartido de Supabase Realtime ───────────────
+    // IMPORTANTE: Resetear el canal antes de registrar listeners para evitar el error
+    // "cannot add postgres_changes callbacks after subscribe()". El canal es un
+    // singleton y si el efecto se re-ejecuta, el canal ya estaría suscrito.
+    resetGlobalRealtimeChannel()
     const globalChannel = getGlobalRealtimeChannel()
 
     // Listener Broadcast WebSocket
@@ -325,7 +330,8 @@ export function useTasksRealtime() {
   }, [
     profile?.id,
     profile?.role,
-    profile?.full_name,
+    // profile?.full_name se omite intencionalmente: solo se usa en un console.log de desarrollo
+    // y causaba re-suscripciones innecesarias al canal global.
     invalidateTasks,
     invalidateWorkdays,
     invalidateSettlements,
