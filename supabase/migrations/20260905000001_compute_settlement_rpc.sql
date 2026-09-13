@@ -78,13 +78,27 @@ BEGIN
 
   -- 3. Tareas completadas de la jornada
   -- A. Cobros en efectivo recaudados de clientes
+  --
+  -- LÓGICA DE COBROS (sólo efectivo físico):
+  --   1. Si hay payment_breakdown con cash_amount → usar ese valor exacto (puede ser 0 si cobró por transferencia/cheque)
+  --   2. Si NO hay payment_breakdown en absoluto y el método esperado era 'cash' → usar el monto esperado de cobro
+  --   3. Si hay payment_breakdown pero sin cash_amount (cobró por transferencia/cheque) → 0
+  --
+  -- CORRECCIÓN DEL BUG: El fallback al monto esperado solo aplica cuando NO existe ningún
+  -- payment_breakdown registrado (t.metadata->'payment_breakdown' IS NULL).
+  -- Si el motorizado registró el cobro como transferencia (con transfer_amount), el breakdown
+  -- existe pero sin cash_amount, por lo que cae en el Caso 3 y se trata correctamente como C$0.
   SELECT 
     COALESCE(SUM(
       CASE 
+        -- Caso 1: Hubo desglose explícito → usar solo el efectivo declarado (puede ser 0)
         WHEN (t.metadata->'payment_breakdown'->>'cash_amount') IS NOT NULL 
           THEN (t.metadata->'payment_breakdown'->>'cash_amount')::NUMERIC
-        WHEN COALESCE(t.expected_payment_method, 'cash') = 'cash' 
+        -- Caso 2: Sin desglose alguno, método esperado es efectivo → usar monto esperado
+        WHEN t.metadata->'payment_breakdown' IS NULL
+          AND COALESCE(t.expected_payment_method, 'cash') = 'cash' 
           THEN COALESCE(t.expected_collection_amount, 0)
+        -- Caso 3: Hay breakdown pero sin cash_amount (cobrado por transferencia/cheque) → 0
         ELSE 0 
       END
     ), 0)
@@ -102,7 +116,8 @@ BEGIN
       CASE 
         WHEN (t.metadata->'payment_breakdown'->>'cash_amount') IS NOT NULL 
           THEN (t.metadata->'payment_breakdown'->>'cash_amount')::NUMERIC
-        WHEN COALESCE(t.expected_payment_method, 'cash') = 'cash' 
+        WHEN t.metadata->'payment_breakdown' IS NULL
+          AND COALESCE(t.expected_payment_method, 'cash') = 'cash' 
           THEN COALESCE(t.expected_collection_amount, 0)
         ELSE 0 
       END
@@ -124,7 +139,8 @@ BEGIN
           THEN (t.metadata->'payment_breakdown'->>'actual_paid_amount')::NUMERIC
         WHEN (t.metadata->'payment_breakdown'->>'cash_amount') IS NOT NULL 
           THEN (t.metadata->'payment_breakdown'->>'cash_amount')::NUMERIC
-        WHEN COALESCE(t.expected_payment_method, 'cash') = 'cash' 
+        WHEN t.metadata->'payment_breakdown' IS NULL
+          AND COALESCE(t.expected_payment_method, 'cash') = 'cash' 
           THEN COALESCE(t.expected_payment_amount, 0)
         ELSE 0 
       END
@@ -145,7 +161,8 @@ BEGIN
           THEN (t.metadata->'payment_breakdown'->>'actual_paid_amount')::NUMERIC
         WHEN (t.metadata->'payment_breakdown'->>'cash_amount') IS NOT NULL 
           THEN (t.metadata->'payment_breakdown'->>'cash_amount')::NUMERIC
-        WHEN COALESCE(t.expected_payment_method, 'cash') = 'cash' 
+        WHEN t.metadata->'payment_breakdown' IS NULL
+          AND COALESCE(t.expected_payment_method, 'cash') = 'cash' 
           THEN COALESCE(t.expected_payment_amount, 0)
         ELSE 0 
       END

@@ -17,7 +17,9 @@ export function useTasks(
     staleTime: 1000 * 5, // 5 segundos de frescura
     gcTime: 1000 * 60 * 10, // 10 minutos en memoria caché
     placeholderData: keepPreviousData, // Reutiliza datos previos de inmediato evitando parpadeos de skeletons
-    refetchInterval: options.refetchInterval !== undefined ? options.refetchInterval : 15000, // Respaldo inteligente cada 15s para garantizar sincronización continua
+    // Sin polling por defecto: las tareas se sincronizan vía Realtime (useTasksRealtime).
+    // Los llamadores que necesiten polling explícito pueden pasar refetchInterval: N.
+    refetchInterval: options.refetchInterval !== undefined ? options.refetchInterval : false,
     refetchOnMount: true, // Refresca en segundo plano al montar sin bloquear la interfaz
     refetchOnWindowFocus: true, // Sincroniza inmediatamente al volver a enfocar la pestaña
     refetchOnReconnect: true,

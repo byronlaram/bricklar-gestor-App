@@ -20,7 +20,7 @@ export async function uploadUserAvatar(file: File, userId?: string): Promise<str
 
   const { error: uploadError } = await supabase.storage
     .from('task-evidences')
-    .upload(filePath, optimized, { cacheControl: '86400', upsert: true })
+    .upload(filePath, optimized, { cacheControl: '31536000, public, immutable', upsert: true })
 
   if (uploadError) {
     console.warn('[Users] Avatar storage upload warning (fallback to DataURL):', uploadError.message)

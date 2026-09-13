@@ -65,7 +65,7 @@ export function useOfflineConflicts() {
       const items = (data || []) as unknown as OfflineConflictItem[]
       return items.filter((item) => !item.changes?.resolved_at)
     },
-    refetchInterval: 30000,
+    refetchInterval: false, // Sin polling: los conflictos offline son eventos raros; se refrescan por Realtime o al montar
   })
 
   const resolveMutation = useMutation({

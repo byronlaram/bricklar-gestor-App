@@ -1,14 +1,23 @@
 -- ==============================================================================
--- FIX DEFINITIVO: RPC compute_settlement (Certificación Financiera Server-Side)
--- Ejecutar en el SQL Editor de Supabase.
+-- MIGRATION: 20260912000001_fix_compute_settlement_transfer_bug.sql
+-- FIX CRÍTICO: Corrección del RPC compute_settlement para escenario
+-- "tarea configurada en efectivo pero cobrada por transferencia".
+--
+-- BUG IDENTIFICADO:
+--   Cuando una tarea tenía expected_payment_method='cash' pero el motorizado
+--   la cobró por transferencia (payment_breakdown tiene transfer_amount pero
+--   NO tiene cash_amount), la condición de fallback sumaba el monto completo
+--   como efectivo en lugar de tratarlo como C$0.
+--
+-- SOLUCIÓN:
+--   Agregar "t.metadata->'payment_breakdown' IS NULL" al fallback, de modo
+--   que solo aplique cuando no hay breakdown registrado en absoluto.
 -- ==============================================================================
 
--- 1. Eliminar versiones previas con diferentes tipos de retorno
 DROP FUNCTION IF EXISTS public.compute_settlement(UUID);
 DROP FUNCTION IF EXISTS public.compute_settlement(TEXT);
 DROP FUNCTION IF EXISTS public.compute_settlement;
 
--- 2. Crear la función canónica
 CREATE OR REPLACE FUNCTION public.compute_settlement(p_workday_id UUID)
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -219,3 +228,4 @@ $$;
 GRANT EXECUTE ON FUNCTION public.compute_settlement(UUID) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.compute_settlement(UUID) TO service_role;
 GRANT EXECUTE ON FUNCTION public.compute_settlement(UUID) TO anon;
+
