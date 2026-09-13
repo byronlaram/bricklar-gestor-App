@@ -308,23 +308,19 @@ export function useTasksRealtime() {
       }
     }
 
-    const handleWindowFocus = () => {
-      handleRevalidateActiveState()
-    }
-
     const handleOnline = () => {
       if (isDev) console.log('[Realtime Resilience] Red restablecida: sincronizando datos...')
       handleRevalidateActiveState()
     }
 
     document.addEventListener('visibilitychange', handleVisibilityChange)
-    window.addEventListener('focus', handleWindowFocus)
+    // Nota: se omite window 'focus' intencionalmente — 'visibilitychange' ya
+    // cubre el retorno al foco de ventana/pestaña sin duplicar invalidaciones.
     window.addEventListener('online', handleOnline)
 
     return () => {
       unsubscribeLocal()
       document.removeEventListener('visibilitychange', handleVisibilityChange)
-      window.removeEventListener('focus', handleWindowFocus)
       window.removeEventListener('online', handleOnline)
     }
   }, [

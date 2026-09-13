@@ -67,7 +67,7 @@ async function fetchReportData(
       date_from: from,
       date_to: to,
       branch_id: branchId || undefined,
-      page_size: 1000,
+      page_size: 500, // Máximo razonable para exportación (era 1000 — demasiado para rangos amplios)
     })
 
     const formatted = res.data.map((t) => {
@@ -221,6 +221,9 @@ async function fetchReportData(
           )
         `)
         .order('created_at', { ascending: false })
+        .gte('created_at', from ? `${from}T00:00:00.000Z` : '2000-01-01T00:00:00.000Z')
+        .lte('created_at', to ? `${to}T23:59:59.999Z` : new Date().toISOString())
+        .limit(200) // Salvaguarda: evita full-table scan histórico en cada generación de reporte
 
       if (!error && data) {
         adjustmentsData = data
@@ -575,7 +578,10 @@ export default function ReportsPage() {
   const [selectedBranchId, setSelectedBranchId] = useState<string>('')
   const [from, setFrom] = useState(todayStr)
   const [to, setTo] = useState(todayStr)
-  const [enabled, setEnabled] = useState(true)
+  // La query arranca deshabilitada — solo se activa cuando el usuario presiona
+  // "Generar Reporte" explícitamente, evitando descargas automáticas al montar
+  // la página o al cambiar tipo/fechas.
+  const [enabled, setEnabled] = useState(false)
 
   const userBranches = useMemo(() => {
     if (!profile?.branch_ids || profile.branch_ids.length === 0 || profile.role === 'general_admin') {
@@ -588,6 +594,9 @@ export default function ReportsPage() {
     queryKey: ['report', reportType, from, to, selectedBranchId],
     queryFn: () => fetchReportData(reportType, from, to, selectedBranchId || undefined),
     enabled: enabled,
+    staleTime: 1000 * 60 * 5,  // 5 minutos: si vuelves a la página el reporte no se regenera solo
+    gcTime: 1000 * 60 * 10,
+    refetchOnWindowFocus: false, // Nunca recargar 500 filas al enfocar la ventana
   })
 
   const handleGenerate = () => {
@@ -637,7 +646,7 @@ export default function ReportsPage() {
             {REPORT_OPTIONS.map((opt) => (
               <button
                 key={opt.id}
-                onClick={() => { setReportType(opt.id); setEnabled(true) }}
+                onClick={() => { setReportType(opt.id); setEnabled(false) }}
                 className={`flex items-start gap-3 p-3 rounded-xl border text-left transition cursor-pointer ${
                   reportType === opt.id
                     ? 'border-accent bg-accent/10 text-accent ring-1 ring-accent/30'

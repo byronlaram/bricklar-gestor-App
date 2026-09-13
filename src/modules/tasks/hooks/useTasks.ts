@@ -21,7 +21,9 @@ export function useTasks(
     // Los llamadores que necesiten polling explícito pueden pasar refetchInterval: N.
     refetchInterval: options.refetchInterval !== undefined ? options.refetchInterval : false,
     refetchOnMount: true, // Refresca en segundo plano al montar sin bloquear la interfaz
-    refetchOnWindowFocus: true, // Sincroniza inmediatamente al volver a enfocar la pestaña
+    // refetchOnWindowFocus se hereda del QueryClient global (false) para evitar
+    // ráfagas de peticiones al volver a enfocar la ventana. La sincronización
+    // al recuperar el foco ya está cubierta por useTasksRealtime (visibilitychange).
     refetchOnReconnect: true,
   })
 }

@@ -75,9 +75,75 @@ export function normalizeTaskFromDB<T extends Record<string, any>>(task: T): T {
   return task
 }
 
-// ─── Selector de columnas para joinear courier ────────────────────────────────
+// ─── Selectores de columnas ──────────────────────────────────────────────────
+//
+// TASK_LIST_SELECT  → usado en getTasks() (vista de lista/tarjetas).
+//   Omite campos de texto largo y JSON que no se necesitan para renderizar
+//   la lista: description, notes, management_description, address_reference,
+//   metadata completo (puede contener arrays de URLs de fotos de referencia),
+//   deleted_at, deleted_by, approved_at, approved_by, rejection_reason.
+//   Ahorro estimado: ~60-70% del payload por fila.
+//
+// TASK_DETAIL_SELECT → usado en getTaskById() (modal/página de detalle).
+//   Trae todas las columnas (SELECT *) + joins completos de courier y creador.
 
-const TASK_WITH_COURIER_SELECT = `
+const TASK_LIST_SELECT = `
+  id,
+  code,
+  branch_id,
+  task_type,
+  title,
+  status,
+  financial_status,
+  priority,
+  route_order,
+  approval_status,
+  creation_origin,
+  evidence_url,
+  workday_id,
+  scheduled_date,
+  scheduled_start_time,
+  scheduled_deadline,
+  contact_name,
+  company_name,
+  phone,
+  whatsapp,
+  address,
+  maps_url,
+  latitude,
+  longitude,
+  provider_name,
+  institution_name,
+  destination_contact,
+  requires_collection,
+  expected_collection_amount,
+  expected_collection_currency,
+  expected_payment_method,
+  requires_payment,
+  expected_payment_amount,
+  expected_payment_currency,
+  assigned_courier_id,
+  created_by,
+  updated_by,
+  completed_at,
+  cancelled_at,
+  cancellation_reason,
+  rescheduled_from_task_id,
+  created_at,
+  updated_at,
+  courier:profiles!tasks_assigned_courier_id_fkey (
+    id,
+    full_name,
+    display_name,
+    phone,
+    avatar_url
+  ),
+  created_by_profile:profiles!tasks_created_by_fkey (
+    full_name
+  )
+`
+
+const TASK_DETAIL_SELECT = `
   *,
   courier:profiles!tasks_assigned_courier_id_fkey (
     id,
@@ -118,7 +184,7 @@ export async function getTasks(filters: TaskFilters = {}): Promise<PaginatedTask
 
   let query = supabase
     .from('tasks')
-    .select(TASK_WITH_COURIER_SELECT, countMode ? { count: countMode } : undefined)
+    .select(TASK_LIST_SELECT, countMode ? { count: countMode } : undefined)
     .is('deleted_at', null)
     .order('scheduled_date', { ascending: false })
     .order('route_order', { ascending: true, nullsFirst: false })
@@ -201,7 +267,7 @@ export async function getTasks(filters: TaskFilters = {}): Promise<PaginatedTask
 export async function getTaskById(id: string): Promise<TaskWithCourier> {
   const { data, error } = await supabase
     .from('tasks')
-    .select(TASK_WITH_COURIER_SELECT)
+    .select(TASK_DETAIL_SELECT)
     .eq('id', id)
     .is('deleted_at', null)
     .single()
