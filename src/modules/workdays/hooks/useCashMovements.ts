@@ -13,13 +13,17 @@ export interface CashMovementsFilter {
   date_to?: string
   workday_id?: string
   courier_id?: string
+  limit?: number
 }
 
 export function useCashMovements(filters: CashMovementsFilter = {}) {
   return useQuery<DetailedCashMovement[]>({
     queryKey: ['cash_movements', filters],
     queryFn: () => getCashMovements(filters),
-    staleTime: 1000 * 15,
+    // [Egress Fix H-03] staleTime subido de 15 s a 2 minutos.
+    // useTasksRealtime ya invalida esta query ante cualquier cambio;
+    // 15 s provocaba re-fetches masivos y redundantes al cambiar pestañas o vistas.
+    staleTime: 1000 * 60 * 2,
   })
 }
 

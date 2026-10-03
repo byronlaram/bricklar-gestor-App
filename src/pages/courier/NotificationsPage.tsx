@@ -106,8 +106,14 @@ export default function CourierNotificationsPage() {
     queryKey: ['notifications', userId],
     queryFn: () => getNotifications(userId),
     enabled: !!userId,
-    refetchInterval: 1000 * 30,
-    staleTime: 1000 * 15,
+    // [Egress Fix H-04] refetchInterval configurado a 5 minutos (300 s) como respaldo
+    // por si cae la conexión WebSocket. Las actualizaciones inmediatas llegan vía
+    // useTasksRealtime (Broadcast+CDC).
+    refetchInterval: 1000 * 60 * 5,
+    // staleTime subido de 15 s a 2 min para evitar re-fetch al montar la pantalla
+    // cuando los datos ya están frescos en caché.
+    staleTime: 1000 * 60 * 2,
+    // refetchOnReconnect se hereda del QueryClient global ('always')
   })
 
   const markAllMutation = useMutation({

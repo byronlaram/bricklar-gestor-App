@@ -34,8 +34,13 @@ interface AssignmentPayloadRow {
  * 1. WebSocket Broadcast Global (Supabase): Latencia <50ms entre cualquier usuario/dispositivo.
  * 2. Web BroadcastChannel (Pestañas locales): Sincronización instantánea de 0ms sin latencia ni tráfico externo.
  * 3. PostgreSQL Changes CDC (Supabase): Captura directa de eventos INSERT, UPDATE, DELETE a nivel de BD.
- * 4. Reactividad Activa: Invalida y re-consulta inmediatamente consultas activas de tareas, dashboard, liquidaciones y jornadas.
- * 5. Resiliencia de Enfoque: Al cambiar de pestaña/aplicación o regresar de suspensión, sincroniza automáticamente los datos.
+ * 4. Reactividad Pasiva: Solo invalida queries (TanStack refetch automático); sin refetchQueries explícito
+ *    para evitar cascadas de egress al recibir eventos en ráfaga.
+ * 5. Resiliencia de Enfoque: Al cambiar de pestaña solo invalida si han pasado más de 30 s desde el último ciclo.
+ *
+ * [Egress Fix H-01] refetchQueries eliminados → solo invalidateQueries.
+ * [Egress Fix H-01] Debounce 400 ms en handleBroadcastEvent para colapsar ráfagas Broadcast+CDC.
+ * [Egress Fix H-01] handleVisibilityChange acotado a >30 s sin invalidación previa.
  */
 export function useTasksRealtime() {
   const queryClient = useQueryClient()
@@ -47,40 +52,42 @@ export function useTasksRealtime() {
     toastRef.current = toast
   }, [toast])
 
-  // ─── Funciones Granulares de Invalidación y Re-consulta Activa ───────────
+  // ─── Refs para debounce y guard de visibilidad ──────────────────────────
+  // debounceTimerRef: colapsa ráfagas Broadcast+CDC en una sola invalidación
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // lastInvalidateRef: timestamp del último ciclo de invalidación global
+  const lastInvalidateRef = useRef<number>(0)
+
+  // ─── Funciones Granulares de Invalidación (sin refetchQueries) ───────────
+  // TanStack Query refetcha automáticamente las queries activas al invalidarlas;
+  // llamar a refetchQueries de forma explícita genera una petición HTTP extra
+  // duplicada que era la causa principal del egress excesivo (H-01).
   const invalidateTasks = useCallback((specificTaskId?: string) => {
     queryClient.invalidateQueries({ queryKey: ['tasks'] })
-    queryClient.refetchQueries({ queryKey: ['tasks'], type: 'active' })
 
     if (specificTaskId) {
       queryClient.invalidateQueries({ queryKey: ['task', specificTaskId] })
-      queryClient.refetchQueries({ queryKey: ['task', specificTaskId], type: 'active' })
       queryClient.invalidateQueries({ queryKey: ['task-history', specificTaskId] })
       queryClient.invalidateQueries({ queryKey: ['task-assignments', specificTaskId] })
     }
     queryClient.invalidateQueries({ queryKey: ['dashboard'] })
-    queryClient.refetchQueries({ queryKey: ['dashboard'], type: 'active' })
     queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
-    queryClient.refetchQueries({ queryKey: ['all_couriers_pending_balances'], type: 'active' })
   }, [queryClient])
 
   const invalidateWorkdays = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['workdays'] })
-    queryClient.refetchQueries({ queryKey: ['workdays'], type: 'active' })
     queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
     queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
   }, [queryClient])
 
   const invalidateSettlements = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['settlements'] })
-    queryClient.refetchQueries({ queryKey: ['settlements'], type: 'active' })
     queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
     queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
   }, [queryClient])
 
   const invalidateCashMovements = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
-    queryClient.refetchQueries({ queryKey: ['cash_movements'], type: 'active' })
     queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
     queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
   }, [queryClient])
@@ -88,7 +95,6 @@ export function useTasksRealtime() {
   const invalidateNotifications = useCallback(() => {
     if (profile?.id) {
       queryClient.invalidateQueries({ queryKey: ['notifications', profile.id] })
-      queryClient.refetchQueries({ queryKey: ['notifications', profile.id], type: 'active' })
     }
   }, [queryClient, profile?.id])
 
@@ -103,23 +109,72 @@ export function useTasksRealtime() {
       console.log(`[Realtime Hub] Inicializando suscripción para ${profile.full_name} (${userId})`)
     }
 
-    // ─── 1. Procesar Eventos de Difusión Rápida (Broadcast) ────────────────
+    // ─── 1. Temporizador Unificado de Debounce para Broadcast y CDC ─────────
+    // [Egress H-01] Broadcast y CDC comparten UN solo temporizador de 400 ms.
+    // Esto garantiza que cuando una mutación emite eventos por ambos canales
+    // (Broadcast local/WS + PostgreSQL CDC), se colapsen en una única ronda
+    // de invalidaciones de TanStack Query, evitando peticiones duplicadas.
+    const pendingInvalidations = {
+      tasks: false,
+      taskIds: new Set<string>(),
+      workdays: false,
+      settlements: false,
+      cashMovements: false,
+      notifications: false,
+    }
+
+    const scheduleDebouncedInvalidation = () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        lastInvalidateRef.current = Date.now()
+
+        if (pendingInvalidations.tasks) {
+          if (pendingInvalidations.taskIds.size > 0) {
+            pendingInvalidations.taskIds.forEach((id) => invalidateTasks(id))
+          } else {
+            invalidateTasks()
+          }
+        }
+        if (pendingInvalidations.workdays) invalidateWorkdays()
+        if (pendingInvalidations.settlements) invalidateSettlements()
+        if (pendingInvalidations.cashMovements) invalidateCashMovements()
+        if (pendingInvalidations.notifications) invalidateNotifications()
+
+        // Resetear acumulación
+        pendingInvalidations.tasks = false
+        pendingInvalidations.taskIds.clear()
+        pendingInvalidations.workdays = false
+        pendingInvalidations.settlements = false
+        pendingInvalidations.cashMovements = false
+        pendingInvalidations.notifications = false
+        debounceTimerRef.current = null
+      }, 400)
+    }
+
     const handleBroadcastEvent = (payload: RealtimeSyncPayload) => {
       if (isDev) {
         console.log(`[Realtime Broadcast Received: ${payload.domain}:${payload.action}]`, payload)
       }
 
+      // Registrar entidades para la invalidación unificada
       if (payload.domain === 'workdays') {
-        invalidateWorkdays()
+        pendingInvalidations.workdays = true
       } else if (payload.domain === 'settlements') {
-        invalidateSettlements()
+        pendingInvalidations.settlements = true
       } else if (payload.domain === 'cash_movements') {
-        invalidateCashMovements()
+        pendingInvalidations.cashMovements = true
       } else if (payload.domain === 'notifications') {
-        invalidateNotifications()
+        pendingInvalidations.notifications = true
       } else {
-        invalidateTasks(payload.entityId)
+        pendingInvalidations.tasks = true
+        if (payload.entityId) {
+          pendingInvalidations.taskIds.add(payload.entityId)
+        }
       }
+
+      scheduleDebouncedInvalidation()
 
       // Notificaciones Toasts específicas para motorizados
       if (isCourier) {
@@ -212,7 +267,12 @@ export function useTasksRealtime() {
           })
         }
 
-        invalidateTasks(targetTaskId)
+        // Registrar en acumulador y debouncar usando el mismo timer que Broadcast
+        pendingInvalidations.tasks = true
+        if (targetTaskId) {
+          pendingInvalidations.taskIds.add(targetTaskId)
+        }
+        scheduleDebouncedInvalidation()
 
         // Toasts contextuales de respaldo por CDC
         if (isCourier) {
@@ -246,7 +306,11 @@ export function useTasksRealtime() {
         if (isDev) {
           console.log(`[Realtime CDC Assignment Event: ${payload.eventType}]`, row)
         }
-        invalidateTasks(row?.task_id)
+        pendingInvalidations.tasks = true
+        if (row?.task_id) {
+          pendingInvalidations.taskIds.add(row.task_id)
+        }
+        scheduleDebouncedInvalidation()
       }
     )
 
@@ -255,7 +319,8 @@ export function useTasksRealtime() {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'workdays' },
       () => {
-        invalidateWorkdays()
+        pendingInvalidations.workdays = true
+        scheduleDebouncedInvalidation()
       }
     )
 
@@ -264,7 +329,8 @@ export function useTasksRealtime() {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'settlements' },
       () => {
-        invalidateSettlements()
+        pendingInvalidations.settlements = true
+        scheduleDebouncedInvalidation()
       }
     )
 
@@ -273,7 +339,8 @@ export function useTasksRealtime() {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'cash_movements' },
       () => {
-        invalidateCashMovements()
+        pendingInvalidations.cashMovements = true
+        scheduleDebouncedInvalidation()
       }
     )
 
@@ -282,7 +349,8 @@ export function useTasksRealtime() {
       'postgres_changes',
       { event: '*', schema: 'public', table: 'notifications' },
       () => {
-        invalidateNotifications()
+        pendingInvalidations.notifications = true
+        scheduleDebouncedInvalidation()
       }
     )
 
@@ -292,6 +360,8 @@ export function useTasksRealtime() {
     })
 
     // ─── 3. Resiliencia de Enfoque, Red y Reconexión Automática ────────────
+    const VISIBILITY_THROTTLE_MS = 30_000 // 30 segundos mínimo entre invalidaciones globales
+
     const handleRevalidateActiveState = () => {
       invalidateTasks()
       invalidateWorkdays()
@@ -303,13 +373,22 @@ export function useTasksRealtime() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
+        // [Egress H-01] Solo invalida si han pasado más de 30 s desde la última
+        // invalidación global para evitar ráfagas al cambiar de pestaña repetidamente.
+        const msSinceLast = Date.now() - lastInvalidateRef.current
+        if (msSinceLast < VISIBILITY_THROTTLE_MS) {
+          if (isDev) console.log(`[Realtime Resilience] Pestaña activa: omitiendo invalidación (${Math.round(msSinceLast / 1000)}s desde última)`)
+          return
+        }
         if (isDev) console.log('[Realtime Resilience] Pestaña activa: sincronizando datos...')
+        lastInvalidateRef.current = Date.now()
         handleRevalidateActiveState()
       }
     }
 
     const handleOnline = () => {
       if (isDev) console.log('[Realtime Resilience] Red restablecida: sincronizando datos...')
+      lastInvalidateRef.current = Date.now()
       handleRevalidateActiveState()
     }
 
@@ -319,6 +398,7 @@ export function useTasksRealtime() {
     window.addEventListener('online', handleOnline)
 
     return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
       unsubscribeLocal()
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('online', handleOnline)

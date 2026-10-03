@@ -355,6 +355,7 @@ export async function getCashMovements(filters: {
   date_to?: string
   workday_id?: string
   courier_id?: string
+  limit?: number
 } = {}): Promise<DetailedCashMovement[]> {
   let query = supabase
     .from('cash_movements')
@@ -375,6 +376,29 @@ export async function getCashMovements(filters: {
   if (filters.courier_id) {
     query = query.eq('courier_id', filters.courier_id)
   }
+
+  // [Egress Fix H-03] Ventana segura de fechas en SQL para acotar transferencia de red
+  if (filters.date) {
+    const target = new Date(`${filters.date}T12:00:00Z`)
+    const from = new Date(target.getTime() - 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    const to = new Date(target.getTime() + 2 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    query = query.gte('created_at', `${from}T00:00:00-06:00`).lte('created_at', `${to}T23:59:59-06:00`)
+  } else if (filters.date_from || filters.date_to) {
+    if (filters.date_from) {
+      const fromTarget = new Date(`${filters.date_from}T12:00:00Z`)
+      const from = new Date(fromTarget.getTime() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      query = query.gte('created_at', `${from}T00:00:00-06:00`)
+    }
+    if (filters.date_to) {
+      const toTarget = new Date(`${filters.date_to}T12:00:00Z`)
+      const to = new Date(toTarget.getTime() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      query = query.lte('created_at', `${to}T23:59:59-06:00`)
+    }
+  }
+
+  // [Egress Fix H-03] Techo de seguridad: límite por defecto para evitar descargar la tabla completa
+  const safeLimit = filters.limit || 200
+  query = query.limit(safeLimit)
 
   const { data, error } = await query
 

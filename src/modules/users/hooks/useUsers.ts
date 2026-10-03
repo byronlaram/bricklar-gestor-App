@@ -24,6 +24,7 @@ export function useUserMutations() {
   const invalidateUserAndCourierQueries = () => {
     queryClient.invalidateQueries({ queryKey: ['users'] })
     queryClient.invalidateQueries({ queryKey: ['couriers'] })
+    queryClient.invalidateQueries({ queryKey: ['dashboard-couriers'] })
   }
 
   const createMutation = useMutation({

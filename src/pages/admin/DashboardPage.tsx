@@ -40,9 +40,9 @@ import { getLocalDateString } from '@/shared/utils/date'
 import { formatDate } from '@/shared/utils/format'
 import { generateExecutiveDashboardReceipt } from '@/shared/utils/pdfReceiptService'
 
-// ─── Queries de KPI ──────────────────────────────────────────────────────────
+// ─── Queries de KPI y Couriers ──────────────────────────────────────────────
 
-async function fetchDashboardData(branchIds: string[], targetDate: string) {
+async function fetchDashboardKpis(branchIds: string[], targetDate: string) {
   try {
     let tasksQuery = supabase
       .from('tasks')
@@ -68,22 +68,15 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
       settlementsQuery = settlementsQuery.in('branch_id', branchIds)
     }
 
-    const couriersQuery = supabase
-      .from('profiles')
-      .select('id, full_name, display_name, email, phone, avatar_url, role')
-      .eq('role', 'courier')
-
-    const [tasksRes, workdaysRes, settlementsRes, couriersRes] = await Promise.all([
+    const [tasksRes, workdaysRes, settlementsRes] = await Promise.all([
       tasksQuery,
       workdaysQuery,
       settlementsQuery,
-      couriersQuery,
     ])
 
     const tasks = tasksRes.data ?? []
     const workdays = workdaysRes.data ?? []
     const settlements = settlementsRes.data ?? []
-    const couriers = couriersRes.data ?? []
 
     const workdayIds = workdays.map((w) => w.id)
 
@@ -104,28 +97,69 @@ async function fetchDashboardData(branchIds: string[], targetDate: string) {
       workdays,
       settlements,
       movements,
-      couriers,
     }
   } catch (err) {
-    console.error('[Dashboard] Error fetching dashboard data:', err)
+    console.error('[Dashboard] Error fetching KPI data:', err)
     return {
       tasks: [],
       workdays: [],
       settlements: [],
       movements: [],
-      couriers: [],
     }
   }
 }
 
+async function fetchDashboardCouriers() {
+  try {
+    // [Egress Fix H-02] NO agregar .limit() per requerimientos de negocio
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, display_name, email, phone, avatar_url, role')
+      .eq('role', 'courier')
+
+    if (error) throw error
+    return data ?? []
+  } catch (err) {
+    console.error('[Dashboard] Error fetching couriers:', err)
+    return []
+  }
+}
+
 function useDashboard(branchIds: string[], targetDate: string) {
-  return useQuery({
+  // Query de KPIs operativos (tasks, workdays, settlements, movements):
+  // staleTime de 1 minuto, refetchInterval de 5 minutos como fallback.
+  const kpiQuery = useQuery({
     queryKey: ['dashboard', branchIds, targetDate],
-    queryFn: () => fetchDashboardData(branchIds, targetDate),
+    queryFn: () => fetchDashboardKpis(branchIds, targetDate),
     enabled: true,
-    refetchInterval: 1000 * 60, // Refresca cada minuto
-    staleTime: 1000 * 30,
+    refetchInterval: 1000 * 60 * 5, // 5 minutos de intervalo de respaldo
+    staleTime: 1000 * 60 * 1,        // 1 minuto para KPIs
   })
+
+  // Query separada SOLO para couriers:
+  // Lista de motorizados casi estática; staleTime de 10 minutos sin .limit().
+  const couriersQuery = useQuery({
+    queryKey: ['dashboard-couriers'],
+    queryFn: fetchDashboardCouriers,
+    enabled: true,
+    staleTime: 1000 * 60 * 10,       // 10 minutos SOLO para couriers
+  })
+
+  const combinedData = useMemo(() => {
+    if (!kpiQuery.data && !couriersQuery.data) return undefined
+    return {
+      tasks: kpiQuery.data?.tasks ?? [],
+      workdays: kpiQuery.data?.workdays ?? [],
+      settlements: kpiQuery.data?.settlements ?? [],
+      movements: kpiQuery.data?.movements ?? [],
+      couriers: couriersQuery.data ?? [],
+    }
+  }, [kpiQuery.data, couriersQuery.data])
+
+  return {
+    data: combinedData,
+    isLoading: kpiQuery.isLoading || couriersQuery.isLoading,
+  }
 }
 
 // ─── Componente Barra de distribución de estados de tareas ──────────────────
