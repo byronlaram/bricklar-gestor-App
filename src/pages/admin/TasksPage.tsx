@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   DndContext,
@@ -85,7 +85,7 @@ export default function TasksPage() {
     page_size: 15,
   })
 
-  // Sincronizar automÃ¡ticamente la sucursal activa cuando carguen el perfil o las sucursales
+  // Sincronizar automáticamente la sucursal activa cuando carguen el perfil o las sucursales
   useEffect(() => {
     if (profile?.primary_branch_id || profile?.branch_ids?.[0]) {
       const userBranch = profile.primary_branch_id || profile.branch_ids[0]
@@ -119,7 +119,7 @@ export default function TasksPage() {
   const totalPages = data?.total_pages || 1
   const totalCount = data?.count || 0
 
-  // Modo reordenamiento: solo activo cuando se filtra por un motorizado especÃ­fico
+  // Modo reordenamiento: solo activo cuando se filtra por un motorizado específico
   const isReorderMode = !!(filters.courier_id && filters.courier_id !== '')
 
   // Tareas ordenadas localmente para el modo reordenamiento
@@ -128,7 +128,7 @@ export default function TasksPage() {
     [tasks, isReorderMode]
   )
 
-  // Sensores calibrados para mÃ³vil y escritorio
+  // Sensores calibrados para móvil y escritorio
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
@@ -163,7 +163,7 @@ export default function TasksPage() {
     }
   }
 
-  // MÃ©tricas rÃ¡pidas
+  // Métricas rápidas
   const enRouteCount = tasks.filter((t) => t.status === 'en_route').length
   const completedCount = tasks.filter((t) => t.status === 'completed').length
   const pendingApprovalCount = tasks.filter((t) => t.approval_status === 'pending').length
@@ -194,10 +194,10 @@ export default function TasksPage() {
   const handleApprove = async (task: TaskWithCourier) => {
     try {
       await approveTask({ taskId: task.id })
-      toast.success('GestiÃ³n aprobada', `La tarea ${task.code} fue aprobada e incorporada a la ruta del motorizado.`)
+      toast.success('Gestión aprobada', `La tarea ${task.code} fue aprobada e incorporada a la ruta del motorizado.`)
     } catch (err: unknown) {
       console.error('Error al aprobar tarea:', err)
-      toast.error('Error al aprobar', (err as Error)?.message || 'No fue posible aprobar la gestiÃ³n.')
+      toast.error('Error al aprobar', (err as Error)?.message || 'No fue posible aprobar la gestión.')
     }
   }
 
@@ -205,11 +205,11 @@ export default function TasksPage() {
     if (!rejectTaskTarget) return
     try {
       await rejectTask({ taskId: rejectTaskTarget.id, reason })
-      toast.success('GestiÃ³n rechazada', `La tarea ${rejectTaskTarget.code} fue rechazada con motivo.`)
+      toast.success('Gestión rechazada', `La tarea ${rejectTaskTarget.code} fue rechazada con motivo.`)
       setRejectTaskTarget(null)
     } catch (err: unknown) {
       console.error('Error al rechazar tarea:', err)
-      toast.error('Error al rechazar', (err as Error)?.message || 'No fue posible rechazar la gestiÃ³n.')
+      toast.error('Error al rechazar', (err as Error)?.message || 'No fue posible rechazar la gestión.')
     }
   }
 
@@ -217,7 +217,7 @@ export default function TasksPage() {
     if (!taskToDelete) return
     try {
       await deleteTask(taskToDelete.id)
-      toast.success('La tarea se eliminÃ³ correctamente.')
+      toast.success('La tarea se eliminó correctamente.')
       setTaskToDelete(null)
     } catch (err: unknown) {
       console.error('Error al eliminar tarea:', err)
@@ -230,10 +230,10 @@ export default function TasksPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      {/* Header y AcciÃ³n Principal */}
+      {/* Header y Acción Principal */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">GestiÃ³n de Tareas</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Gestión de Tareas</h1>
           <p className="text-xs text-slate-500">
             Administra, asigna y aprueba operaciones de la sucursal en tiempo real.
           </p>
@@ -281,10 +281,10 @@ export default function TasksPage() {
             </div>
             <div>
               <h3 className="text-xs font-extrabold text-amber-900">
-                Tienes {pendingApprovalCount} gestiÃ³n{pendingApprovalCount > 1 ? 'es' : ''} pendiente{pendingApprovalCount > 1 ? 's' : ''} de aprobaciÃ³n
+                Tienes {pendingApprovalCount} gestión{pendingApprovalCount > 1 ? 'es' : ''} pendiente{pendingApprovalCount > 1 ? 's' : ''} de aprobación
               </h3>
               <p className="text-2xs text-amber-700 font-medium">
-                Registradas por motorizados durante su jornada. Requieren tu autorizaciÃ³n para ingresar a la ruta activa.
+                Registradas por motorizados durante su jornada. Requieren tu autorización para ingresar a la ruta activa.
               </p>
             </div>
           </div>
@@ -299,7 +299,7 @@ export default function TasksPage() {
         </div>
       )}
 
-      {/* Cards de MÃ©tricas RÃ¡pidas */}
+      {/* Cards de Métricas Rápidas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <MetricCard
           title="Total Visibles"
@@ -310,7 +310,7 @@ export default function TasksPage() {
         />
 
         <MetricCard
-          title="Pendientes AprobaciÃ³n"
+          title="Pendientes Aprobación"
           value={pendingApprovalCount}
           subtitle="Creadas por motorizados"
           icon={<Clock className="h-4 w-4 text-amber-600" />}
@@ -350,7 +350,7 @@ export default function TasksPage() {
           </div>
           <div className="flex-1 min-w-0">
             <span className="font-bold text-indigo-900 block">Modo Reordenamiento Activo</span>
-            <span className="text-indigo-600">Arrastra las filas con <GripVertical className="h-3 w-3 inline" /> o usa las flechas â†‘â†“ para reorganizar la ruta del motorizado. Los cambios se guardan automÃ¡ticamente.</span>
+            <span className="text-indigo-600">Arrastra las filas con <GripVertical className="h-3 w-3 inline" /> o usa las flechas ↑↓ para reorganizar la ruta del motorizado. Los cambios se guardan automáticamente.</span>
           </div>
           {isReordering && (
             <span className="text-2xs font-bold text-indigo-600 bg-indigo-100 px-2 py-1 rounded-lg animate-pulse">Guardando...</span>
@@ -371,7 +371,7 @@ export default function TasksPage() {
         ) : tasks.length === 0 ? (
           <EmptyState
             title="No se encontraron tareas"
-            description="No hay tareas registradas que coincidan con los criterios de bÃºsqueda o fecha seleccionados."
+            description="No hay tareas registradas que coincidan con los criterios de búsqueda o fecha seleccionados."
             icon={<PackageCheck className="h-8 w-8 text-slate-400" />}
             action={
               <Button variant="primary" size="sm" onClick={handleCreateNew} leftIcon={<Plus className="h-4 w-4" />}>
@@ -387,11 +387,11 @@ export default function TasksPage() {
                   {isReorderMode && (
                     <th className="py-3.5 px-3 text-center w-[90px]">Orden</th>
                   )}
-                  <th className="py-3.5 px-4">CÃ³digo / TÃ­tulo</th>
+                  <th className="py-3.5 px-4">Código / Título</th>
                   <th className="py-3.5 px-3">Tipo & Origen</th>
                   <th className="py-3.5 px-3">Contacto / Cliente</th>
                   <th className="py-3.5 px-3">Motorizado</th>
-                  <th className="py-3.5 px-3 text-center">AprobaciÃ³n / Finanzas</th>
+                  <th className="py-3.5 px-3 text-center">Aprobación / Finanzas</th>
                   <th className="py-3.5 px-3">Estado</th>
                   <th className="py-3.5 px-4 text-right">Acciones</th>
                 </tr>
@@ -418,7 +418,7 @@ export default function TasksPage() {
                           onMoveDown={() => handleMoveItem(idx, idx + 1)}
                           isReordering={isReordering}
                         >
-                          {/* CÃ³digo / TÃ­tulo */}
+                          {/* Código / Título */}
                           <td className="py-3 px-4 max-w-[220px]">
                             <div
                               onClick={() => navigate(`/admin/tareas/${task.id}`)}
@@ -449,7 +449,7 @@ export default function TasksPage() {
                               </div>
                             </div>
                             <div className="text-2xs text-slate-400 pt-0.5 font-medium">
-                              {formatDate(task.scheduled_date)} {task.scheduled_start_time ? `â€¢ ${task.scheduled_start_time}` : ''}
+                              {formatDate(task.scheduled_date)} {task.scheduled_start_time ? `• ${task.scheduled_start_time}` : ''}
                             </div>
                             <div className="mt-1.5 md:hidden">
                               <TaskStatusBadge status={task.status} className="text-[10px] py-0.5 px-2" />
@@ -461,7 +461,7 @@ export default function TasksPage() {
                             <TaskTypeBadge type={task.task_type} />
                             <div>
                               {task.creation_origin === 'courier_created' ? (
-                                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">ðŸ“± Por Motorizado</span>
+                                <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">📱 Por Motorizado</span>
                               ) : (
                                 <TaskPriorityBadge priority={task.priority} />
                               )}
@@ -491,18 +491,18 @@ export default function TasksPage() {
                             )}
                           </td>
 
-                          {/* AprobaciÃ³n / Finanzas */}
+                          {/* Aprobación / Finanzas */}
                           <td className="py-3 px-3 text-center">
                             {(() => {
                               const fin = getTaskFinancialDetails(task)
                               return (
                                 <div className="flex flex-col items-center gap-1">
                                   {task.approval_status === 'pending' ? (
-                                    <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full animate-pulse">â³ Pendiente AprobaciÃ³n</span>
+                                    <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full animate-pulse">⏳ Pendiente Aprobación</span>
                                   ) : task.approval_status === 'rejected' ? (
-                                    <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full">âŒ Rechazada</span>
+                                    <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full">❌ Rechazada</span>
                                   ) : (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500">âœ… Aprobada</span>
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500">✅ Aprobada</span>
                                   )}
                                   {fin.requiresCollection && (
                                     <Badge
@@ -574,7 +574,7 @@ export default function TasksPage() {
                 <tbody className="divide-y divide-slate-100">
                   {tasks.map((task) => (
                     <tr key={task.id} className="hover:bg-slate-50/80 transition-colors group">
-                      {/* CÃ³digo / TÃ­tulo */}
+                      {/* Código / Título */}
                       <td className="py-3 px-4 max-w-[220px]">
                         <div
                           onClick={() => navigate(`/admin/tareas/${task.id}`)}
@@ -608,10 +608,10 @@ export default function TasksPage() {
                           </div>
                         </div>
                         <div className="text-2xs text-slate-400 pt-0.5 font-medium">
-                          {formatDate(task.scheduled_date)} {task.scheduled_start_time ? `â€¢ ${task.scheduled_start_time}` : ''}
+                          {formatDate(task.scheduled_date)} {task.scheduled_start_time ? `• ${task.scheduled_start_time}` : ''}
                         </div>
 
-                        {/* Estado de la tarea en mÃ³vil */}
+                        {/* Estado de la tarea en móvil */}
                         <div className="mt-1.5 md:hidden">
                           <TaskStatusBadge status={task.status} className="text-[10px] py-0.5 px-2" />
                         </div>
@@ -623,7 +623,7 @@ export default function TasksPage() {
                         <div>
                           {task.creation_origin === 'courier_created' ? (
                             <span className="inline-flex items-center gap-1 text-[10px] font-extrabold text-purple-700 bg-purple-50 border border-purple-200 px-2 py-0.5 rounded-full">
-                              ðŸ“± Por Motorizado
+                              📱 Por Motorizado
                             </span>
                           ) : (
                             <TaskPriorityBadge priority={task.priority} />
@@ -677,7 +677,7 @@ export default function TasksPage() {
                         )}
                       </td>
 
-                      {/* AprobaciÃ³n / Finanzas */}
+                      {/* Aprobación / Finanzas */}
                       <td className="py-3 px-3 text-center">
                         {(() => {
                           const fin = getTaskFinancialDetails(task)
@@ -685,15 +685,15 @@ export default function TasksPage() {
                             <div className="flex flex-col items-center gap-1">
                               {task.approval_status === 'pending' ? (
                                 <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full animate-pulse">
-                                  â³ Pendiente AprobaciÃ³n
+                                  ⏳ Pendiente Aprobación
                                 </span>
                               ) : task.approval_status === 'rejected' ? (
                                 <span className="inline-flex items-center gap-1 bg-rose-100 text-rose-800 border border-rose-300 text-[11px] font-extrabold px-2 py-0.5 rounded-full" title={task.rejection_reason || ''}>
-                                  âŒ Rechazada
+                                  ❌ Rechazada
                                 </span>
                               ) : (
                                 <span className="inline-flex items-center gap-1 text-[10px] font-bold text-slate-500">
-                                  âœ… Aprobada
+                                  ✅ Aprobada
                                 </span>
                               )}
 
@@ -755,7 +755,7 @@ export default function TasksPage() {
                                 onClick={() => setRejectTaskTarget(task)}
                                 disabled={isRejecting}
                                 className="h-8 px-2.5 bg-rose-600 hover:bg-rose-700 text-white text-2xs font-extrabold rounded-xl shadow-2xs flex items-center gap-1 transition cursor-pointer"
-                                title="Rechazar gestiÃ³n"
+                                title="Rechazar gestión"
                               >
                                 <X className="h-3.5 w-3.5" strokeWidth={3} />
                                 <span>Rechazar</span>
@@ -866,11 +866,11 @@ export default function TasksPage() {
           </div>
         )}
 
-        {/* PaginaciÃ³n */}
+        {/* Paginación */}
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 bg-slate-50 border-t border-slate-200 text-xs">
             <span className="text-slate-500 font-medium">
-              PÃ¡gina <span className="font-bold text-slate-900">{filters.page}</span> de{' '}
+              Página <span className="font-bold text-slate-900">{filters.page}</span> de{' '}
               <span className="font-bold text-slate-900">{totalPages}</span>
             </span>
 
@@ -936,7 +936,7 @@ export default function TasksPage() {
         isLoading={isRejecting}
       />
 
-      {/* Modal de PrevisualizaciÃ³n de Evidencia con Zoom y Descarga */}
+      {/* Modal de Previsualización de Evidencia con Zoom y Descarga */}
       <ImageViewerModal
         images={previewEvidenceUrl ? [previewEvidenceUrl] : []}
         isOpen={!!previewEvidenceUrl}
@@ -944,7 +944,7 @@ export default function TasksPage() {
         title="Comprobante de Entrega Digital / Evidencia"
       />
 
-      {/* Modal de ConfirmaciÃ³n de EliminaciÃ³n */}
+      {/* Modal de Confirmación de Eliminación */}
       <ConfirmDialog
         isOpen={!!taskToDelete}
         onClose={() => {
@@ -953,7 +953,7 @@ export default function TasksPage() {
         onConfirm={confirmDelete}
         isLoading={isDeleting}
         title="Eliminar Tarea"
-        description={`Â¿EstÃ¡s seguro de que deseas eliminar la tarea ${taskToDelete?.code}? Esta acciÃ³n no se puede deshacer.`}
+        description={`¿Estás seguro de que deseas eliminar la tarea ${taskToDelete?.code}? Esta acción no se puede deshacer.`}
         confirmText={isDeleting ? 'Eliminando...' : 'Eliminar Definitivamente'}
       />
     </div>
