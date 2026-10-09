@@ -78,11 +78,10 @@ export function normalizeTaskFromDB<T extends Record<string, any>>(task: T): T {
 // ─── Selectores de columnas ──────────────────────────────────────────────────
 //
 // TASK_LIST_SELECT  → usado en getTasks() (vista de lista/tarjetas).
-//   Omite campos de texto largo y JSON que no se necesitan para renderizar
-//   la lista: description, notes, management_description, address_reference,
-//   metadata completo (puede contener arrays de URLs de fotos de referencia),
-//   deleted_at, deleted_by, approved_at, approved_by, rejection_reason.
-//   Ahorro estimado: ~60-70% del payload por fila.
+//   Omite campos de texto largo que no se necesitan para renderizar la lista:
+//   description, notes, management_description, address_reference,
+//   deleted_at, deleted_by, approved_at, approved_by.
+//   Incluye metadata (imprescindible para payment_breakdown / cobros y pagos reales).
 //
 // TASK_DETAIL_SELECT → usado en getTaskById() (modal/página de detalle).
 //   Trae todas las columnas (SELECT *) + joins completos de courier y creador.
@@ -128,9 +127,11 @@ const TASK_LIST_SELECT = `
   completed_at,
   cancelled_at,
   cancellation_reason,
+  rejection_reason,
   rescheduled_from_task_id,
   created_at,
   updated_at,
+  metadata,
   courier:profiles!tasks_assigned_courier_id_fkey (
     id,
     full_name,
