@@ -44,6 +44,7 @@ import { parseCoordinatesFromMapsUrl } from '@/shared/utils/geoHelper'
 import { getLocalDateString } from '@/shared/utils/date'
 import { ContactAutosuggest } from '@/modules/directory/components/ContactAutosuggest'
 import { ContactFormModal as QuickContactModal } from '@/modules/directory/components/ContactFormModal'
+import { BusFormModal } from '@/modules/buses/components/BusFormModal'
 import type { DirectoryContact, DirectoryCategory } from '@/modules/directory/types/directory.types'
 
 interface TaskFormModalProps {
@@ -79,6 +80,8 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
   const [isQuickContactModalOpen, setIsQuickContactModalOpen] = useState(false)
   const [quickContactName, setQuickContactName] = useState('')
   const [quickContactCategory, setQuickContactCategory] = useState<DirectoryCategory>('customer')
+  const [isQuickBusModalOpen, setIsQuickBusModalOpen] = useState(false)
+  const [quickBusName, setQuickBusName] = useState('')
 
   const handleSelectDirectoryContact = (contact: DirectoryContact) => {
     // Fill specific name based on active task fields
@@ -132,6 +135,11 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
     setQuickContactName(name)
     setQuickContactCategory(category)
     setIsQuickContactModalOpen(true)
+  }
+
+  const handleRequestRegisterBus = (prefillName: string) => {
+    setQuickBusName(prefillName)
+    setIsQuickBusModalOpen(true)
   }
   const [showAllDetails, setShowAllDetails] = useState(false)
   const [referencePhotos, setReferencePhotos] = useState<string[]>([])
@@ -761,6 +769,7 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
                             setValue('phone', route.dispatch_phone, { shouldDirty: true })
                           }
                         }}
+                        onRegisterNew={handleRequestRegisterBus}
                         placeholder={config.institutionPlaceholder || 'Buscar destino o transporte...'}
                       />
                     ) : (
@@ -1433,6 +1442,19 @@ export function TaskFormModal({ taskToEdit, branchId, branches = [], isOpen, onC
           phone: watch('phone') || '',
           whatsapp: watch('whatsapp') || '',
           maps_url: watch('maps_url') || '',
+        }}
+      />
+
+      {/* Modal Rápido para Registrar Bus en Directorio desde Formulario de Tarea */}
+      <BusFormModal
+        isOpen={isQuickBusModalOpen}
+        onClose={() => setIsQuickBusModalOpen(false)}
+        initialCooperativeName={quickBusName}
+        onCreated={(route) => {
+          // Auto-seleccionar la ruta recién creada en el formulario
+          setValue('institution_name', route.cooperative_name, { shouldDirty: true })
+          setValue('address', route.origin_terminal, { shouldDirty: true })
+          setValue('address_reference', route.destination_city, { shouldDirty: true })
         }}
       />
     </>

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
-import { Bus, MapPin, Clock, Phone, ChevronDown, X, Check, Search, Sparkles } from 'lucide-react'
+import { Bus, MapPin, Clock, Phone, ChevronDown, X, Check, Search, Sparkles, PlusCircle } from 'lucide-react'
 import { cn } from '@/shared/utils/cn'
 import type { BusRoute } from '../types/buses.types'
 import { useBusRoutes } from '../hooks/useBuses'
@@ -8,6 +8,8 @@ interface BusRouteComboboxProps {
   value?: string
   onChange: (value: string) => void
   onSelectRoute?: (route: BusRoute) => void
+  /** Callback invocado al pulsar "Registrar en directorio". Recibe el texto ya escrito como prefill. */
+  onRegisterNew?: (prefillName: string) => void
   placeholder?: string
   error?: string
   disabled?: boolean
@@ -26,6 +28,7 @@ export function BusRouteCombobox({
   value = '',
   onChange,
   onSelectRoute,
+  onRegisterNew,
   placeholder = 'Buscar por destino (ej: Siuna) o cooperativa (ej: Wendelyn)...',
   error,
   disabled = false,
@@ -267,13 +270,26 @@ export function BusRouteCombobox({
                 Cargando directorio de buses...
               </li>
             ) : filteredRoutes.length === 0 ? (
-              <li className="p-4 text-center space-y-1">
+              <li className="p-4 text-center space-y-2">
                 <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                  No hay transportes registrados para "{query}"
+                  No hay transportes registrados para &ldquo;{query}&rdquo;
                 </p>
                 <p className="text-2xs text-slate-400">
-                  Puedes seguir escribiendo el nombre libremente si no está en el directorio.
+                  Puedes escribir el nombre libremente o registrarlo en el directorio.
                 </p>
+                {onRegisterNew && query.trim().length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsOpen(false)
+                      onRegisterNew(query.trim())
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-sky-600 hover:bg-sky-700 text-white transition shadow-sm cursor-pointer"
+                  >
+                    <PlusCircle className="h-3.5 w-3.5" />
+                    Registrar &ldquo;{query.trim()}&rdquo; en el directorio
+                  </button>
+                )}
               </li>
             ) : (
               filteredRoutes.map(({ route, matchReason }, index) => {

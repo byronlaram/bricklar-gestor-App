@@ -9,9 +9,13 @@ interface BusFormModalProps {
   routeToEdit?: BusRoute | null
   isOpen: boolean
   onClose: () => void
+  /** Nombre pre-llenado al abrir en modo creación (ej: desde el combobox de tareas) */
+  initialCooperativeName?: string
+  /** Callback ejecutado tras crear exitosamente una ruta (recibe la nueva ruta) */
+  onCreated?: (route: { cooperative_name: string; origin_terminal: string; destination_city: string }) => void
 }
 
-export function BusFormModal({ routeToEdit, isOpen, onClose }: BusFormModalProps) {
+export function BusFormModal({ routeToEdit, isOpen, onClose, initialCooperativeName, onCreated }: BusFormModalProps) {
   const isEditing = !!routeToEdit
   const { success, error: showToastError } = useToast()
 
@@ -34,14 +38,14 @@ export function BusFormModal({ routeToEdit, isOpen, onClose }: BusFormModalProps
       setDispatchPhone(routeToEdit.dispatch_phone || '')
       setNotes(routeToEdit.notes || '')
     } else {
-      setCooperativeName('')
+      setCooperativeName(initialCooperativeName || '')
       setOriginTerminal('')
       setDestinationCity('')
       setDepartureSchedules('')
       setDispatchPhone('')
       setNotes('')
     }
-  }, [routeToEdit])
+  }, [routeToEdit, initialCooperativeName])
 
   if (!isOpen) return null
 
@@ -63,6 +67,7 @@ export function BusFormModal({ routeToEdit, isOpen, onClose }: BusFormModalProps
       } else {
         await createBusRoute(payload)
         success('Ruta agregada', `Se registró la ruta hacia ${payload.destination_city}`)
+        onCreated?.(payload)
       }
       onClose()
     } catch (err) {
