@@ -373,11 +373,17 @@ export function useTasksRealtime() {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        // [Egress H-01] Solo invalida si han pasado más de 30 s desde la última
-        // invalidación global para evitar ráfagas al cambiar de pestaña repetidamente.
+        // Siempre sincronizar notificaciones al volver a la app para que el badge
+        // se actualice de inmediato, sin costo de egress extra (solo invalida el query,
+        // TanStack lo refetcha únicamente si el componente está montado y activo).
+        invalidateNotifications()
+
+        // [Egress H-01] Para el resto de queries (tasks, workdays, etc.) solo invalida
+        // si han pasado más de 30 s desde la última invalidación global, para evitar
+        // ráfagas de egress al cambiar de pestaña repetidamente.
         const msSinceLast = Date.now() - lastInvalidateRef.current
         if (msSinceLast < VISIBILITY_THROTTLE_MS) {
-          if (isDev) console.log(`[Realtime Resilience] Pestaña activa: omitiendo invalidación (${Math.round(msSinceLast / 1000)}s desde última)`)
+          if (isDev) console.log(`[Realtime Resilience] Pestaña activa: omitiendo invalidación general (${Math.round(msSinceLast / 1000)}s desde última)`)
           return
         }
         if (isDev) console.log('[Realtime Resilience] Pestaña activa: sincronizando datos...')
