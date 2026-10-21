@@ -1919,6 +1919,19 @@ export type Database = {
       }
       show_limit: { Args: never; Returns: number }
       show_trgm: { Args: { "": string }; Returns: string[] }
+      get_public_task_tracking: {
+        Args: { p_task_code_or_id: string }
+        Returns: Json
+      }
+      submit_public_task_feedback: {
+        Args: {
+          p_task_code_or_id: string
+          p_rating: number
+          p_comment?: string | null
+          p_tags?: string[]
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never

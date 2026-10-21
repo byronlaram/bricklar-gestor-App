@@ -1593,6 +1593,7 @@ export interface PublicTaskTrackingData {
   expected_collection_currency?: string | null
   created_at: string
   completed_at?: string | null
+  evidence_url?: string | null
   proof_signature_url?: string | null
   proof_photo_url?: string | null
   metadata?: Record<string, any> | null
@@ -1608,7 +1609,25 @@ export interface PublicTaskTrackingData {
 export async function getPublicTaskTracking(
   taskCodeOrId: string
 ): Promise<PublicTaskTrackingData | null> {
+  if (!taskCodeOrId || !taskCodeOrId.trim()) return null
+
   try {
+    // 1. Invocar RPC segura (SECURITY DEFINER) para acceso público/anónimo sin violar RLS
+    const { data: rpcData, error: rpcError } = await supabase.rpc('get_public_task_tracking', {
+      p_task_code_or_id: taskCodeOrId.trim(),
+    })
+
+    if (!rpcError && rpcData) {
+      const taskObj = rpcData as unknown as Record<string, any>
+      normalizeTaskFromDB(taskObj)
+      return taskObj as unknown as PublicTaskTrackingData
+    }
+
+    if (rpcError) {
+      console.warn('[PublicTracking] RPC get_public_task_tracking fallback triggered:', rpcError)
+    }
+
+    // 2. Fallback de compatibilidad directa por si se ejecuta en una sesión con permisos
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskCodeOrId)
 
     let query = supabase
@@ -1632,8 +1651,7 @@ export async function getPublicTaskTracking(
         expected_collection_currency,
         created_at,
         completed_at,
-        proof_signature_url,
-        proof_photo_url,
+        evidence_url,
         metadata,
         courier:profiles!tasks_assigned_courier_id_fkey (
           id,
@@ -1645,7 +1663,7 @@ export async function getPublicTaskTracking(
       `)
 
     if (isUuid) {
-      query = query.eq('id', taskCodeOrId)
+      query = query.eq('id', taskCodeOrId.trim())
     } else {
       query = query.ilike('code', taskCodeOrId.trim())
     }
@@ -1671,13 +1689,34 @@ export async function submitTaskCustomerFeedback(
     tags?: string[]
   }
 ): Promise<{ success: boolean; error?: string }> {
+  if (!taskCodeOrId || !taskCodeOrId.trim()) {
+    return { success: false, error: 'Código de tarea no válido.' }
+  }
+
   try {
+    // 1. Invocar RPC segura (SECURITY DEFINER) para registrar feedback sin requerir cuenta admin/courier
+    const { data: rpcResult, error: rpcError } = await supabase.rpc('submit_public_task_feedback', {
+      p_task_code_or_id: taskCodeOrId.trim(),
+      p_rating: Math.min(5, Math.max(1, feedback.rating)),
+      p_comment: feedback.comment?.trim() || null,
+      p_tags: feedback.tags || [],
+    })
+
+    if (!rpcError && rpcResult) {
+      const res = rpcResult as unknown as { success: boolean; error?: string }
+      return res
+    }
+
+    if (rpcError) {
+      console.warn('[PublicTracking] submit_public_task_feedback RPC fallback triggered:', rpcError)
+    }
+
+    // 2. Fallback de compatibilidad directa
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(taskCodeOrId)
 
-    // 1. Obtener la metadata actual
     let query = supabase.from('tasks').select('id, status, metadata')
     if (isUuid) {
-      query = query.eq('id', taskCodeOrId)
+      query = query.eq('id', taskCodeOrId.trim())
     } else {
       query = query.ilike('code', taskCodeOrId.trim())
     }
@@ -1698,7 +1737,6 @@ export async function submitTaskCustomerFeedback(
       },
     }
 
-    // 2. Guardar en Supabase
     const { error: updateErr } = await supabase
       .from('tasks')
       .update({ metadata: updatedMetadata })
