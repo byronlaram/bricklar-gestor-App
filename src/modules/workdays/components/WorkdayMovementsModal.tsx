@@ -30,7 +30,8 @@ export function WorkdayMovementsModal({
 }: WorkdayMovementsModalProps) {
   const [voidTarget, setVoidTarget] = useState<DetailedCashMovement | null>(null)
   const { data: movements = [], isLoading } = useCashMovements(
-    workday ? { workday_id: workday.id } : { workday_id: 'none' }
+    { workday_id: workday?.id },
+    !!workday
   )
 
   if (!isOpen || !workday) return null
