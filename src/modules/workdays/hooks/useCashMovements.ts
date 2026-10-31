@@ -16,7 +16,7 @@ export interface CashMovementsFilter {
   limit?: number
 }
 
-export function useCashMovements(filters: CashMovementsFilter = {}) {
+export function useCashMovements(filters: CashMovementsFilter = {}, enabled = true) {
   return useQuery<DetailedCashMovement[]>({
     queryKey: ['cash_movements', filters],
     queryFn: () => getCashMovements(filters),
@@ -24,6 +24,7 @@ export function useCashMovements(filters: CashMovementsFilter = {}) {
     // useTasksRealtime ya invalida esta query ante cualquier cambio;
     // 15 s provocaba re-fetches masivos y redundantes al cambiar pestañas o vistas.
     staleTime: 1000 * 60 * 2,
+    enabled,
   })
 }
 
