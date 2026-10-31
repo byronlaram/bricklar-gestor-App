@@ -1,0 +1,832 @@
+﻿
+===== C:\Users\MSI Gamer\Documents\ANTIGRAVITY\GESTOR DE TAREAS\src\modules\auth\AuthContext.tsx =====
+
+import { useEffect, useState, type ReactNode } from 'react'
+import type { User, Session } from '@supabase/supabase-js'
+import { supabase } from '@/shared/lib/supabaseClient'
+import { resetGlobalRealtimeChannel } from '@/shared/lib/realtimeSync'
+import { queryClient } from '@/shared/lib/queryClient'
+import type { UserRole } from '@/shared/types'
+import {
+  AuthContext,
+  type UserProfile,
+  type AuthContextValue,
+} from './AuthContextDefinition'
+
+export type { UserProfile, AuthContextValue }
+
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null)
+  const [session, setSession] = useState<Session | null>(null)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+
+  const loadProfile = async (userId: string): Promise<void> => {
+    try {
+      // Usa RPC get_my_profile() para evitar el error de FK ambiguo en PostgREST
+      // La funciÃ³n corre con SECURITY DEFINER y retorna perfil+rol+sucursales en una sola llamada
+      const { data, error } = await supabase.rpc('get_my_profile')
+
+      if (error || !data) {
+        console.error('[Auth] Error cargando perfil:', error?.message)
+        setProfile(null)
+        return
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = data as any
+
+      setProfile({
+        id: raw.id,
+        email: raw.email,
+        full_name: raw.full_name,
+        display_name: raw.display_name ?? null,
+        avatar_url: raw.avatar_url ?? null,
+        phone: raw.phone ?? null,
+        role: (raw.role as UserRole) ?? 'courier',
+        is_active: raw.is_active,
+        branch_ids: raw.branch_ids ?? [],
+        primary_branch_id: raw.primary_branch_id ?? null,
+        must_change_password: raw.must_change_password ?? false,
+        last_sign_in_at: raw.last_sign_in_at ?? null,
+      })
+    } catch (err) {
+      console.error('[Auth] Error inesperado:', err)
+      setProfile(null)
+    }
+    // userId es usado por los callers pero la RPC usa auth.uid() internamente
+    void userId
+  }
+
+  const refreshProfile = async (): Promise<void> => {
+    if (user?.id) await loadProfile(user.id)
+  }
+
+  useEffect(() => {
+    // Obtener sesiÃ³n inicial
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s)
+      setUser(s?.user ?? null)
+      if (s?.user) {
+        loadProfile(s.user.id).finally(() => setIsLoading(false))
+      } else {
+        setIsLoading(false)
+      }
+    })
+
+    // Escuchar cambios de autenticaciÃ³n
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, s) => {
+        setSession(s)
+        setUser(s?.user ?? null)
+
+        if (event === 'SIGNED_IN' && s?.user) {
+          await loadProfile(s.user.id)
+        } else if (event === 'SIGNED_OUT') {
+          resetGlobalRealtimeChannel()
+          queryClient.clear()
+          setProfile(null)
+        } else if (event === 'TOKEN_REFRESHED' && s?.user) {
+          // Refrescar perfil en refresh de token por si cambiÃ³ el rol
+          await loadProfile(s.user.id)
+        } else if (event === 'USER_UPDATED' && s?.user) {
+          // Sincronizar email en public.profiles si cambiÃ³ en Supabase Auth
+          if (s.user.email) {
+            await supabase
+              .from('profiles')
+              .update({ email: s.user.email })
+              .eq('id', s.user.id)
+          }
+          await loadProfile(s.user.id)
+        }
+        setIsLoading(false)
+      }
+    )
+
+    return () => subscription.unsubscribe()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const signIn = async (email: string, password: string): Promise<void> => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) {
+      // Mensaje genÃ©rico para no revelar si el email existe
+      throw new Error('Credenciales incorrectas. Verifica tu correo y contraseÃ±a.')
+    }
+  }
+
+  const signOut = async (): Promise<void> => {
+    resetGlobalRealtimeChannel()
+    queryClient.clear()
+    await supabase.auth.signOut()
+    setProfile(null)
+    setUser(null)
+    setSession(null)
+  }
+
+  const role = profile?.role ?? null
+  const mustChangePassword = !!(profile?.must_change_password || user?.user_metadata?.must_change_password)
+
+  const value: AuthContextValue = {
+    user,
+    session,
+    profile,
+    isLoading,
+    isAuthenticated: !!user && !!profile?.is_active,
+    mustChangePassword,
+    role,
+    isGeneralAdmin: role === 'general_admin',
+    isJuniorAdmin: role === 'junior_admin',
+    isCourier: role === 'courier',
+    signIn,
+    signOut,
+    refreshProfile,
+  }
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+}
+
+===== C:\Users\MSI Gamer\Documents\ANTIGRAVITY\GESTOR DE TAREAS\src\modules\tasks\hooks\useTasksRealtime.ts =====
+
+import { useEffect, useRef, useCallback } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { useAuth } from '@/modules/auth/useAuth'
+import { useToast } from '@/shared/components/ui'
+import {
+  getGlobalRealtimeChannel,
+  resetGlobalRealtimeChannel,
+  ensureGlobalChannelSubscribed,
+  onLocalBroadcast,
+  type RealtimeSyncPayload,
+} from '@/shared/lib/realtimeSync'
+import { sendNativeNotification } from '@/shared/utils/webPushService'
+
+interface TaskPayloadRow {
+  id?: string
+  code?: string
+  title?: string
+  assigned_courier_id?: string | null
+  status?: string
+  branch_id?: string
+  scheduled_date?: string
+  approval_status?: string
+}
+
+interface AssignmentPayloadRow {
+  id?: string
+  task_id?: string
+  courier_id?: string
+  assigned_by?: string
+}
+
+/**
+ * Hook de sincronizaciÃ³n en tiempo real multicapa y ultra-resiliente:
+ * 1. WebSocket Broadcast Global (Supabase): Latencia <50ms entre cualquier usuario/dispositivo.
+ * 2. Web BroadcastChannel (PestaÃ±as locales): SincronizaciÃ³n instantÃ¡nea de 0ms sin latencia ni trÃ¡fico externo.
+ * 3. PostgreSQL Changes CDC (Supabase): Captura directa de eventos INSERT, UPDATE, DELETE a nivel de BD.
+ * 4. Reactividad Pasiva: Solo invalida queries (TanStack refetch automÃ¡tico); sin refetchQueries explÃ­cito
+ *    para evitar cascadas de egress al recibir eventos en rÃ¡faga.
+ * 5. Resiliencia de Enfoque: Al cambiar de pestaÃ±a solo invalida si han pasado mÃ¡s de 30 s desde el Ãºltimo ciclo.
+ *
+ * [Egress Fix H-01] refetchQueries eliminados â†’ solo invalidateQueries.
+ * [Egress Fix H-01] Debounce 400 ms en handleBroadcastEvent para colapsar rÃ¡fagas Broadcast+CDC.
+ * [Egress Fix H-01] handleVisibilityChange acotado a >30 s sin invalidaciÃ³n previa.
+ */
+export function useTasksRealtime() {
+  const queryClient = useQueryClient()
+  const { profile } = useAuth()
+  const toast = useToast()
+
+  const toastRef = useRef(toast)
+  useEffect(() => {
+    toastRef.current = toast
+  }, [toast])
+
+  // â”€â”€â”€ Refs para debounce y guard de visibilidad â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // debounceTimerRef: colapsa rÃ¡fagas Broadcast+CDC en una sola invalidaciÃ³n
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // lastInvalidateRef: timestamp del Ãºltimo ciclo de invalidaciÃ³n global
+  const lastInvalidateRef = useRef<number>(0)
+
+  // â”€â”€â”€ Funciones Granulares de InvalidaciÃ³n (sin refetchQueries) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // TanStack Query refetcha automÃ¡ticamente las queries activas al invalidarlas;
+  // llamar a refetchQueries de forma explÃ­cita genera una peticiÃ³n HTTP extra
+  // duplicada que era la causa principal del egress excesivo (H-01).
+  const invalidateTasks = useCallback((specificTaskId?: string) => {
+    queryClient.invalidateQueries({ queryKey: ['tasks'] })
+
+    if (specificTaskId) {
+      queryClient.invalidateQueries({ queryKey: ['task', specificTaskId] })
+      queryClient.invalidateQueries({ queryKey: ['task-history', specificTaskId] })
+      queryClient.invalidateQueries({ queryKey: ['task-assignments', specificTaskId] })
+    }
+    queryClient.invalidateQueries({ queryKey: ['dashboard'] })
+    queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+  }, [queryClient])
+
+  const invalidateWorkdays = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['workdays'] })
+    queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+    queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+  }, [queryClient])
+
+  const invalidateSettlements = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['settlements'] })
+    queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+    queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+  }, [queryClient])
+
+  const invalidateCashMovements = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['cash_movements'] })
+    queryClient.invalidateQueries({ queryKey: ['courier_pending_balances'] })
+    queryClient.invalidateQueries({ queryKey: ['all_couriers_pending_balances'] })
+  }, [queryClient])
+
+  const invalidateNotifications = useCallback(() => {
+    if (profile?.id) {
+      queryClient.invalidateQueries({ queryKey: ['notifications', profile.id] })
+    }
+  }, [queryClient, profile?.id])
+
+  useEffect(() => {
+    const userId = profile?.id
+    if (!userId) return
+
+    const isCourier = profile?.role === 'courier'
+    const isDev = import.meta.env.DEV
+
+    if (isDev) {
+      console.log(`[Realtime Hub] Inicializando suscripciÃ³n para ${profile.full_name} (${userId})`)
+    }
+
+    // â”€â”€â”€ 1. Temporizador Unificado de Debounce para Broadcast y CDC â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // [Egress H-01] Broadcast y CDC comparten UN solo temporizador de 400 ms.
+    // Esto garantiza que cuando una mutaciÃ³n emite eventos por ambos canales
+    // (Broadcast local/WS + PostgreSQL CDC), se colapsen en una Ãºnica ronda
+    // de invalidaciones de TanStack Query, evitando peticiones duplicadas.
+    const pendingInvalidations = {
+      tasks: false,
+      taskIds: new Set<string>(),
+      workdays: false,
+      settlements: false,
+      cashMovements: false,
+      notifications: false,
+    }
+
+    const scheduleDebouncedInvalidation = () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+      debounceTimerRef.current = setTimeout(() => {
+        lastInvalidateRef.current = Date.now()
+
+        if (pendingInvalidations.tasks) {
+          if (pendingInvalidations.taskIds.size > 0) {
+            pendingInvalidations.taskIds.forEach((id) => invalidateTasks(id))
+          } else {
+            invalidateTasks()
+          }
+        }
+        if (pendingInvalidations.workdays) invalidateWorkdays()
+        if (pendingInvalidations.settlements) invalidateSettlements()
+        if (pendingInvalidations.cashMovements) invalidateCashMovements()
+        if (pendingInvalidations.notifications) invalidateNotifications()
+
+        // Resetear acumulaciÃ³n
+        pendingInvalidations.tasks = false
+        pendingInvalidations.taskIds.clear()
+        pendingInvalidations.workdays = false
+        pendingInvalidations.settlements = false
+        pendingInvalidations.cashMovements = false
+        pendingInvalidations.notifications = false
+        debounceTimerRef.current = null
+      }, 400)
+    }
+
+    const handleBroadcastEvent = (payload: RealtimeSyncPayload) => {
+      if (isDev) {
+        console.log(`[Realtime Broadcast Received: ${payload.domain}:${payload.action}]`, payload)
+      }
+
+      // Registrar entidades para la invalidaciÃ³n unificada
+      if (payload.domain === 'workdays') {
+        pendingInvalidations.workdays = true
+      } else if (payload.domain === 'settlements') {
+        pendingInvalidations.settlements = true
+      } else if (payload.domain === 'cash_movements') {
+        pendingInvalidations.cashMovements = true
+      } else if (payload.domain === 'notifications') {
+        pendingInvalidations.notifications = true
+      } else {
+        pendingInvalidations.tasks = true
+        if (payload.entityId) {
+          pendingInvalidations.taskIds.add(payload.entityId)
+        }
+      }
+
+      scheduleDebouncedInvalidation()
+
+      // Notificaciones Toasts especÃ­ficas para motorizados
+      if (isCourier) {
+        const isTargetCourier = payload.assignedCourierId === userId
+        const wasTargetCourier = payload.previousCourierId === userId
+
+        const codeStr = payload.taskCode ? ` [${payload.taskCode}]` : ''
+        const titleStr = payload.taskTitle ? `: ${payload.taskTitle}` : ''
+
+        if (payload.action === 'create' && isTargetCourier) {
+          toastRef.current.info(
+            'Nueva tarea asignada',
+            `Se ha aÃ±adido a tu ruta la tarea${codeStr}${titleStr}`
+          )
+          sendNativeNotification({
+            title: 'Nueva Tarea Asignada',
+            body: `Se ha aÃ±adido a tu ruta la tarea${codeStr}${titleStr}`,
+            url: '/motorizado/tareas',
+          })
+        } else if (payload.action === 'assign' && isTargetCourier && !wasTargetCourier) {
+          toastRef.current.info(
+            'Nueva tarea asignada',
+            `Se te ha asignado la tarea${codeStr}${titleStr}`
+          )
+          sendNativeNotification({
+            title: 'Nueva Tarea Asignada',
+            body: `Se te ha asignado la tarea${codeStr}${titleStr}`,
+            url: '/motorizado/tareas',
+          })
+        } else if (payload.action === 'assign' && wasTargetCourier && !isTargetCourier) {
+          toastRef.current.warning(
+            'Tarea reasignada',
+            `La tarea${codeStr} ha sido reasignada a otro motorizado.`
+          )
+        } else if (payload.action === 'approve' && isTargetCourier) {
+          toastRef.current.success(
+            'GestiÃ³n aprobada',
+            `Tu gestiÃ³n${codeStr} ha sido aprobada por administraciÃ³n.`
+          )
+          sendNativeNotification({
+            title: 'GestiÃ³n Aprobada',
+            body: `Tu gestiÃ³n${codeStr} ha sido aprobada por administraciÃ³n.`,
+            url: '/motorizado/tareas',
+          })
+        } else if (payload.action === 'reject' && isTargetCourier) {
+          toastRef.current.error(
+            'GestiÃ³n rechazada',
+            `Tu gestiÃ³n${codeStr} ha sido rechazada por administraciÃ³n.`
+          )
+          sendNativeNotification({
+            title: 'GestiÃ³n Rechazada',
+            body: `Tu gestiÃ³n${codeStr} ha sido rechazada por administraciÃ³n.`,
+            url: '/motorizado/tareas',
+          })
+        }
+      }
+    }
+
+    // Escuchar mensajes del BroadcastChannel local entre pestaÃ±as
+    const unsubscribeLocal = onLocalBroadcast(handleBroadcastEvent)
+
+    // â”€â”€â”€ 2. Conectar al Canal Compartido de Supabase Realtime â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // IMPORTANTE: Resetear el canal antes de registrar listeners para evitar el error
+    // "cannot add postgres_changes callbacks after subscribe()". El canal es un
+    // singleton y si el efecto se re-ejecuta, el canal ya estarÃ­a suscrito.
+    resetGlobalRealtimeChannel()
+    const globalChannel = getGlobalRealtimeChannel()
+
+    // Listener Broadcast WebSocket
+    globalChannel.on('broadcast', { event: 'sync_event' }, ({ payload }) => {
+      handleBroadcastEvent(payload as RealtimeSyncPayload)
+    })
+
+    // Listener PostgreSQL CDC sobre 'tasks'
+    globalChannel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'tasks' },
+      (payload) => {
+        const newRow = payload.new as TaskPayloadRow | undefined
+        const oldRow = payload.old as TaskPayloadRow | undefined
+        const eventType = payload.eventType
+        const targetTaskId = newRow?.id || oldRow?.id
+
+        if (isDev) {
+          console.log(`[Realtime CDC Tasks Event: ${eventType}]`, {
+            userId,
+            new_assigned: newRow?.assigned_courier_id,
+            old_assigned: oldRow?.assigned_courier_id,
+            code: newRow?.code || oldRow?.code,
+          })
+        }
+
+        // Registrar en acumulador y debouncar usando el mismo timer que Broadcast
+        pendingInvalidations.tasks = true
+        if (targetTaskId) {
+          pendingInvalidations.taskIds.add(targetTaskId)
+        }
+        scheduleDebouncedInvalidation()
+
+        // Toasts contextuales de respaldo por CDC
+        if (isCourier) {
+          const isAssignedToMe = newRow?.assigned_courier_id === userId
+          const wasAssignedToMe = oldRow?.assigned_courier_id === userId
+
+          if (isAssignedToMe && (eventType === 'INSERT' || !wasAssignedToMe)) {
+            const codeStr = newRow?.code ? ` [${newRow.code}]` : ''
+            const titleStr = newRow?.title ? `: ${newRow.title}` : ''
+            toastRef.current.info(
+              'Nueva tarea asignada',
+              `Se ha aÃ±adido a tu ruta la tarea${codeStr}${titleStr}`
+            )
+          } else if (wasAssignedToMe && !isAssignedToMe && eventType === 'UPDATE') {
+            const codeStr = oldRow?.code ? ` [${oldRow.code}]` : ''
+            toastRef.current.warning(
+              'Tarea reasignada',
+              `La tarea${codeStr} ha sido retirada o reasignada a otro motorizado.`
+            )
+          }
+        }
+      }
+    )
+
+    // Listener PostgreSQL CDC sobre 'task_assignments'
+    globalChannel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'task_assignments' },
+      (payload) => {
+        const row = (payload.new || payload.old) as AssignmentPayloadRow | undefined
+        if (isDev) {
+          console.log(`[Realtime CDC Assignment Event: ${payload.eventType}]`, row)
+        }
+        pendingInvalidations.tasks = true
+        if (row?.task_id) {
+          pendingInvalidations.taskIds.add(row.task_id)
+        }
+        scheduleDebouncedInvalidation()
+      }
+    )
+
+    // Listener PostgreSQL CDC sobre 'workdays'
+    globalChannel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'workdays' },
+      () => {
+        pendingInvalidations.workdays = true
+        scheduleDebouncedInvalidation()
+      }
+    )
+
+    // Listener PostgreSQL CDC sobre 'settlements'
+    globalChannel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'settlements' },
+      () => {
+        pendingInvalidations.settlements = true
+        scheduleDebouncedInvalidation()
+      }
+    )
+
+    // Listener PostgreSQL CDC sobre 'cash_movements'
+    globalChannel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'cash_movements' },
+      () => {
+        pendingInvalidations.cashMovements = true
+        scheduleDebouncedInvalidation()
+      }
+    )
+
+    // Listener PostgreSQL CDC sobre 'notifications'
+    globalChannel.on(
+      'postgres_changes',
+      { event: '*', schema: 'public', table: 'notifications' },
+      () => {
+        pendingInvalidations.notifications = true
+        scheduleDebouncedInvalidation()
+      }
+    )
+
+    // Asegurar suscripciÃ³n activa al canal global
+    ensureGlobalChannelSubscribed().catch((err) => {
+      if (isDev) console.error('[Realtime Hub Error]', err)
+    })
+
+    // â”€â”€â”€ 3. Resiliencia de Enfoque, Red y ReconexiÃ³n AutomÃ¡tica â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    const VISIBILITY_THROTTLE_MS = 30_000 // 30 segundos mÃ­nimo entre invalidaciones globales
+
+    const handleRevalidateActiveState = () => {
+      invalidateTasks()
+      invalidateWorkdays()
+      invalidateSettlements()
+      invalidateCashMovements()
+      invalidateNotifications()
+      ensureGlobalChannelSubscribed().catch(() => {})
+    }
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        // Siempre sincronizar notificaciones al volver a la app para que el badge
+        // se actualice de inmediato, sin costo de egress extra (solo invalida el query,
+        // TanStack lo refetcha Ãºnicamente si el componente estÃ¡ montado y activo).
+        invalidateNotifications()
+
+        // [Egress H-01] Para el resto de queries (tasks, workdays, etc.) solo invalida
+        // si han pasado mÃ¡s de 30 s desde la Ãºltima invalidaciÃ³n global, para evitar
+        // rÃ¡fagas de egress al cambiar de pestaÃ±a repetidamente.
+        const msSinceLast = Date.now() - lastInvalidateRef.current
+        if (msSinceLast < VISIBILITY_THROTTLE_MS) {
+          if (isDev) console.log(`[Realtime Resilience] PestaÃ±a activa: omitiendo invalidaciÃ³n general (${Math.round(msSinceLast / 1000)}s desde Ãºltima)`)
+          return
+        }
+        if (isDev) console.log('[Realtime Resilience] PestaÃ±a activa: sincronizando datos...')
+        lastInvalidateRef.current = Date.now()
+        handleRevalidateActiveState()
+      }
+    }
+
+    const handleOnline = () => {
+      if (isDev) console.log('[Realtime Resilience] Red restablecida: sincronizando datos...')
+      lastInvalidateRef.current = Date.now()
+      handleRevalidateActiveState()
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    // Nota: se omite window 'focus' intencionalmente â€” 'visibilitychange' ya
+    // cubre el retorno al foco de ventana/pestaÃ±a sin duplicar invalidaciones.
+    window.addEventListener('online', handleOnline)
+
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+      unsubscribeLocal()
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('online', handleOnline)
+    }
+  }, [
+    profile?.id,
+    profile?.role,
+    // profile?.full_name se omite intencionalmente: solo se usa en un console.log de desarrollo
+    // y causaba re-suscripciones innecesarias al canal global.
+    invalidateTasks,
+    invalidateWorkdays,
+    invalidateSettlements,
+    invalidateCashMovements,
+    invalidateNotifications,
+  ])
+}
+
+===== C:\Users\MSI Gamer\Documents\ANTIGRAVITY\GESTOR DE TAREAS\src\shared\lib\queryClient.ts =====
+
+import { QueryClient } from '@tanstack/react-query'
+
+export const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 3,        // 3 minutos â€” navegaciÃ³n instantÃ¡nea entre pantallas sin bloqueos
+      gcTime: 1000 * 60 * 15,         // 15 minutos de cachÃ© en memoria
+      retry: (failureCount, error) => {
+        // No reintentar errores de autorizaciÃ³n (401, 403)
+        if (
+          error instanceof Error &&
+          (error.message.includes('401') ||
+            error.message.includes('403') ||
+            error.message.includes('not authorized') ||
+            error.message.includes('JWT'))
+        ) {
+          return false
+        }
+        return failureCount < 2
+      },
+      retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 10000),
+      refetchOnWindowFocus: false,     // Evita rÃ¡fagas de peticiones al tocar pantallas o cambiar pestaÃ±as en mÃ³viles
+      refetchOnReconnect: 'always',    // Solo recargar si realmente se perdiÃ³ y recuperÃ³ la conexiÃ³n a internet
+    },
+    mutations: {
+      retry: false,
+    },
+  },
+})
+
+
+===== C:\Users\MSI Gamer\Documents\ANTIGRAVITY\GESTOR DE TAREAS\src\shared\lib\realtimeSync.ts =====
+
+/**
+ * â”€â”€â”€ Central Realtime Synchronization Hub â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+ * Capa de sincronizaciÃ³n instantÃ¡nea y reactiva:
+ * 1. Supabase Realtime Broadcast: DifusiÃ³n WebSocket bidireccional entre todos los clientes
+ *    conectados (latencia <50ms, sin depender de delays de PostgreSQL WAL ni RLS).
+ * 2. Web BroadcastChannel API: SincronizaciÃ³n instantÃ¡nea de 0ms entre todas las pestaÃ±as
+ *    y ventanas del mismo navegador.
+ * 3. PostgreSQL CDC: Captura de eventos INSERT, UPDATE, DELETE a nivel de base de datos.
+ */
+
+import { supabase } from './supabaseClient'
+import type { RealtimeChannel } from '@supabase/supabase-js'
+
+export const GLOBAL_REALTIME_CHANNEL = 'bricklar_global_realtime'
+export const BROWSER_BROADCAST_CHANNEL = 'bricklar_tasks_sync'
+
+export type RealtimeSyncDomain =
+  | 'tasks'
+  | 'workdays'
+  | 'settlements'
+  | 'cash_movements'
+  | 'notifications'
+  | 'audit_logs'
+
+export interface RealtimeSyncPayload {
+  domain: RealtimeSyncDomain
+  action:
+    | 'create'
+    | 'update'
+    | 'delete'
+    | 'assign'
+    | 'status_change'
+    | 'approve'
+    | 'reject'
+    | 'reorder'
+    | 'general'
+  entityId?: string
+  assignedCourierId?: string | null
+  previousCourierId?: string | null
+  taskCode?: string
+  taskTitle?: string
+  userId?: string
+  timestamp: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: Record<string, any>
+}
+
+// Canal compartido global de Supabase Realtime (singleton)
+let globalChannel: RealtimeChannel | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let isSubscribing = false
+
+// Instancia Ãºnica del BroadcastChannel del navegador
+let localBroadcastChannel: BroadcastChannel | null = null
+
+if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+  try {
+    localBroadcastChannel = new BroadcastChannel(BROWSER_BROADCAST_CHANNEL)
+  } catch (err) {
+    console.warn('[RealtimeSync] BroadcastChannel no soportado o bloqueado:', err)
+  }
+}
+
+/**
+ * Destruye el canal global de Supabase de forma segura (por ejemplo, al cerrar sesiÃ³n).
+ */
+export function resetGlobalRealtimeChannel(): void {
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer)
+    reconnectTimer = null
+  }
+  isSubscribing = false
+  if (globalChannel) {
+    try {
+      supabase.removeChannel(globalChannel)
+    } catch (err) {
+      console.warn('[RealtimeSync] Error al remover canal global:', err)
+    }
+    globalChannel = null
+  }
+}
+
+/**
+ * Obtiene o inicializa el canal global de Supabase con capacidades de Broadcast y CDC activadas.
+ */
+export function getGlobalRealtimeChannel(): RealtimeChannel {
+  if (!globalChannel) {
+    globalChannel = supabase.channel(GLOBAL_REALTIME_CHANNEL, {
+      config: {
+        broadcast: { self: false },
+      },
+    })
+  }
+  return globalChannel
+}
+
+/**
+ * Asegura que el canal global de Supabase estÃ© suscrito y conectado.
+ * Retorna una promesa que resuelve `true` si se uniÃ³ exitosamente o ya estaba unido.
+ */
+export async function ensureGlobalChannelSubscribed(timeoutMs = 3000): Promise<boolean> {
+  const channel = getGlobalRealtimeChannel()
+
+  if (channel.state === 'joined') {
+    return true
+  }
+
+  return new Promise<boolean>((resolve) => {
+    let resolved = false
+    const timeout = setTimeout(() => {
+      if (!resolved) {
+        resolved = true
+        resolve(channel.state === 'joined')
+      }
+    }, timeoutMs)
+
+    if (channel.state !== 'joining' && !isSubscribing) {
+      isSubscribing = true
+      channel.subscribe((status, err) => {
+        isSubscribing = false
+        if (status === 'SUBSCRIBED') {
+          if (!resolved) {
+            resolved = true
+            clearTimeout(timeout)
+            resolve(true)
+          }
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+          if (err) {
+            console.warn('[RealtimeSync] Canal con estado:', status, err)
+          }
+          if (!resolved) {
+            resolved = true
+            clearTimeout(timeout)
+            resolve(false)
+          }
+        }
+      })
+    } else {
+      // Si ya estÃ¡ en proceso de unirse, esperar a que complete o timeout
+      const checkInterval = setInterval(() => {
+        if (channel.state === 'joined') {
+          clearInterval(checkInterval)
+          if (!resolved) {
+            resolved = true
+            clearTimeout(timeout)
+            resolve(true)
+          }
+        }
+      }, 50)
+
+      setTimeout(() => clearInterval(checkInterval), timeoutMs)
+    }
+  })
+}
+
+/**
+ * Emite un evento de sincronizaciÃ³n a travÃ©s de Supabase WebSocket y Browser BroadcastChannel.
+ */
+export async function broadcastSyncEvent(
+  domain: RealtimeSyncDomain,
+  action: RealtimeSyncPayload['action'],
+  payloadData?: Partial<Omit<RealtimeSyncPayload, 'domain' | 'action' | 'timestamp'>>
+): Promise<void> {
+  const fullPayload: RealtimeSyncPayload = {
+    domain,
+    action,
+    timestamp: new Date().toISOString(),
+    ...payloadData,
+  }
+
+  const isDev = import.meta.env.DEV
+
+  // 1. Difundir vÃ­a Web API BroadcastChannel a otras pestaÃ±as/ventanas locales (0ms)
+  try {
+    if (localBroadcastChannel) {
+      localBroadcastChannel.postMessage(fullPayload)
+      if (isDev) {
+        console.log(`[RealtimeSync Browser Tab Broadcast] ${domain}:${action}`, fullPayload)
+      }
+    }
+  } catch (err) {
+    console.warn('[RealtimeSync] Error al enviar BroadcastChannel local:', err)
+  }
+
+  // 2. Difundir vÃ­a Supabase Realtime Broadcast a todos los usuarios/dispositivos conectados
+  try {
+    const isJoined = await ensureGlobalChannelSubscribed(2000)
+    const channel = getGlobalRealtimeChannel()
+
+    if (isJoined || channel.state === 'joined') {
+      const sendResult = await channel.send({
+        type: 'broadcast',
+        event: 'sync_event',
+        payload: fullPayload,
+      })
+      if (isDev) {
+        console.log(`[RealtimeSync Supabase WebSocket Broadcast] ${domain}:${action}`, sendResult, fullPayload)
+      }
+    } else {
+      console.warn('[RealtimeSync] No se pudo enviar broadcast porque el canal no estÃ¡ unido.')
+    }
+  } catch (err) {
+    console.warn('[RealtimeSync] Error al enviar Supabase Realtime Broadcast:', err)
+  }
+}
+
+/**
+ * Registra un listener para el BroadcastChannel del navegador.
+ */
+export function onLocalBroadcast(callback: (payload: RealtimeSyncPayload) => void): () => void {
+  if (!localBroadcastChannel) return () => {}
+
+  const handleMessage = (event: MessageEvent<RealtimeSyncPayload>) => {
+    if (event.data && event.data.domain) {
+      callback(event.data)
+    }
+  }
+
+  localBroadcastChannel.addEventListener('message', handleMessage)
+  return () => {
+    localBroadcastChannel?.removeEventListener('message', handleMessage)
+  }
+}

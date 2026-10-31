@@ -1,0 +1,557 @@
+﻿
+src\layouts\AdminLayout.tsx:7:import { useTasksRealtime 
+} from '@/modules/tasks/hooks/useTasksRealtime'
+src\layouts\AdminLayout.tsx:261:  useTasksRealtime()
+src\layouts\CourierLayout.tsx:6:import { 
+useTasksRealtime } from 
+'@/modules/tasks/hooks/useTasksRealtime'
+src\layouts\CourierLayout.tsx:32:  useTasksRealtime()
+src\modules\branches\hooks\useBranches.ts:18:    
+onSuccess: () => queryClient.invalidateQueries({ 
+queryKey: ['branches'] }),
+src\modules\branches\hooks\useBranches.ts:24:    
+onSuccess: () => queryClient.invalidateQueries({ 
+queryKey: ['branches'] }),
+src\modules\branches\hooks\useBranches.ts:30:    
+onSuccess: () => queryClient.invalidateQueries({ 
+queryKey: ['branches'] }),
+src\modules\buses\hooks\useBuses.ts:18:    onSuccess: () 
+=> queryClient.invalidateQueries({ queryKey: 
+['bus_routes'] }),
+src\modules\buses\hooks\useBuses.ts:24:    onSuccess: () 
+=> queryClient.invalidateQueries({ queryKey: 
+['bus_routes'] }),
+src\modules\buses\hooks\useBuses.ts:29:    onSuccess: () 
+=> queryClient.invalidateQueries({ queryKey: 
+['bus_routes'] }),
+src\modules\directory\hooks\useDirectoryContacts.ts:32:  
+    queryClient.invalidateQueries({ queryKey: 
+DIRECTORY_QUERY_KEY })
+src\modules\directory\hooks\useDirectoryContacts.ts:48:  
+    queryClient.invalidateQueries({ queryKey: 
+DIRECTORY_QUERY_KEY })
+src\modules\directory\hooks\useDirectoryContacts.ts:64:  
+    queryClient.invalidateQueries({ queryKey: 
+DIRECTORY_QUERY_KEY })
+src\modules\fleet\hooks\useFleet.ts:38:      
+queryClient.invalidateQueries({ queryKey: 
+['fleet-vehicles'] })
+src\modules\fleet\hooks\useFleet.ts:45:      
+queryClient.invalidateQueries({ queryKey: 
+['fleet-vehicles'] })
+src\modules\fleet\hooks\useFleet.ts:53:      
+queryClient.invalidateQueries({ queryKey: 
+['fleet-vehicles'] })
+src\modules\fleet\hooks\useFleet.ts:54:      
+queryClient.invalidateQueries({ queryKey: 
+['fleet-maintenance-records'] })
+src\modules\maintenance\services\backupService.ts:83:    
+supabase.from('tasks').select('*'),
+src\modules\maintenance\services\backupService.ts:254:   
+ await supabase.from('tasks').upsert(d.tasks, { 
+onConflict: 'id' })
+src\modules\settlements\components\DeliverCashModal.tsx:4
+09:      queryClient.invalidateQueries({ queryKey: 
+['workdays'] })
+src\modules\settlements\components\DeliverCashModal.tsx:4
+10:      queryClient.invalidateQueries({ queryKey: 
+['active-workday'] })
+src\modules\settlements\components\DeliverCashModal.tsx:4
+11:      queryClient.invalidateQueries({ queryKey: 
+['settlements'] })
+src\modules\settlements\components\DeliverCashModal.tsx:4
+12:      queryClient.invalidateQueries({ queryKey: 
+['dashboard-kpis'] })
+src\modules\settlements\components\DeliverCashModal.tsx:4
+13:      queryClient.invalidateQueries({ queryKey: 
+['cash-movements'] })
+src\modules\settlements\components\DeliverCashModal.tsx:4
+14:      queryClient.invalidateQueries({ queryKey: 
+['reports'] })
+src\modules\settlements\components\ReceiveCashModal.tsx:1
+98:          .from('tasks')
+src\modules\settlements\components\ReceiveCashModal.tsx:3
+74:      queryClient.invalidateQueries({ queryKey: 
+['workdays'] })
+src\modules\settlements\components\ReceiveCashModal.tsx:3
+75:      queryClient.invalidateQueries({ queryKey: 
+['active-workday'] })
+src\modules\settlements\components\ReceiveCashModal.tsx:3
+76:      queryClient.invalidateQueries({ queryKey: 
+['settlements'] })
+src\modules\settlements\components\ReceiveCashModal.tsx:3
+77:      queryClient.invalidateQueries({ queryKey: 
+['dashboard-kpis'] })
+src\modules\settlements\components\ReceiveCashModal.tsx:3
+78:      queryClient.invalidateQueries({ queryKey: 
+['cash-movements'] })
+src\modules\settlements\components\ReceiveCashModal.tsx:3
+79:      queryClient.invalidateQueries({ queryKey: 
+['reports'] })
+src\modules\settlements\hooks\useOfflineConflicts.ts:136:
+      queryClient.invalidateQueries({ queryKey: 
+['offline_sync_conflicts'] })
+src\modules\settlements\hooks\useOfflineConflicts.ts:137:
+      queryClient.invalidateQueries({ queryKey: 
+['settlements'] })
+src\modules\settlements\hooks\useOfflineConflicts.ts:138:
+      queryClient.invalidateQueries({ queryKey: 
+['workdays'] })
+src\modules\settlements\hooks\useSettlements.ts:74:      
+queryClient.invalidateQueries({ queryKey: 
+['settlements'] })
+src\modules\settlements\hooks\useSettlements.ts:75:      
+queryClient.refetchQueries({ queryKey: ['settlements'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:76:      
+queryClient.invalidateQueries({ queryKey: 
+['workday-settlement'] })
+src\modules\settlements\hooks\useSettlements.ts:77:      
+queryClient.invalidateQueries({ queryKey: ['workdays'] })
+src\modules\settlements\hooks\useSettlements.ts:78:      
+queryClient.refetchQueries({ queryKey: ['workdays'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:79:      
+queryClient.invalidateQueries({ queryKey: 
+['active-workday'] })
+src\modules\settlements\hooks\useSettlements.ts:80:      
+queryClient.invalidateQueries({ queryKey: ['dashboard'] 
+})
+src\modules\settlements\hooks\useSettlements.ts:81:      
+queryClient.refetchQueries({ queryKey: ['dashboard'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:82:      
+queryClient.invalidateQueries({ queryKey: 
+['courier_pending_balances'] })
+src\modules\settlements\hooks\useSettlements.ts:83:      
+queryClient.invalidateQueries({ queryKey: 
+['all_couriers_pending_balances'] })
+src\modules\settlements\hooks\useSettlements.ts:91:      
+queryClient.invalidateQueries({ queryKey: 
+['settlements'] })
+src\modules\settlements\hooks\useSettlements.ts:92:      
+queryClient.refetchQueries({ queryKey: ['settlements'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:93:      
+queryClient.invalidateQueries({ queryKey: ['settlement', 
+data.id] })
+src\modules\settlements\hooks\useSettlements.ts:94:      
+queryClient.invalidateQueries({ queryKey: 
+['workday-settlement'] })
+src\modules\settlements\hooks\useSettlements.ts:95:      
+queryClient.invalidateQueries({ queryKey: 
+['active-workday'] })
+src\modules\settlements\hooks\useSettlements.ts:96:      
+queryClient.invalidateQueries({ queryKey: ['workdays'] })
+src\modules\settlements\hooks\useSettlements.ts:97:      
+queryClient.refetchQueries({ queryKey: ['workdays'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:98:      
+queryClient.invalidateQueries({ queryKey: ['dashboard'] 
+})
+src\modules\settlements\hooks\useSettlements.ts:99:      
+queryClient.refetchQueries({ queryKey: ['dashboard'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:100:     
+ queryClient.invalidateQueries({ queryKey: 
+['daily-closure'] })
+src\modules\settlements\hooks\useSettlements.ts:101:     
+ queryClient.invalidateQueries({ queryKey: 
+['courier_pending_balances'] })
+src\modules\settlements\hooks\useSettlements.ts:102:     
+ queryClient.invalidateQueries({ queryKey: 
+['all_couriers_pending_balances'] })
+src\modules\settlements\hooks\useSettlements.ts:110:     
+ queryClient.invalidateQueries({ queryKey: 
+['settlements'] })
+src\modules\settlements\hooks\useSettlements.ts:111:     
+ queryClient.refetchQueries({ queryKey: ['settlements'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:112:     
+ queryClient.invalidateQueries({ queryKey: 
+['settlement', data.id] })
+src\modules\settlements\hooks\useSettlements.ts:113:     
+ queryClient.invalidateQueries({ queryKey: 
+['workday-settlement'] })
+src\modules\settlements\hooks\useSettlements.ts:114:     
+ queryClient.invalidateQueries({ queryKey: 
+['active-workday'] })
+src\modules\settlements\hooks\useSettlements.ts:115:     
+ queryClient.invalidateQueries({ queryKey: ['workdays'] 
+})
+src\modules\settlements\hooks\useSettlements.ts:116:     
+ queryClient.refetchQueries({ queryKey: ['workdays'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:117:     
+ queryClient.invalidateQueries({ queryKey: ['dashboard'] 
+})
+src\modules\settlements\hooks\useSettlements.ts:118:     
+ queryClient.refetchQueries({ queryKey: ['dashboard'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:119:     
+ queryClient.invalidateQueries({ queryKey: 
+['courier_pending_balances'] })
+src\modules\settlements\hooks\useSettlements.ts:120:     
+ queryClient.invalidateQueries({ queryKey: 
+['all_couriers_pending_balances'] })
+src\modules\settlements\hooks\useSettlements.ts:128:     
+ queryClient.invalidateQueries({ queryKey: 
+['settlements'] })
+src\modules\settlements\hooks\useSettlements.ts:129:     
+ queryClient.refetchQueries({ queryKey: ['settlements'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:130:     
+ queryClient.invalidateQueries({ queryKey: 
+['workday-settlement'] })
+src\modules\settlements\hooks\useSettlements.ts:131:     
+ queryClient.invalidateQueries({ queryKey: 
+['active-workday'] })
+src\modules\settlements\hooks\useSettlements.ts:132:     
+ queryClient.invalidateQueries({ queryKey: ['workdays'] 
+})
+src\modules\settlements\hooks\useSettlements.ts:133:     
+ queryClient.refetchQueries({ queryKey: ['workdays'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:134:     
+ queryClient.invalidateQueries({ queryKey: ['dashboard'] 
+})
+src\modules\settlements\hooks\useSettlements.ts:135:     
+ queryClient.refetchQueries({ queryKey: ['dashboard'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:136:     
+ queryClient.invalidateQueries({ queryKey: 
+['daily-closure'] })
+src\modules\settlements\hooks\useSettlements.ts:137:     
+ queryClient.invalidateQueries({ queryKey: 
+['courier_pending_balances'] })
+src\modules\settlements\hooks\useSettlements.ts:138:     
+ queryClient.invalidateQueries({ queryKey: 
+['all_couriers_pending_balances'] })
+src\modules\settlements\hooks\useSettlements.ts:147:     
+ queryClient.invalidateQueries({ queryKey: 
+['settlements'] })
+src\modules\settlements\hooks\useSettlements.ts:148:     
+ queryClient.refetchQueries({ queryKey: ['settlements'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:149:     
+ queryClient.invalidateQueries({ queryKey: 
+['workday-settlement'] })
+src\modules\settlements\hooks\useSettlements.ts:150:     
+ queryClient.invalidateQueries({ queryKey: 
+['active-workday'] })
+src\modules\settlements\hooks\useSettlements.ts:151:     
+ queryClient.invalidateQueries({ queryKey: ['dashboard'] 
+})
+src\modules\settlements\hooks\useSettlements.ts:152:     
+ queryClient.refetchQueries({ queryKey: ['dashboard'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:153:     
+ queryClient.invalidateQueries({ queryKey: ['workdays'] 
+})
+src\modules\settlements\hooks\useSettlements.ts:154:     
+ queryClient.refetchQueries({ queryKey: ['workdays'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:155:     
+ queryClient.invalidateQueries({ queryKey: 
+['daily-closure'] })
+src\modules\settlements\hooks\useSettlements.ts:156:     
+ queryClient.invalidateQueries({ queryKey: 
+['courier_pending_balances'] })
+src\modules\settlements\hooks\useSettlements.ts:157:     
+ queryClient.invalidateQueries({ queryKey: 
+['all_couriers_pending_balances'] })
+src\modules\settlements\hooks\useSettlements.ts:165:     
+ queryClient.invalidateQueries({ queryKey: 
+['cash-movements', data.workday_id] })
+src\modules\settlements\hooks\useSettlements.ts:166:     
+ queryClient.invalidateQueries({ queryKey: 
+['workday-settlement', data.workday_id] })
+src\modules\settlements\hooks\useSettlements.ts:167:     
+ queryClient.invalidateQueries({ queryKey: ['workdays'] 
+})
+src\modules\settlements\hooks\useSettlements.ts:168:     
+ queryClient.refetchQueries({ queryKey: ['workdays'], 
+type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:169:     
+ queryClient.invalidateQueries({ queryKey: 
+['cash_movements'] })
+src\modules\settlements\hooks\useSettlements.ts:170:     
+ queryClient.refetchQueries({ queryKey: 
+['cash_movements'], type: 'active' })
+src\modules\settlements\hooks\useSettlements.ts:171:     
+ queryClient.invalidateQueries({ queryKey: ['dashboard'] 
+})
+src\modules\settlements\hooks\useSettlements.ts:172:     
+ queryClient.refetchQueries({ queryKey: ['dashboard'], 
+type: 'active' })
+src\modules\settlements\services\settlementsService.ts:89
+:    .from('tasks')
+src\modules\settlements\services\settlementsService.ts:15
+0:    .from('tasks')
+src\modules\settlements\services\settlementsService.ts:20
+2:    .from('tasks')
+src\modules\settlements\services\settlementsService.ts:25
+1:    .from('tasks')
+src\modules\settlements\services\settlementsService.ts:64
+2:    .from('tasks')
+src\modules\settlements\services\settlementsService.ts:97
+1:    .from('tasks')
+src\modules\settlements\services\settlementsService.ts:98
+6:    .from('tasks')
+src\modules\settlements\services\settlementsService.ts:13
+65:      .from('tasks')
+src\modules\tasks\hooks\useTaskMutations.ts:26:    
+queryClient.invalidateQueries({ queryKey: ['tasks'] })
+src\modules\tasks\hooks\useTaskMutations.ts:27:    
+queryClient.refetchQueries({ queryKey: ['tasks'], type: 
+'active' })
+src\modules\tasks\hooks\useTaskMutations.ts:29:    
+queryClient.invalidateQueries({ queryKey: ['workdays'] })
+src\modules\tasks\hooks\useTaskMutations.ts:30:    
+queryClient.refetchQueries({ queryKey: ['workdays'], 
+type: 'active' })
+src\modules\tasks\hooks\useTaskMutations.ts:32:    
+queryClient.invalidateQueries({ queryKey: 
+['cash_movements'] })
+src\modules\tasks\hooks\useTaskMutations.ts:33:    
+queryClient.refetchQueries({ queryKey: 
+['cash_movements'], type: 'active' })
+src\modules\tasks\hooks\useTaskMutations.ts:35:    
+queryClient.invalidateQueries({ queryKey: 
+['settlements'] })
+src\modules\tasks\hooks\useTaskMutations.ts:36:    
+queryClient.refetchQueries({ queryKey: ['settlements'], 
+type: 'active' })
+src\modules\tasks\hooks\useTaskMutations.ts:38:    
+queryClient.invalidateQueries({ queryKey: ['dashboard'] 
+})
+src\modules\tasks\hooks\useTaskMutations.ts:39:    
+queryClient.refetchQueries({ queryKey: ['dashboard'], 
+type: 'active' })
+src\modules\tasks\hooks\useTaskMutations.ts:41:    
+queryClient.invalidateQueries({ queryKey: 
+['courier_pending_balances'] })
+src\modules\tasks\hooks\useTaskMutations.ts:42:    
+queryClient.refetchQueries({ queryKey: 
+['courier_pending_balances'], type: 'active' })
+src\modules\tasks\hooks\useTaskMutations.ts:44:    
+queryClient.invalidateQueries({ queryKey: 
+['all_couriers_pending_balances'] })
+src\modules\tasks\hooks\useTaskMutations.ts:45:    
+queryClient.refetchQueries({ queryKey: 
+['all_couriers_pending_balances'], type: 'active' })
+src\modules\tasks\hooks\useTaskMutations.ts:48:      
+queryClient.invalidateQueries({ queryKey: ['task', 
+taskId] })
+src\modules\tasks\hooks\useTaskMutations.ts:49:      
+queryClient.invalidateQueries({ queryKey: 
+['task-history', taskId] })
+src\modules\tasks\hooks\useTaskMutations.ts:50:      
+queryClient.invalidateQueries({ queryKey: 
+['task-assignments', taskId] })
+src\modules\tasks\hooks\useTaskMutations.ts:123:      
+queryClient.refetchQueries({ queryKey: ['tasks'], type: 
+'active' })
+src\modules\tasks\hooks\useTaskMutations.ts:240:      
+queryClient.invalidateQueries({ queryKey: ['tasks'] })
+src\modules\tasks\hooks\useTaskMutations.ts:241:      
+queryClient.refetchQueries({ queryKey: ['tasks'], type: 
+'active' })
+src\modules\tasks\hooks\useTasks.ts:20:    // Sin 
+polling por defecto: las tareas se sincronizan vía 
+Realtime (useTasksRealtime).
+src\modules\tasks\hooks\useTasks.ts:26:    // al 
+recuperar el foco ya está cubierta por useTasksRealtime 
+(visibilitychange).
+src\modules\tasks\hooks\useTasksRealtime.ts:37: * 4. 
+Reactividad Pasiva: Solo invalida queries (TanStack 
+refetch automático); sin refetchQueries explícito
+src\modules\tasks\hooks\useTasksRealtime.ts:41: * 
+[Egress Fix H-01] refetchQueries eliminados → solo 
+invalidateQueries.
+src\modules\tasks\hooks\useTasksRealtime.ts:45:export 
+function useTasksRealtime() {
+src\modules\tasks\hooks\useTasksRealtime.ts:61:  // ─── 
+Funciones Granulares de Invalidación (sin 
+refetchQueries) ───────────
+src\modules\tasks\hooks\useTasksRealtime.ts:63:  // 
+llamar a refetchQueries de forma explícita genera una 
+petición HTTP extra
+src\modules\tasks\hooks\useTasksRealtime.ts:66:    
+queryClient.invalidateQueries({ queryKey: ['tasks'] })
+src\modules\tasks\hooks\useTasksRealtime.ts:69:      
+queryClient.invalidateQueries({ queryKey: ['task', 
+specificTaskId] })
+src\modules\tasks\hooks\useTasksRealtime.ts:70:      
+queryClient.invalidateQueries({ queryKey: 
+['task-history', specificTaskId] })
+src\modules\tasks\hooks\useTasksRealtime.ts:71:      
+queryClient.invalidateQueries({ queryKey: 
+['task-assignments', specificTaskId] })
+src\modules\tasks\hooks\useTasksRealtime.ts:73:    
+queryClient.invalidateQueries({ queryKey: ['dashboard'] 
+})
+src\modules\tasks\hooks\useTasksRealtime.ts:74:    
+queryClient.invalidateQueries({ queryKey: 
+['all_couriers_pending_balances'] })
+src\modules\tasks\hooks\useTasksRealtime.ts:78:    
+queryClient.invalidateQueries({ queryKey: ['workdays'] })
+src\modules\tasks\hooks\useTasksRealtime.ts:79:    
+queryClient.invalidateQueries({ queryKey: 
+['courier_pending_balances'] })
+src\modules\tasks\hooks\useTasksRealtime.ts:80:    
+queryClient.invalidateQueries({ queryKey: 
+['all_couriers_pending_balances'] })
+src\modules\tasks\hooks\useTasksRealtime.ts:84:    
+queryClient.invalidateQueries({ queryKey: 
+['settlements'] })
+src\modules\tasks\hooks\useTasksRealtime.ts:85:    
+queryClient.invalidateQueries({ queryKey: 
+['courier_pending_balances'] })
+src\modules\tasks\hooks\useTasksRealtime.ts:86:    
+queryClient.invalidateQueries({ queryKey: 
+['all_couriers_pending_balances'] })
+src\modules\tasks\hooks\useTasksRealtime.ts:90:    
+queryClient.invalidateQueries({ queryKey: 
+['cash_movements'] })
+src\modules\tasks\hooks\useTasksRealtime.ts:91:    
+queryClient.invalidateQueries({ queryKey: 
+['courier_pending_balances'] })
+src\modules\tasks\hooks\useTasksRealtime.ts:92:    
+queryClient.invalidateQueries({ queryKey: 
+['all_couriers_pending_balances'] })
+src\modules\tasks\hooks\useTasksRealtime.ts:97:      
+queryClient.invalidateQueries({ queryKey: 
+['notifications', profile.id] })
+src\modules\tasks\hooks\useTaskTypesConfig.ts:28:      
+queryClient.invalidateQueries({ queryKey: 
+TASK_TYPES_CONFIG_QUERY_KEY })
+src\modules\tasks\services\tasksService.ts:187:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:270:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:359:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:383:      
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:453:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:513:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:538:      
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:620:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:647:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:662:      
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:675:      
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:717:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:758:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:825:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:911:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:1100:        
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:1201:      
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:1226:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:1288:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:1298:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:1538:    
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:1634:      
+.from('tasks')
+src\modules\tasks\services\tasksService.ts:1717:    let 
+query = supabase.from('tasks').select('id, status, 
+metadata')
+src\modules\tasks\services\tasksService.ts:1741:      
+.from('tasks')
+src\modules\users\hooks\useUsers.ts:25:    
+queryClient.invalidateQueries({ queryKey: ['users'] })
+src\modules\users\hooks\useUsers.ts:26:    
+queryClient.invalidateQueries({ queryKey: ['couriers'] })
+src\modules\users\hooks\useUsers.ts:27:    
+queryClient.invalidateQueries({ queryKey: 
+['dashboard-couriers'] })
+src\modules\workdays\hooks\useCashMovements.ts:24:    // 
+useTasksRealtime ya invalida esta query ante cualquier 
+cambio;
+src\modules\workdays\hooks\useCashMovements.ts:36:      
+queryClient.invalidateQueries({ queryKey: 
+['cash_movements'] })
+src\modules\workdays\hooks\useCashMovements.ts:37:      
+queryClient.invalidateQueries({ queryKey: ['workdays'] })
+src\modules\workdays\hooks\useCashMovements.ts:38:      
+queryClient.invalidateQueries({ queryKey: 
+['active-workday'] })
+src\modules\workdays\hooks\useCashMovements.ts:39:      
+queryClient.invalidateQueries({ queryKey: 
+['settlements'] })
+src\modules\workdays\hooks\useCashMovements.ts:40:      
+queryClient.invalidateQueries({ queryKey: 
+['all_couriers_pending_balances'] })
+src\modules\workdays\hooks\useCashMovements.ts:41:      
+queryClient.invalidateQueries({ queryKey: 
+['courier_pending_balances'] })
+src\modules\workdays\hooks\useCashMovements.ts:42:      
+queryClient.invalidateQueries({ queryKey: ['dashboard'] 
+})
+src\modules\workdays\hooks\useWorkday.ts:38:      
+queryClient.invalidateQueries({ queryKey: 
+['active-workday', data.courier_id] })
+src\modules\workdays\hooks\useWorkday.ts:39:      
+queryClient.invalidateQueries({ queryKey: ['workdays'] })
+src\modules\workdays\hooks\useWorkday.ts:40:      
+queryClient.refetchQueries({ queryKey: ['workdays'], 
+type: 'active' })
+src\modules\workdays\hooks\useWorkday.ts:41:      
+queryClient.invalidateQueries({ queryKey: ['dashboard'] 
+})
+src\modules\workdays\hooks\useWorkday.ts:42:      
+queryClient.refetchQueries({ queryKey: ['dashboard'], 
+type: 'active' })
+src\modules\workdays\hooks\useWorkday.ts:53:      
+queryClient.invalidateQueries({ queryKey: 
+['active-workday', data.courier_id] })
+src\modules\workdays\hooks\useWorkday.ts:54:      
+queryClient.invalidateQueries({ queryKey: ['workdays'] })
+src\modules\workdays\hooks\useWorkday.ts:55:      
+queryClient.refetchQueries({ queryKey: ['workdays'], 
+type: 'active' })
+src\modules\workdays\hooks\useWorkday.ts:56:      
+queryClient.invalidateQueries({ queryKey: ['dashboard'] 
+})
+src\modules\workdays\hooks\useWorkday.ts:57:      
+queryClient.refetchQueries({ queryKey: ['dashboard'], 
+type: 'active' })
+src\modules\workdays\services\workdaysService.ts:36:    
+.from('tasks')
+src\modules\workdays\services\workdaysService.ts:286:    
+.from('tasks')
+src\pages\admin\AuditPage.tsx:97:          
+queryClient.invalidateQueries({ queryKey: ['audit-logs'] 
+})
+src\pages\admin\DashboardPage.tsx:48:      .from('tasks')
+src\pages\courier\NotificationsPage.tsx:111:    // 
+useTasksRealtime (Broadcast+CDC).
+src\pages\courier\NotificationsPage.tsx:121:    
+onSuccess: () => queryClient.invalidateQueries({ 
+queryKey: ['notifications', userId] }),
+src\pages\courier\NotificationsPage.tsx:126:    
+onSuccess: () => queryClient.invalidateQueries({ 
+queryKey: ['notifications', userId] }),
+src\shared\lib\offlineQueue.ts:214:          
+.from('tasks')
+src\shared\lib\offlineQueue.ts:243:                
+.from('tasks')
+
+
