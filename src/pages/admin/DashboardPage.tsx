@@ -17,6 +17,7 @@ import {
   Printer,
   ChevronRight,
   Sparkles,
+  TriangleAlert,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -24,6 +25,7 @@ import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useBranches } from '@/modules/branches/hooks/useBranches'
 import { calculateWorkdayCashSummary } from '@/modules/workdays/utils/workdayCalculations'
+import { useAllCouriersPendingBalances } from '@/modules/settlements/hooks/usePendingBalances'
 import {
   Card,
   CardTitle,
@@ -450,6 +452,29 @@ export default function DashboardPage() {
 
   const { data, isLoading } = useDashboard(effectiveBranchIds, selectedDate)
 
+  // Alertas de pendientes de días anteriores
+  const { data: pendingBalances = [] } = useAllCouriersPendingBalances(
+    selectedBranchId !== 'all' ? selectedBranchId : undefined
+  )
+
+  const { data: overdueTaskCount = 0 } = useQuery({
+    queryKey: ['dashboard-overdue-tasks', effectiveBranchIds, todayStr],
+    queryFn: async () => {
+      let q = supabase
+        .from('tasks')
+        .select('id', { count: 'exact', head: true })
+        .lt('scheduled_date', todayStr)
+        .in('status', ['pending', 'assigned', 'en_route', 'in_progress'])
+        .is('deleted_at', null)
+      if (effectiveBranchIds.length > 0) q = q.in('branch_id', effectiveBranchIds)
+      const { count } = await q
+      return count ?? 0
+    },
+    staleTime: 1000 * 60 * 5,
+  })
+
+  const hasPendingAlerts = pendingBalances.length > 0 || overdueTaskCount > 0
+
   // ─── Cálculos y Métricas Consolidadas ─────────────────────────────────────────
 
   const kpis = useMemo(() => {
@@ -748,6 +773,55 @@ export default function DashboardPage() {
           </div>
         </div>
       </BentoCard>
+
+      {/* BANNER: Pendientes de días anteriores */}
+      {hasPendingAlerts && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <TriangleAlert className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+            <div className="space-y-1 min-w-0">
+              <p className="text-sm font-bold text-amber-900">
+                Hay asuntos pendientes de días anteriores
+              </p>
+              <ul className="space-y-0.5 text-xs text-amber-800">
+                {pendingBalances.length > 0 && (
+                  <li>
+                    <span className="font-semibold">{pendingBalances.length}</span>{' '}
+                    {pendingBalances.length === 1
+                      ? 'motorizado tiene saldo pendiente sin liquidar'
+                      : 'motorizados tienen saldos pendientes sin liquidar'}
+                    {' '}({pendingBalances.map((p) => p.courierName || p.courierId).join(', ')})
+                  </li>
+                )}
+                {overdueTaskCount > 0 && (
+                  <li>
+                    <span className="font-semibold">{overdueTaskCount}</span>{' '}
+                    {overdueTaskCount === 1
+                      ? 'tarea de días anteriores sigue activa sin resolver'
+                      : 'tareas de días anteriores siguen activas sin resolver'}
+                  </li>
+                )}
+              </ul>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {pendingBalances.length > 0 && (
+              <Link to="/admin/liquidaciones">
+                <Button variant="outline" size="sm" className="border-amber-300 bg-white text-amber-900 hover:bg-amber-100 text-xs">
+                  Ver Liquidaciones
+                </Button>
+              </Link>
+            )}
+            {overdueTaskCount > 0 && (
+              <Link to={`/admin/tareas?fecha_hasta=${todayStr}`}>
+                <Button variant="outline" size="sm" className="border-amber-300 bg-white text-amber-900 hover:bg-amber-100 text-xs">
+                  Ver Tareas
+                </Button>
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ESTADO DE CARGA SKELETON */}
       {isLoading || !kpis ? (
