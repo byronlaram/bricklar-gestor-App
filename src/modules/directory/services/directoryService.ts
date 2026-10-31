@@ -55,7 +55,9 @@ export async function getDirectoryContacts(filters?: DirectoryFilters): Promise<
     }
 
     const contacts = (data ?? []) as unknown as DirectoryContact[]
-    setLocalContacts(contacts)
+    if (contacts.length > 0) {
+      setLocalContacts(contacts)
+    }
     return contacts
   } catch (err) {
     console.warn('[Directory] Exception reading contacts, fallback to local:', err)
