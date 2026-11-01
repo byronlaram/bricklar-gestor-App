@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Sparkles,
   TriangleAlert,
+  X,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -425,6 +426,7 @@ export default function DashboardPage() {
 
   const [selectedBranchId, setSelectedBranchId] = useState<string>(defaultBranch)
   const [selectedDate, setSelectedDate] = useState<string>(todayStr)
+  const [showOverdueTasks, setShowOverdueTasks] = useState(false)
 
   const isToday = selectedDate === todayStr
   const isYesterday = selectedDate === yesterdayStr
@@ -457,22 +459,25 @@ export default function DashboardPage() {
     selectedBranchId !== 'all' ? selectedBranchId : undefined
   )
 
-  const { data: overdueTaskCount = 0 } = useQuery({
+  const { data: overdueTasks = [] } = useQuery({
     queryKey: ['dashboard-overdue-tasks', effectiveBranchIds, todayStr],
     queryFn: async () => {
       let q = supabase
         .from('tasks')
-        .select('id', { count: 'exact', head: true })
+        .select('id, title, status, scheduled_date, branch_id')
         .lt('scheduled_date', todayStr)
         .in('status', ['pending', 'assigned', 'en_route', 'in_progress'])
         .is('deleted_at', null)
+        .order('scheduled_date', { ascending: true })
+        .limit(100)
       if (effectiveBranchIds.length > 0) q = q.in('branch_id', effectiveBranchIds)
-      const { count } = await q
-      return count ?? 0
+      const { data } = await q
+      return data ?? []
     },
     staleTime: 1000 * 60 * 5,
   })
 
+  const overdueTaskCount = overdueTasks.length
   const hasPendingAlerts = pendingBalances.length > 0 || overdueTaskCount > 0
 
   // ─── Cálculos y Métricas Consolidadas ─────────────────────────────────────────
@@ -813,12 +818,60 @@ export default function DashboardPage() {
               </Link>
             )}
             {overdueTaskCount > 0 && (
-              <Link to={`/admin/tareas?fecha_hasta=${todayStr}`}>
-                <Button variant="outline" size="sm" className="border-amber-300 bg-white text-amber-900 hover:bg-amber-100 text-xs">
-                  Ver Tareas
-                </Button>
-              </Link>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-amber-300 bg-white text-amber-900 hover:bg-amber-100 text-xs"
+                onClick={() => setShowOverdueTasks((v) => !v)}
+              >
+                {showOverdueTasks ? 'Ocultar Tareas' : 'Ver Tareas'}
+              </Button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* PANEL: Lista de tareas pendientes de días anteriores */}
+      {showOverdueTasks && overdueTaskCount > 0 && (
+        <div className="rounded-xl border border-amber-200 bg-white overflow-hidden">
+          <div className="px-4 py-3 bg-amber-50 border-b border-amber-200 flex items-center justify-between">
+            <p className="text-sm font-semibold text-amber-900">
+              Tareas pendientes de días anteriores ({overdueTaskCount})
+            </p>
+            <button
+              onClick={() => setShowOverdueTasks(false)}
+              className="text-amber-600 hover:text-amber-900 p-0.5 rounded"
+              aria-label="Cerrar"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+          <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
+            {overdueTasks.map((task) => (
+              <div key={task.id} className="px-4 py-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-slate-900 truncate">{task.title}</p>
+                  <p className="text-xs text-slate-500">{formatDate(task.scheduled_date)}</p>
+                </div>
+                <Badge
+                  variant={task.status as 'pending' | 'assigned' | 'en_route' | 'in_progress'}
+                  size="sm"
+                >
+                  {task.status === 'pending' && 'Pendiente'}
+                  {task.status === 'assigned' && 'Asignada'}
+                  {task.status === 'en_route' && 'En ruta'}
+                  {task.status === 'in_progress' && 'En gestión'}
+                </Badge>
+              </div>
+            ))}
+          </div>
+          <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50 flex justify-end">
+            <Link
+              to="/admin/tareas"
+              className="text-xs text-accent font-medium hover:underline flex items-center gap-1"
+            >
+              Ver todas en Tareas <ArrowRight className="h-3 w-3" />
+            </Link>
           </div>
         </div>
       )}
