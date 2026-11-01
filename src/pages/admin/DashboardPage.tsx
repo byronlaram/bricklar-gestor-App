@@ -20,6 +20,7 @@ import {
   TriangleAlert,
   X,
   Loader2,
+  ExternalLink,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -888,6 +889,15 @@ export default function DashboardPage() {
                         <option value="cancelled">Cancelada</option>
                       </select>
                     )}
+                    <Link
+                      to={`/admin/tareas/${task.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1 rounded text-slate-400 hover:text-accent hover:bg-slate-100 transition-colors"
+                      title="Ver detalle completo"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </Link>
                   </div>
                 </div>
               )
