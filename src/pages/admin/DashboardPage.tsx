@@ -19,9 +19,10 @@ import {
   Sparkles,
   TriangleAlert,
   X,
+  Loader2,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/shared/lib/supabaseClient'
 import { useAuth } from '@/modules/auth/useAuth'
 import { useBranches } from '@/modules/branches/hooks/useBranches'
@@ -424,9 +425,20 @@ export default function DashboardPage() {
   const defaultBranch =
     profile?.primary_branch_id || (profile?.branch_ids && profile.branch_ids.length === 1 ? profile.branch_ids[0] : 'all')
 
+  const queryClient = useQueryClient()
   const [selectedBranchId, setSelectedBranchId] = useState<string>(defaultBranch)
   const [selectedDate, setSelectedDate] = useState<string>(todayStr)
   const [showOverdueTasks, setShowOverdueTasks] = useState(false)
+
+  const updateTaskStatus = useMutation({
+    mutationFn: async ({ id, status }: { id: string; status: string }) => {
+      const { error } = await supabase.from('tasks').update({ status }).eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dashboard-overdue-tasks'] })
+    },
+  })
 
   const isToday = selectedDate === todayStr
   const isYesterday = selectedDate === yesterdayStr
@@ -847,27 +859,39 @@ export default function DashboardPage() {
             </button>
           </div>
           <div className="divide-y divide-slate-100 max-h-80 overflow-y-auto">
-            {overdueTasks.map((task) => (
-              <div key={task.id} className="px-4 py-3 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate">{task.title}</p>
-                  <p className="text-xs text-slate-500">{formatDate(task.scheduled_date)}</p>
+            {overdueTasks.map((task) => {
+              const isUpdating =
+                updateTaskStatus.isPending && updateTaskStatus.variables?.id === task.id
+              return (
+                <div key={task.id} className="px-4 py-3 flex items-center gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900 truncate">{task.title}</p>
+                    <p className="text-xs text-slate-500">{formatDate(task.scheduled_date)}</p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    {isUpdating ? (
+                      <Loader2 className="h-4 w-4 animate-spin text-slate-400" />
+                    ) : (
+                      <select
+                        value={task.status}
+                        disabled={updateTaskStatus.isPending}
+                        onChange={(e) =>
+                          updateTaskStatus.mutate({ id: task.id, status: e.target.value })
+                        }
+                        className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 cursor-pointer focus:outline-none focus:ring-1 focus:ring-amber-400 disabled:opacity-50"
+                      >
+                        <option value="pending">Pendiente</option>
+                        <option value="assigned">Asignada</option>
+                        <option value="en_route">En ruta</option>
+                        <option value="in_progress">En gestión</option>
+                        <option value="completed">✓ Completada</option>
+                        <option value="cancelled">Cancelada</option>
+                      </select>
+                    )}
+                  </div>
                 </div>
-                <Badge
-                  variant={
-                    task.status === 'in_progress'
-                      ? 'urgent'
-                      : (task.status as 'pending' | 'assigned' | 'en_route')
-                  }
-                  size="sm"
-                >
-                  {task.status === 'pending' && 'Pendiente'}
-                  {task.status === 'assigned' && 'Asignada'}
-                  {task.status === 'en_route' && 'En ruta'}
-                  {task.status === 'in_progress' && 'En gestión'}
-                </Badge>
-              </div>
-            ))}
+              )
+            })}
           </div>
           <div className="px-4 py-2.5 border-t border-slate-100 bg-slate-50 flex justify-end">
             <Link
