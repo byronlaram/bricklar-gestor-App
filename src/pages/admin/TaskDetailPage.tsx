@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import {
   ArrowLeft,
   UserPlus,
@@ -53,6 +53,8 @@ import { formatGeoDistance, type DeliveryGeoVerification } from '@/shared/utils/
 export default function TaskDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  const backPath = (location.state as { from?: string } | null)?.from ?? '/admin/tareas'
   const toast = useToast()
 
   // Scroll al tope siempre que se abre el detalle de una tarea
@@ -130,7 +132,7 @@ export default function TaskDetailPage() {
         </div>
         <div className="pt-2">
           <Button
-            onClick={() => navigate('/admin/tareas')}
+            onClick={() => navigate(backPath)}
             variant="outline"
             size="md"
             leftIcon={<ArrowLeft className="h-4 w-4" />}
@@ -148,7 +150,7 @@ export default function TaskDetailPage() {
       await deleteTask(task.id)
       toast.success('La tarea se eliminó correctamente.')
       setIsConfirmDeleteOpen(false)
-      navigate('/admin/tareas')
+      navigate(backPath)
     } catch (err: unknown) {
       console.error('Error al eliminar tarea:', err)
       toast.error(
@@ -165,7 +167,7 @@ export default function TaskDetailPage() {
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate('/admin/tareas')}
+          onClick={() => navigate(backPath)}
           leftIcon={<ArrowLeft className="h-4 w-4" />}
           className="text-slate-600 hover:text-slate-900 -ml-2"
         >

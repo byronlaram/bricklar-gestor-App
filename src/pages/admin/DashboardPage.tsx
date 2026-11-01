@@ -487,7 +487,7 @@ export default function DashboardPage() {
       const { data } = await q
       return data ?? []
     },
-    staleTime: 1000 * 60 * 5,
+    staleTime: 0,
   })
 
   const overdueTaskCount = overdueTasks.length
@@ -891,6 +891,7 @@ export default function DashboardPage() {
                     )}
                     <Link
                       to={`/admin/tareas/${task.id}`}
+                      state={{ from: '/admin' }}
                       className="p-1 rounded text-slate-400 hover:text-accent hover:bg-slate-100 transition-colors"
                       title="Ver detalle completo"
                     >
