@@ -854,7 +854,11 @@ export default function DashboardPage() {
                   <p className="text-xs text-slate-500">{formatDate(task.scheduled_date)}</p>
                 </div>
                 <Badge
-                  variant={task.status as 'pending' | 'assigned' | 'en_route' | 'in_progress'}
+                  variant={
+                    task.status === 'in_progress'
+                      ? 'urgent'
+                      : (task.status as 'pending' | 'assigned' | 'en_route')
+                  }
                   size="sm"
                 >
                   {task.status === 'pending' && 'Pendiente'}
