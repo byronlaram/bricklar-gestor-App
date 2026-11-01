@@ -429,7 +429,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient()
   const [selectedBranchId, setSelectedBranchId] = useState<string>(defaultBranch)
   const [selectedDate, setSelectedDate] = useState<string>(todayStr)
-  const [showOverdueTasks, setShowOverdueTasks] = useState(false)
+  const [showOverdueTasks, setShowOverdueTasks] = useState(true)
 
   const updateTaskStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
@@ -891,8 +891,6 @@ export default function DashboardPage() {
                     )}
                     <Link
                       to={`/admin/tareas/${task.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
                       className="p-1 rounded text-slate-400 hover:text-accent hover:bg-slate-100 transition-colors"
                       title="Ver detalle completo"
                     >
