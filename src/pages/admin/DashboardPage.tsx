@@ -491,7 +491,23 @@ export default function DashboardPage() {
   })
 
   const overdueTaskCount = overdueTasks.length
-  const hasPendingAlerts = pendingBalances.length > 0 || overdueTaskCount > 0
+
+  // Desglose por tipo de problema financiero
+  const couriersWithUnclosed = pendingBalances.filter((p) =>
+    p.breakdown.some((b) => b.status === 'unclosed_workday')
+  )
+  const couriersWithUnapproved = pendingBalances.filter((p) =>
+    p.breakdown.some((b) => b.status === 'unapproved_settlement')
+  )
+  const couriersWithPendingReview = pendingBalances.filter((p) =>
+    p.breakdown.some((b) => b.status === 'pending_settlement')
+  )
+
+  const hasSettlementAlerts =
+    couriersWithUnclosed.length > 0 ||
+    couriersWithUnapproved.length > 0 ||
+    couriersWithPendingReview.length > 0
+  const hasPendingAlerts = hasSettlementAlerts || overdueTaskCount > 0
 
   // ─── Cálculos y Métricas Consolidadas ─────────────────────────────────────────
 
@@ -802,13 +818,30 @@ export default function DashboardPage() {
                 Hay asuntos pendientes de días anteriores
               </p>
               <ul className="space-y-0.5 text-xs text-amber-800">
-                {pendingBalances.length > 0 && (
+                {couriersWithUnclosed.length > 0 && (
                   <li>
-                    <span className="font-semibold">{pendingBalances.length}</span>{' '}
-                    {pendingBalances.length === 1
-                      ? 'motorizado tiene saldo pendiente sin liquidar'
-                      : 'motorizados tienen saldos pendientes sin liquidar'}
-                    {' '}({pendingBalances.map((p) => p.courierName || p.courierId).join(', ')})
+                    <span className="font-semibold">{couriersWithUnclosed.length}</span>{' '}
+                    {couriersWithUnclosed.length === 1 ? 'jornada sin cerrar' : 'jornadas sin cerrar'}{' '}
+                    — necesita Cierre Diario{' '}
+                    ({couriersWithUnclosed.map((p) => p.courierName || p.courierId).join(', ')})
+                  </li>
+                )}
+                {couriersWithUnapproved.length > 0 && (
+                  <li>
+                    <span className="font-semibold">{couriersWithUnapproved.length}</span>{' '}
+                    {couriersWithUnapproved.length === 1
+                      ? 'jornada cerrada sin liquidación entregada'
+                      : 'jornadas cerradas sin liquidación entregada'}{' '}
+                    ({couriersWithUnapproved.map((p) => p.courierName || p.courierId).join(', ')})
+                  </li>
+                )}
+                {couriersWithPendingReview.length > 0 && (
+                  <li>
+                    <span className="font-semibold">{couriersWithPendingReview.length}</span>{' '}
+                    {couriersWithPendingReview.length === 1
+                      ? 'liquidación enviada pendiente de aprobación'
+                      : 'liquidaciones enviadas pendientes de aprobación'}{' '}
+                    ({couriersWithPendingReview.map((p) => p.courierName || p.courierId).join(', ')})
                   </li>
                 )}
                 {overdueTaskCount > 0 && (
@@ -822,8 +855,15 @@ export default function DashboardPage() {
               </ul>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {pendingBalances.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            {couriersWithUnclosed.length > 0 && (
+              <Link to="/admin/cierre-diario">
+                <Button variant="outline" size="sm" className="border-amber-300 bg-white text-amber-900 hover:bg-amber-100 text-xs">
+                  Cierre Diario
+                </Button>
+              </Link>
+            )}
+            {(couriersWithUnapproved.length > 0 || couriersWithPendingReview.length > 0) && (
               <Link to="/admin/liquidaciones">
                 <Button variant="outline" size="sm" className="border-amber-300 bg-white text-amber-900 hover:bg-amber-100 text-xs">
                   Ver Liquidaciones
